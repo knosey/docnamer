@@ -37,9 +37,30 @@ There is no published or importable library API for a host to import.
 Internally the code may still be organised as modules. It is the external
 surface that is CLI-only.
 
+## D4. Model calls go through pi's provider library
+
+Every model call, for classification and for extraction, in text and in vision,
+goes through `@earendil-works/pi-ai` version 1.3.0. The application imports that
+library and reaches the provider through it. It does not hand-roll a provider
+HTTP layer.
+
+This does not break D1. `@earendil-works/pi-ai` is the model layer only, and its
+own dependencies are `openai`, `@anthropic-ai/sdk`, `@google/genai`,
+`@aws-sdk/client-bedrock-runtime`, `@smithy/node-http-handler`,
+`http-proxy-agent`, `https-proxy-agent`, `partial-json`, `typebox` and
+`@earendil-works/pi-telemetry`. It does not depend on
+`@earendil-works/pi-coding-agent`, which is the package D1 forbids.
+
+Its public surface, read from `dist/index.d.ts` at version 1.3.0: it exports
+`createModels(options?)` returning `MutableModels`, `createProvider(...)`, the
+`Models` interface whose stream options include `ModelsSimpleStreamOptions`,
+`ModelsImagesOptions` and `ModelsClassifierOptions`, the auth surface from
+`auth/credential-store.ts`, and it re-exports `Type`, `Static` and `TSchema`
+from `typebox`, which is how structured output is expressed.
+
 ## Open questions
 
-The interview should ask about these, and about nothing in D1 to D3.
+The interview should ask about these, and about nothing in D1 to D4.
 
 1. Where does the binary install? `~/.local/bin` is chezmoi-managed on this
    machine, so a file placed there becomes chezmoi-tracked. Alternatives are
