@@ -44,6 +44,16 @@ function extOf(p: string): string {
   return m ? m[0] : ''
 }
 
+/**
+ * A filename without its extension. The fallback name for a row nothing could
+ * analyse is its own stem: buildName re-appends the extension, and handing it
+ * the whole filename would render "scan.pdf.pdf".
+ */
+function stemOf(name: string): string {
+  const e = extOf(name)
+  return e ? name.slice(0, name.length - e.length) : name
+}
+
 function flatten(checked: Checked): {
   fields: Record<string, string>
   evidence: Record<string, string>
@@ -104,26 +114,24 @@ export async function plan(
       )
       if (isFailed(result as never)) {
         failedReason = (result as { reason: string }).reason
-        checked = { type: 'other', type_confidence: 0, fields: {}, summary: old, flags: [] }
+        checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
       } else {
         checked = validate(result as Analysis, content, config)
       }
     } catch (e) {
       failedReason = (e as Error)?.message ?? String(e)
-      checked = { type: 'other', type_confidence: 0, fields: {}, summary: old, flags: [] }
+      checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
     }
 
     const { fields, evidence } = flatten(checked)
     const flags = [...checked.flags]
-    let name: string
-    if (failedReason !== null) {
-      flags.push(`analysis failed: ${failedReason}`)
-      // Without an analysis there is nothing to render; the row keeps the
-      // original name so the plan is a faithful no-op for this document.
-      name = old
-    } else {
-      name = await buildName(checked, config, { dir: folder, ext: extOf(old) }, planned)
-    }
+    if (failedReason !== null) flags.push(`analysis failed: ${failedReason}`)
+
+    // EVERY row goes through Stage 4, a failed one included. A row that kept
+    // its own name would propose a name already on disk by definition, and I3
+    // forbids that. buildName seeds `planned` with every name on disk, so the
+    // failed row lands on the stem plus a Finder-style " (2)" (I3).
+    const name = await buildName(checked, config, { dir: folder, ext: extOf(old) }, planned)
 
     rows.push({
       old,
