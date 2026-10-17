@@ -108,7 +108,7 @@
   - Consumes: `read(file: string, config: Config): Promise<Content>`; `analyse(content: Content, fileName: string, config: Config): Promise<Analysis | Failed>`; `validate(a: Analysis, content: Content, config: Config): Checked`; `type Checked`; `type Config`
   - Produces: `buildName(checked: Checked, config: Config, file: { dir: string; ext: string }, planned: Set<string>): Promise<string>`; `sanitise(s: string): string`; `renderTemplate(t: string, fields: Record<string, string>): string`; `plan(folder: string, opts: { recursive: boolean; applyUnflagged: boolean }, config: Config): Promise<PlanRow[]>`; `type PlanRow = { old: string; new: string; type: string; fields: Record<string, string>; evidence: Record<string, string>; flags: string[]; summary: string; size: number; mtime: number; status: "pending" | "accepted" | "skipped" }`; `writePlan(folder: string, rows: PlanRow[]): Promise<void>`; `main(argv: string[]): Promise<number>`
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
-- Reference: `ls tests/fixtures`
+- Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
 **failed** · run `ship-feature-08bbaa`
 - Commits: none recorded
