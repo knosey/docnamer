@@ -30,11 +30,11 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun --version`
 <!-- record:T1 -->
-**hole** · run `ship-feature-562921`
-- Commits: none — HEAD stayed at `3b7b5b5`
-- Landed: [tests/config.test.ts](../../../tests/config.test.ts), [tests/manifest.test.ts](../../../tests/manifest.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✗
-- Summary: reference — tests/config.test.ts, tests/manifest.test.ts runs the reference but not through GRAPH_REFERENCE — the runner swaps it to prove the test's verdict follows it
+**done** · run `ship-feature-08bbaa`
+- Commits: none — HEAD stayed at `340bfdb`
+- Landed: [tests/config.test.ts](../../../tests/config.test.ts), [tests/manifest.test.ts](../../../tests/manifest.test.ts), [tests/name.test.ts](../../../tests/name.test.ts), [tests/plan.test.ts](../../../tests/plan.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
+- Summary: Wrote tests/config.test.ts and tests/manifest.test.ts for T1; `bun test tests/config.test.ts tests/manifest.test.ts` exits 1 with 3 test-reported failures for the missing src/config.ts and docnamer.yaml, so the gate is red on the missing work.
 <!-- /record:T1 -->
 
 ## T2: Stage 1 read ladder and fixtures
@@ -50,11 +50,11 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `shortcuts list`
 <!-- record:T2 -->
-**hole** · run `ship-feature-562921`
-- Commits: none — HEAD stayed at `3b7b5b5`
-- Landed: [tests/read.test.ts](../../../tests/read.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✗
-- Summary: reference — tests/read.test.ts runs the reference but not through GRAPH_REFERENCE — the runner swaps it to prove the test's verdict follows it
+**done** · run `ship-feature-08bbaa`
+- Commits: none — HEAD stayed at `340bfdb`
+- Landed: [tests/name.test.ts](../../../tests/name.test.ts), [tests/plan.test.ts](../../../tests/plan.test.ts), [tests/read.test.ts](../../../tests/read.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
+- Summary: Wrote tests/read.test.ts for T2 (Stage 1 read ladder and fixtures): it keeps `export const reference`, adds bun:test cases for the reference command, src/read.ts exports (read/downloadICloud/ocrPages), the tests/fixtures set (text-layer + scanned PDF, PNG, DOCX, TXT, byte-identical dup-invoice pair) and the read ladder incl. the I2 vision-only-on-weak-OCR rule; `bun test tests/read.test.ts` exits … [+117 chars]
 <!-- /record:T2 -->
 
 ## T3: Stage 2 classify-and-extract model call
@@ -69,11 +69,11 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun pm ls`
 <!-- record:T3 -->
-**failed** · run `ship-feature-562921`
-- Commits: none recorded
-- Landed: nothing
-- Gates: none recorded
-- Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun pm ls` exited 1: ``` error: missing lockfile, nothing to list note: run 'bun install' first ```
+**done** · run `ship-feature-08bbaa`
+- Commits: none — HEAD stayed at `340bfdb`
+- Landed: [tests/analyse.test.ts](../../../tests/analyse.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
+- Summary: Wrote tests/analyse.test.ts for T3 (Stage 2 classify-and-extract model call): it loads src/analyse.ts inside each check so the missing module is a reported failure, and covers the reference (`bun pm ls` → pi-ai@1.3.0), the exported surface, buildSchema, isFailed, and a real analyse() call on a text invoice.
 <!-- /record:T3 -->
 
 ## T4: Stage 3 validation and normalisers
@@ -88,11 +88,11 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**hole** · run `ship-feature-562921`
-- Commits: none — HEAD stayed at `3b7b5b5`
-- Landed: [tests/validate.test.ts](../../../tests/validate.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✗
-- Summary: reference — tests/validate.test.ts runs the reference but not through GRAPH_REFERENCE — the runner swaps it to prove the test's verdict follows it
+**done** · run `ship-feature-08bbaa`
+- Commits: none — HEAD stayed at `340bfdb`
+- Landed: [tests/name.test.ts](../../../tests/name.test.ts), [tests/plan.test.ts](../../../tests/plan.test.ts), [tests/validate.test.ts](../../../tests/validate.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
+- Summary: Wrote tests/validate.test.ts (cases only, below the preserved `reference` constant) covering T4's parseDate, normaliseMoney, canonicalEntity, reduceLast4, validate flags/normalisation, and retargetToOther; `bun test tests/validate.test.ts` is red for the right reason — 0 pass, 12 fail, exit 1, each failing check reporting "src/validate.ts is not written" via a caught dynamic import, not a load-tim… [+8 chars]
 <!-- /record:T4 -->
 
 ## T5: Stage 4 naming, plan command and CLI entry
@@ -110,15 +110,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T5 -->
-**failed** · run `ship-feature-562921`
+**failed** · run `ship-feature-08bbaa`
 - Commits: none recorded
 - Landed: nothing
 - Gates: none recorded
 - Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `ls tests/fixtures` exited 1: ``` ls: tests/fixtures: No such file or directory ```
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-562921`
-- Tasks: T1 hole · T2 hole · T3 failed · T4 hole · T5 failed
-- Commits: none — HEAD stayed at `3b7b5b5`
-- Detail: task-tests: fan-out child 'task-test#2' failed: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun pm ls` exited 1: ``` error: missing lockfile, nothing to list note: run 'bun install' first ``` — and landed nothing, so it is not a hole
+**failed** · run `ship-feature-08bbaa`
+- Tasks: T1 done · T2 done · T3 done · T4 done · T5 failed
+- Commits: none — HEAD stayed at `340bfdb`
+- Detail: task-tests: fan-out child 'task-test#4' failed: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `ls tests/fixtures` exited 1: ``` ls: tests/fixtures: No such file or directory ``` — and landed nothing, so it is not a hole
 <!-- /record:run -->
