@@ -9,9 +9,9 @@ export const reference = process.env.GRAPH_REFERENCE ?? String.raw`shortcuts lis
 // them through its OWN failure — a dynamic import whose error is asserted on, a
 // file listing whose emptiness is asserted on — never an uncaught throw at load.
 
-import { test, expect } from "bun:test"
+import { test, expect } from 'bun:test'
 
-const repo = import.meta.dir.replace(/\/tests$/, "")
+const repo = import.meta.dir.replace(/\/tests$/, '')
 const fixturesDir = `${repo}/tests/fixtures`
 
 /** Import a src module without letting a missing module crash the suite at load. */
@@ -23,12 +23,23 @@ async function importSrc(rel: string): Promise<any> {
   }
 }
 
-/** Every file under tests/fixtures/, relative paths; [] when the directory is absent. */
+/**
+ * Every file under tests/fixtures/, relative paths; [] when the directory is absent.
+ *
+ * The guard cannot be `Bun.file(dir).exists()`: in Bun 1.4.2 that is FALSE for a
+ * directory (while `.size` still reads it), so it reported an absent directory for
+ * a present one and emptied this list. The scan is its own check — it throws
+ * ENOENT exactly when the directory is missing, and nothing else when it is there.
+ */
 async function fixtureFiles(): Promise<string[]> {
-  if (!(await Bun.file(fixturesDir).exists())) return []
   const out: string[] = []
-  for await (const rel of new Bun.Glob("**/*").scan({ cwd: fixturesDir, onlyFiles: true })) {
-    out.push(rel)
+  try {
+    for await (const rel of new Bun.Glob('**/*').scan({ cwd: fixturesDir, onlyFiles: true })) {
+      out.push(rel)
+    }
+  } catch (err) {
+    if ((err as { code?: string }).code === 'ENOENT') return []
+    throw err
   }
   return out.sort()
 }
@@ -44,7 +55,7 @@ function withExt(files: string[], ext: string): string[] {
 
 // --- The reference -----------------------------------------------------------
 
-test("reference is the truth this suite is anchored to", async () => {
+test('reference is the truth this suite is anchored to', async () => {
   const [cmd, ...args] = reference.trim().split(/\s+/)
   let code = -1
   let stdout = ''
@@ -61,7 +72,7 @@ test("reference is the truth this suite is anchored to", async () => {
 
 // --- The module under test ---------------------------------------------------
 
-test("src/read.ts exports the Stage 1 read ladder", async () => {
+test('src/read.ts exports the Stage 1 read ladder', async () => {
   const mod = await importSrc('read.ts')
   expect(mod.__error?.message ?? '').toBe('')
   expect(typeof mod.read).toBe('function')
@@ -71,7 +82,7 @@ test("src/read.ts exports the Stage 1 read ladder", async () => {
 
 // --- Fixtures ----------------------------------------------------------------
 
-test("tests/fixtures holds the Stage 1 fixture set", async () => {
+test('tests/fixtures holds the Stage 1 fixture set', async () => {
   const files = await fixtureFiles()
   expect(files.length).toBeGreaterThan(0)
 
@@ -86,7 +97,7 @@ test("tests/fixtures holds the Stage 1 fixture set", async () => {
   expect(withExt(files, '.txt').length).toBeGreaterThanOrEqual(1)
 })
 
-test("tests/fixtures holds the byte-identical dup-invoice pair", async () => {
+test('tests/fixtures holds the byte-identical dup-invoice pair', async () => {
   const files = await fixtureFiles()
   const dups = files.filter(f => /dup-invoice/i.test(basename(f)))
   expect(dups.length).toBeGreaterThanOrEqual(2)
@@ -120,7 +131,7 @@ async function ladderConfig(): Promise<any> {
   return { ocrMinConfidence: 0.8, ocrConfidenceThreshold: 0.8, visionMinConfidence: 0.8 }
 }
 
-test("read() plans a text-layer document from its text, sending no image", async () => {
+test('read() plans a text-layer document from its text, sending no image', async () => {
   const mod = await importSrc('read.ts')
   expect(mod.__error?.message ?? '').toBe('')
 
@@ -136,7 +147,7 @@ test("read() plans a text-layer document from its text, sending no image", async
   expect(content.ocrConfidence).toBeNull()
 })
 
-test("read() reads a scanned document by OCR, never as a text layer", async () => {
+test('read() reads a scanned document by OCR, never as a text layer', async () => {
   const mod = await importSrc('read.ts')
   expect(mod.__error?.message ?? '').toBe('')
 
@@ -150,7 +161,7 @@ test("read() reads a scanned document by OCR, never as a text layer", async () =
   expect(content.pages).toBeGreaterThanOrEqual(1)
 })
 
-test("read() falls back to vision only when OCR is weak (I2)", async () => {
+test('read() falls back to vision only when OCR is weak (I2)', async () => {
   const mod = await importSrc('read.ts')
   expect(mod.__error?.message ?? '').toBe('')
 
@@ -172,7 +183,7 @@ test("read() falls back to vision only when OCR is weak (I2)", async () => {
   }
 })
 
-test("ocrPages() reports text, its length and a mean confidence", async () => {
+test('ocrPages() reports text, its length and a mean confidence', async () => {
   const mod = await importSrc('read.ts')
   expect(mod.__error?.message ?? '').toBe('')
 

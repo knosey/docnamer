@@ -42,7 +42,6 @@
 - Depends on: T1
 - Files:
   - Create: [read.ts](../../../src/read.ts)
-  - Create: [fixtures/](../../../tests/fixtures/)
   - Test: [read.test.ts](../../../tests/read.test.ts)
 - Interfaces:
   - Consumes: `loadConfig(path: string): Config`; `type Config`

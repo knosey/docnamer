@@ -7,8 +7,8 @@ defaults:
   finder_comment: true
 
 models:
-  cheap: anthropic/claude-haiku-4-5
-  vision: anthropic/claude-sonnet-4-5
+  cheap: fireworks/accounts/fireworks/models/deepseek-v4p1-flash
+  vision: fireworks/accounts/fireworks/models/qwen3p8-max
 
 types:
   invoice:
