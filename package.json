@@ -8,6 +8,7 @@
     "test:e2e": "bun test"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "1.3.0"
+    "@earendil-works/pi-ai": "1.3.0",
+    "mac-ocr": "^1.2.1"
   }
 }

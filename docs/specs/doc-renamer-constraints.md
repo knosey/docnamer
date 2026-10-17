@@ -69,7 +69,8 @@ The interview should ask about these, and about nothing in D1 to D4.
 3. Rename in place only, or also move into folders by type and year?
 4. Local model, cloud model, or local first with cloud for flagged files?
 5. Which local tools cover PDF text, page rendering and OCR? Installed today:
-   `shortcuts` and `brctl` are present; `tag` and `ocrmypdf` are not.
+   `shortcuts`, `brctl` and `swiftc` are present; `tag` is not. OCR runs on Apple
+   Vision through the `mac-ocr` project dependency, not a brew formula.
 6. Add an OCR text layer to scans, which rewrites the file, or leave originals
    untouched?
 7. Which fifteen or so document types does the operator actually have?

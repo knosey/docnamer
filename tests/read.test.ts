@@ -1,6 +1,7 @@
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? String.raw`swiftc --version`
+export const reference =
+  process.env.GRAPH_REFERENCE ?? String.raw`./node_modules/.bin/mac-ocr --version`
 
 // --- T2: Stage 1 read ladder and fixtures ------------------------------------
 //
@@ -55,8 +56,8 @@ function withExt(files: string[], ext: string): string[] {
 
 // --- The reference -----------------------------------------------------------
 
-// Stage 1's OCR engine is a Swift program (src/read.ts, the Vision helper): the
-// toolchain that builds it is the truth this suite is anchored to, and the OCR
+// Stage 1's OCR engine is mac-ocr (src/read.ts, the Vision wrapper): the tool
+// that does the recognising is the truth this suite is anchored to, and the OCR
 // test below cannot pass without it.
 test('reference is the truth this suite is anchored to', async () => {
   const [cmd, ...args] = reference.trim().split(/\s+/)
@@ -70,7 +71,7 @@ test('reference is the truth this suite is anchored to', async () => {
     throw new Error(`reference command did not run: ${String(err)}`)
   }
   expect(code).toBe(0)
-  expect(stdout).toMatch(/Apple Swift version \d+\.\d+/)
+  expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
 })
 
 // --- The module under test ---------------------------------------------------

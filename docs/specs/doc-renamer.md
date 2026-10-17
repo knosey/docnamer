@@ -270,7 +270,7 @@ Everything the tool writes is standard macOS metadata, so Finder and Spotlight r
 | Filename | Rename in place | Type any word or `2026-03` in Spotlight | On |
 | Finder tag per type | `tag --add Invoice file` (`brew install tag`), or write the `_kMDItemUserTags` attribute directly | `tag:Invoice` in Spotlight, or the Finder sidebar | On |
 | Finder comment (the 20-word summary) | Finder AppleScript: `set comment of (POSIX file p as alias) to s`, so Get Info and Spotlight both see it | Spotlight searches comment text | Off (slower: one Finder call per file) |
-| Searchable text layer for scans | `ocrmypdf --skip-text in.pdf out.pdf`, then replace the original | Spotlight finds any word on the page | Off (it rewrites the file) |
+| Searchable text layer for scans | `mac-ocr searchable-pdf in.pdf out.pdf`, then replace the original | Spotlight finds any word on the page | Off (it rewrites the file) |
 
 PDFs that already have text are searchable by content today; only scans and photos need the OCR layer.
 

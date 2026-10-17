@@ -44,56 +44,35 @@ export async function downloadICloud(file: string): Promise<void> {
   }
 }
 
-// --- macOS Vision OCR helper -------------------------------------------------
-// A tiny Swift program using VNRecognizeTextRequest, compiled once into the
-// temp directory and reused. Native Bun + platform frameworks only (D2).
+// --- macOS Vision OCR (mac-ocr) ----------------------------------------------
+// mac-ocr wraps VNRecognizeTextRequest in a prebuilt MIT binary shipped as a
+// project dependency, so the CLI depends on neither a global install nor a
+// first-run swiftc compile. Native Bun + platform frameworks only (D2).
 
-const OCR_SWIFT = `import Vision
-import Foundation
-var out: [[String: Any]] = []
-for path in CommandLine.arguments.dropFirst() {
-    let url = URL(fileURLWithPath: path)
-    let req = VNRecognizeTextRequest()
-    req.recognitionLevel = .accurate
-    req.usesLanguageCorrection = false
-    let handler = VNImageRequestHandler(url: url, options: [:])
-    try handler.perform([req])
-    var texts: [String] = []
-    var confs: [Double] = []
-    for obs in req.results ?? [] {
-        if let c = obs.topCandidates(1).first {
-            texts.append(c.string)
-            confs.append(Double(c.confidence))
-        }
-    }
-    let mean: Any = confs.isEmpty ? NSNull() : confs.reduce(0, +) / Double(confs.count)
-    out.append(["text": texts.joined(separator: "\\n"), "confidence": mean])
-}
-let data = try JSONSerialization.data(withJSONObject: out, options: [])
-FileHandle.standardOutput.write(data)
-`
+/** Resolve mac-ocr: PATH first, then this project's own install (R5). */
+let macOcrPromise: Promise<string> | null = null
 
-let ocrBinaryPromise: Promise<string> | null = null
-
-function ocrBinary(): Promise<string> {
-  if (!ocrBinaryPromise) {
-    ocrBinaryPromise = (async () => {
-      const bin = tmpPath('ocr-v1')
-      if (await Bun.file(bin).exists()) return bin
-      const src = tmpPath('ocr-v1.swift')
-      await Bun.write(src, OCR_SWIFT)
-      const proc = Bun.spawnSync(['swiftc', '-O', '-o', bin, src])
-      if (proc.exitCode !== 0) {
-        const signal = (proc as { signalCode?: string | null }).signalCode
-        throw new Error(
-          `ocrPages: failed to build the Vision OCR helper (exit ${proc.exitCode}, signal ${signal ?? 'none'}): ` +
-            `${proc.stderr.toString().trim()} ${proc.stdout.toString().trim()}`.trim()
-        )
-      }
-      return bin
+function macOcrBinary(): Promise<string> {
+  if (!macOcrPromise) {
+    macOcrPromise = (async () => {
+      const onPath = Bun.which('mac-ocr')
+      if (onPath !== null) return onPath
+      const local = `${import.meta.dir}/../node_modules/mac-ocr/bin/mac-ocr`
+      if (await Bun.file(local).exists()) return local
+      throw new Error(
+        `ocrPages: mac-ocr is not installed: nothing named mac-ocr on PATH and none at ${local}. Run \`bun add mac-ocr\`.`
+      )
     })()
   }
-  return ocrBinaryPromise
+  return macOcrPromise
+}
+
+/** One page of `mac-ocr --format json` output. */
+type MacOcrPage = {
+  page: number
+  pageCount: number
+  text: string
+  observations: { confidence: number; text: string }[]
 }
 
 /** OCR each page image; returns joined text, its length and the mean confidence. */
@@ -101,19 +80,19 @@ export async function ocrPages(
   pages: string[]
 ): Promise<{ text: string; chars: number; meanConfidence: number | null }> {
   if (pages.length === 0) return { text: '', chars: 0, meanConfidence: null }
-  const bin = await ocrBinary()
-  const proc = Bun.spawnSync([bin, ...pages])
+  const bin = await macOcrBinary()
+  const proc = Bun.spawnSync([bin, ...pages, '--format', 'json'])
   if (proc.exitCode !== 0) {
     throw new Error(
       `ocrPages: Vision OCR failed on ${pages.join(', ')}: ${proc.stderr.toString().trim()}`
     )
   }
-  const rows = JSON.parse(proc.stdout.toString()) as { text: string; confidence: number | null }[]
-  const text = rows
-    .map(r => r.text)
+  const results = JSON.parse(proc.stdout.toString()) as MacOcrPage[]
+  const text = results
+    .map(p => p.text)
     .filter(t => t.length > 0)
     .join('\n')
-  const confs = rows.map(r => r.confidence).filter((c): c is number => typeof c === 'number')
+  const confs = results.flatMap(p => p.observations.map(o => o.confidence))
   const meanConfidence = confs.length === 0 ? null : confs.reduce((a, b) => a + b, 0) / confs.length
   return { text, chars: text.length, meanConfidence }
 }
