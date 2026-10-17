@@ -43,10 +43,11 @@ export class Skipped extends Error {
   }
 }
 
-const repo = import.meta.dir.replace(/\/tests$/, '')
+/** Repo root. Exported so a spec can read the real config the harness seeds. */
+export const repo = import.meta.dir.replace(/\/tests$/, '')
 
 /** The folder's own config: Stage 1 SKIPs it, so it is never a plan row. */
-const CONFIG_FILE = 'docnamer.yaml'
+export const CONFIG_FILE = 'docnamer.yaml'
 
 function base(p: string): string {
   const parts = p.split('/')
