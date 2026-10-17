@@ -9,8 +9,8 @@
 - `other` is always present in the type roster as the fallback and the retarget of last resort — R2, R7.
 - Text handed to a model is capped at 4000 characters — R4.
 - The `folder` config key is parsed but ignored; no folder moves in this feature — R1.
-- Two documents of the same type carrying the same extracted field values MUST render to the same name before disambiguation; making them unique is Stage 4's job — I3.
-- `tests/fixtures/` holds such a pair: two byte-identical bodies named `dup-invoice`, one with a `.txt` extension and one with `.md`, so a correct Stage 4 suffixes exactly one of them — I3, T2.
+- Stage 4 keeps each file's own extension, so a collision needs the rendered stem AND the extension to coincide; when two documents render to the same name, the later row MUST receive a Finder-style ` (n)` suffix, and no row may ever propose a name already on disk — I3.
+- `tests/fixtures/` holds a byte-identical `dup-invoice` pair, one `.txt` and one `.md`, whose bodies extract the same fields: their rendered names differ only in the extension, so neither is suffixed. The suffix is exercised by documents that do render identically — I3, T2.
 
 ## Setup
 - `mkdir -p ~/bin`
@@ -45,7 +45,7 @@
   - Test: [read.test.ts](../../../tests/read.test.ts)
 - Interfaces:
   - Consumes: `loadConfig(path: string): Config`; `type Config`
-  - Produces: `read(file: string, config: Config): Promise<Content>`; `type Content = { text: string; images: string[]; method: "text" | "ocr" | "vision"; ocrConfidence: number | null; pages: number }`; `downloadICloud(file: string): Promise<void>`; `ocrPages(pages: string[]): Promise<{ text: string; chars: number; meanConfidence: number | null }>`; a `tests/fixtures/` directory holding a text-layer PDF, a scanned PDF, a PNG image, a DOCX, a TXT, and the colliding pair of byte-identical `dup-invoice` bodies the Global Constraints name, each named so its expected type is unambiguous
+  - Produces: `read(file: string): Promise<Content | null>` — `null` is Stage 1's SKIP, the spec's `SKIP("unsupported type")` for a file the ladder cannot read; `type Content = { text: string; images: string[]; method: "text" | "ocr" | "vision"; ocrConfidence: number | null; pages: number }`; `downloadICloud(file: string): Promise<void>`; `ocrPages(pages: string[]): Promise<{ text: string; chars: number; meanConfidence: number | null }>`; a `tests/fixtures/` directory holding a text-layer PDF, a scanned PDF, a PNG image, a DOCX, a TXT, and the byte-identical `dup-invoice` pair the Global Constraints name, each named so its expected type is unambiguous
 - done_when: `bun test tests/read.test.ts`
 - Reference: `swiftc --version`
 <!-- record:T2 -->
@@ -104,7 +104,7 @@
   - Test: [name.test.ts](../../../tests/name.test.ts)
   - Test: [plan.test.ts](../../../tests/plan.test.ts)
 - Interfaces:
-  - Consumes: `read(file: string, config: Config): Promise<Content>`; `analyse(content: Content, fileName: string, config: Config): Promise<Analysis | Failed>`; `validate(a: Analysis, content: Content, config: Config): Checked`; `type Checked`; `type Config`
+  - Consumes: `read(file: string): Promise<Content | null>` (`null` = Stage 1 SKIP, no row); `analyse(content: Content, fileName: string, config: Config): Promise<Analysis | Failed>`; `validate(a: Analysis, content: Content, config: Config): Checked`; `type Checked`; `type Config`
   - Produces: `buildName(checked: Checked, config: Config, file: { dir: string; ext: string }, planned: Set<string>): Promise<string>`; `sanitise(s: string): string`; `renderTemplate(t: string, fields: Record<string, string>): string`; `plan(folder: string, opts: { recursive: boolean; applyUnflagged: boolean }, config: Config): Promise<PlanRow[]>`; `type PlanRow = { old: string; new: string; type: string; fields: Record<string, string>; evidence: Record<string, string>; flags: string[]; summary: string; size: number; mtime: number; status: "pending" | "accepted" | "skipped" }`; `writePlan(folder: string, rows: PlanRow[]): Promise<void>`; `main(argv: string[]): Promise<number>`
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`

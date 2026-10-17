@@ -111,29 +111,6 @@ test('tests/fixtures holds the byte-identical dup-invoice pair', async () => {
 
 // --- The read ladder (R4, R5) and vision fallback (I2) ------------------------
 
-/** A Config for the ladder. Tries the real loader; falls back so the ladder is
- *  still exercised when loadConfig rejects the probe file. */
-async function ladderConfig(): Promise<any> {
-  const cfgMod = await importSrc('config.ts')
-  if (!cfgMod.__error && typeof cfgMod.loadConfig === 'function') {
-    const path = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-read-test-${crypto.randomUUID()}.json`
-    await Bun.write(
-      path,
-      JSON.stringify({
-        ocrMinConfidence: 0.8,
-        ocrConfidenceThreshold: 0.8,
-        visionMinConfidence: 0.8
-      })
-    )
-    try {
-      return await cfgMod.loadConfig(path)
-    } catch {
-      /* fall through to the literal below */
-    }
-  }
-  return { ocrMinConfidence: 0.8, ocrConfidenceThreshold: 0.8, visionMinConfidence: 0.8 }
-}
-
 test('read() plans a text-layer document from its text, sending no image', async () => {
   const mod = await importSrc('read.ts')
   expect(mod.__error?.message ?? '').toBe('')
@@ -142,7 +119,7 @@ test('read() plans a text-layer document from its text, sending no image', async
   const txt = withExt(files, '.txt')[0]
   expect(txt).toBeDefined()
 
-  const content = await mod.read(`${fixturesDir}/${txt}`, await ladderConfig())
+  const content = await mod.read(`${fixturesDir}/${txt}`)
   expect(content.method).toBe('text')
   expect(content.images).toEqual([])
   expect(content.text.trim().length).toBeGreaterThan(0)
@@ -158,7 +135,7 @@ test('read() reads a scanned document by OCR, never as a text layer', async () =
   const scanned = files.find(f => /scan/i.test(f) && f.toLowerCase().endsWith('.pdf'))
   expect(scanned).toBeDefined()
 
-  const content = await mod.read(`${fixturesDir}/${scanned}`, await ladderConfig())
+  const content = await mod.read(`${fixturesDir}/${scanned}`)
   expect(content.method === 'ocr' || content.method === 'vision').toBe(true)
   expect(content.ocrConfidence).not.toBeNull()
   expect(content.pages).toBeGreaterThanOrEqual(1)
@@ -172,7 +149,7 @@ test('read() falls back to vision only when OCR is weak (I2)', async () => {
   const scanned = files.find(f => /scan/i.test(f) && f.toLowerCase().endsWith('.pdf'))
   expect(scanned).toBeDefined()
 
-  const content = await mod.read(`${fixturesDir}/${scanned}`, await ladderConfig())
+  const content = await mod.read(`${fixturesDir}/${scanned}`)
   if (content.method === 'vision') {
     // Vision was chosen because OCR came back weak: page images were sent.
     expect(content.images.length).toBeGreaterThan(0)

@@ -3,11 +3,10 @@
  *
  * read() extracts a document's content by the cheapest faithful route:
  * a usable text layer first ("text"), macOS Vision OCR over page images
- * next ("ocr"), and a vision model over those same page images only when
- * OCR comes back weak ("vision"). Text handed onward is capped at 4000
- * characters (R4).
+ * next ("ocr"), and — when OCR comes back weak — the page images ride along
+ * as "vision" for Stage 2's model call, which is the only stage that looks
+ * at them. Text handed onward is capped at 4000 characters (R4).
  */
-import type { Config } from './config.ts'
 
 export type Content = {
   text: string
@@ -25,7 +24,7 @@ const OCR_MIN_CONFIDENCE = 0.8
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif'])
 
 function extOf(file: string): string {
-  const m = /\.[^.\/]+$/.exec(file)
+  const m = /\.[^./]+$/.exec(file)
   return m ? m[0].toLowerCase() : ''
 }
 
@@ -152,7 +151,7 @@ function pdfTextLayer(raw: string): string {
   // ( ... ) Tj
   for (const m of raw.matchAll(/\(((?:\\.|[^\\()])*)\)\s*Tj/g)) chunks.push(m[1])
   // [ ( ... ) -12 ( ... ) ] TJ
-  for (const m of raw.matchAll(/\[((?:[^\[\]]|\\.)*)\]\s*TJ/g)) {
+  for (const m of raw.matchAll(/\[((?:[^[\]]|\\.)*)\]\s*TJ/g)) {
     for (const s of m[1].matchAll(/\(((?:\\.|[^\\()])*)\)/g)) chunks.push(s[1])
   }
   return chunks.map(unescapePdfString).join(' ').replace(/\s+/g, ' ').trim()
@@ -174,43 +173,13 @@ function pdfToPng(file: string): string {
   return out
 }
 
-// --- Vision fallback (I2) ------------------------------------------------------
-
-async function readByVision(images: string[], config: Config): Promise<string> {
-  const { getModel, completeSimple } = await import('@earendil-works/pi-ai')
-  const ref = config.models.vision
-  const slash = ref.indexOf('/')
-  const model =
-    slash >= 0
-      ? getModel(ref.slice(0, slash) as never, ref.slice(slash + 1))
-      : (getModel('anthropic' as never, ref) ?? getModel('google' as never, ref))
-  if (!model)
-    throw new Error(`read: vision fallback needs a known model, config.models.vision is "${ref}"`)
-  const content: any[] = [
-    { type: 'text', text: 'Transcribe this document page verbatim. Reply with the text only.' }
-  ]
-  for (const img of images) {
-    const bytes = new Uint8Array(await Bun.file(img).arrayBuffer())
-    let bin = ''
-    for (const b of bytes) bin += String.fromCharCode(b)
-    content.push({ type: 'image', data: btoa(bin), mimeType: 'image/png' })
-  }
-  const msg = await completeSimple(
-    model as never,
-    { messages: [{ role: 'user', content }] } as never
-  )
-  const text = (msg as any).content
-    .filter((b: any) => b.type === 'text')
-    .map((b: any) => b.text)
-    .join('\n')
-  if (!text.trim())
-    throw new Error(`read: vision model ${ref} returned no text for ${images.join(', ')}`)
-  return text
-}
-
 // --- The ladder -----------------------------------------------------------------
 
-export async function read(file: string, config: Config): Promise<Content> {
+/**
+ * Reads one document. `null` is Stage 1's SKIP: a type the ladder cannot read is
+ * not an error, and spec Stage 1 returns SKIP("unsupported type") for it.
+ */
+export async function read(file: string): Promise<Content | null> {
   await downloadICloud(file)
   const ext = extOf(file)
 
@@ -259,9 +228,9 @@ export async function read(file: string, config: Config): Promise<Content> {
         pages
       }
     }
-    const text = await readByVision([png], config)
+    // OCR was weak: the page images ride along for Stage 2's vision call.
     return {
-      text: text.slice(0, TEXT_CAP),
+      text: ocr.text.slice(0, TEXT_CAP),
       images: [png],
       method: 'vision',
       ocrConfidence: ocr.meanConfidence,
@@ -280,9 +249,9 @@ export async function read(file: string, config: Config): Promise<Content> {
         pages: 1
       }
     }
-    const text = await readByVision([file], config)
+    // OCR was weak: the page image rides along for Stage 2's vision call.
     return {
-      text: text.slice(0, TEXT_CAP),
+      text: ocr.text.slice(0, TEXT_CAP),
       images: [file],
       method: 'vision',
       ocrConfidence: ocr.meanConfidence,
@@ -290,5 +259,5 @@ export async function read(file: string, config: Config): Promise<Content> {
     }
   }
 
-  throw new Error(`read: unsupported file type "${ext}" for ${file}`)
+  return null
 }

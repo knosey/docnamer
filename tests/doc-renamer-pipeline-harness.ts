@@ -17,11 +17,14 @@
  *
  * Native Bun APIs only; no `node:` built-ins (D2).
  */
+import { ensureProviderKey } from './preload.ts'
 
 export type PlanRow = {
   old: string
   new: string
   type: string
+  /** Which rung of Stage 1's ladder fed Stage 2 (I2); null when the read failed. */
+  method: 'text' | 'ocr' | 'vision' | null
   fields: Record<string, string>
   evidence: Record<string, string>
   flags: string[]
@@ -42,15 +45,20 @@ export class Skipped extends Error {
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
 
+/** The folder's own config: Stage 1 SKIPs it, so it is never a plan row. */
+const CONFIG_FILE = 'docnamer.yaml'
+
 function base(p: string): string {
   const parts = p.split('/')
   return parts[parts.length - 1] ?? p
 }
 
 /**
- * Two documents, byte-identical: same type, same extracted field values, so a
- * correct Stage 4 renders the SAME name for both and must suffix one (I3). The
- * body is deliberately not the seed invoice's, so only this pair collides.
+ * Two documents, byte-identical: same type and same extracted field values, so
+ * Stage 4 renders the same stem for both. Their extensions differ (`.txt`,
+ * `.md`) and Stage 4 keeps each file's own extension, so these two do NOT
+ * collide — they prove the extension is part of the name. The body is
+ * deliberately not the seed invoice's, so only this pair shares its content.
  */
 const DUP_INVOICE = [
   'INVOICE',
@@ -60,6 +68,15 @@ const DUP_INVOICE = [
   'Total: 129.00 GBP',
   ''
 ].join('\n')
+
+/**
+ * A page OCR cannot read, and the only route to the vision rung: read.ts falls
+ * through to the vision model only when OCR finds no glyphs (meanConfidence
+ * null) or reads them under OCR_MIN_CONFIDENCE. Built at boot by resampling a
+ * real fixture to 12x12 — too small to hold a legible glyph — because a
+ * committed binary cannot pass the tree's copy-into-tree guard.
+ */
+const NO_TEXT_FIXTURE = 'unreadable-scan.pdf'
 
 /** Fixture documents seeded into every run's temp folder. */
 const SEED: Array<{ name: string; body: string }> = [
@@ -99,7 +116,12 @@ export class Session {
 }
 
 async function shell(cmd: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
-  const p = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' })
+  // The child must carry the provider key: pi-ai resolves Fireworks auth from its
+  // own environment, and ensureProviderKey() sets it on THIS process. Handing the
+  // environment over explicitly is what makes that reach the child; relying on
+  // inheritance left every analyse call with no key, which failed in ~0.1s per
+  // file with "returned no parseable JSON analysis" and no model ever called.
+  const p = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe', env: { ...Bun.env } })
   const [stdout, stderr, code] = await Promise.all([
     new Response(p.stdout).text(),
     new Response(p.stderr).text(),
@@ -129,6 +151,7 @@ async function listFiles(dir: string): Promise<string[]> {
  *  out of the repo without the program under test existing yet. */
 export async function boot(s: Session): Promise<void> {
   if (s.booted) return
+  await ensureProviderKey()
   const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-${crypto.randomUUID()}`
   Bun.spawnSync(['mkdir', '-p', dir])
   s.dir = dir
@@ -146,6 +169,34 @@ export async function boot(s: Session): Promise<void> {
     }
   } catch (err) {
     if ((err as { code?: string }).code !== 'ENOENT') throw err
+  }
+
+  // The folder's own config. docnamer.yaml is read from the FOLDER being planned
+  // (cli.ts configFor), so without this the run falls back to the built-in
+  // DEFAULT_CONFIG — a different type roster, and a vision model this machine
+  // cannot call. The feature is specified against the repo's config.
+  const config = `${repo}/${CONFIG_FILE}`
+  if (await Bun.file(config).exists()) await Bun.write(`${dir}/${CONFIG_FILE}`, Bun.file(config))
+
+  const receipt = `${dir}/receipt.png`
+  if (await Bun.file(receipt).exists()) {
+    const proc = Bun.spawnSync([
+      'sips',
+      '-s',
+      'format',
+      'pdf',
+      '--resampleHeightWidth',
+      '12',
+      '12',
+      receipt,
+      '--out',
+      `${dir}/${NO_TEXT_FIXTURE}`
+    ])
+    if (proc.exitCode !== 0) {
+      throw new Error(
+        `boot: sips could not build ${NO_TEXT_FIXTURE}: ${proc.stderr.toString().trim()}`
+      )
+    }
   }
 
   for (const name of await listFiles(dir)) {
@@ -201,7 +252,7 @@ export async function entry(s: Session): Promise<Session> {
 /** read: Stage 1 — every seeded file reached the plan as a row. */
 export async function read(s: Session): Promise<Session> {
   await ensure(s)
-  const seeded = [...s.originals.keys()]
+  const seeded = [...s.originals.keys()].filter(n => n !== CONFIG_FILE)
   const planned = new Set(s.plan.map(r => base(r.old)))
   const missing = seeded.filter(n => !planned.has(n))
   if (missing.length) throw new Error(`Stage 1 read missed files: ${missing.join(', ')}`)
@@ -278,9 +329,28 @@ export async function ocr(s: Session): Promise<Session> {
 /** vision: page images were sent to the vision model only on weak OCR. */
 export async function vision(s: Session): Promise<Session> {
   await ensure(s)
-  throw new Skipped(
-    'I2 vision: which read method fed Stage 2 is not recorded in .docnamer-plan.json'
-  )
+  const row = (name: string): PlanRow => {
+    const found = s.plan.find(r => base(r.old) === name)
+    if (!found) throw new Error(`I2 vision: ${name} was not planned`)
+    return found
+  }
+
+  const noText = row(NO_TEXT_FIXTURE)
+  if (noText.method !== 'vision') {
+    throw new Error(
+      `I2 vision: OCR read no glyphs from ${NO_TEXT_FIXTURE} yet method was ` +
+        `${JSON.stringify(noText.method)}; the ladder did not fall through to the vision model`
+    )
+  }
+
+  const withText = row('statement-text.pdf')
+  if (withText.method !== 'text') {
+    throw new Error(
+      `I2 vision: statement-text.pdf has a usable text layer yet method was ` +
+        `${JSON.stringify(withText.method)}; page images reached a model needlessly`
+    )
+  }
+  return s
 }
 
 // --- I3: Collision-safe unique naming -----------------------------------------

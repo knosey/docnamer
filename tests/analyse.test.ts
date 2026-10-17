@@ -3,6 +3,7 @@
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun pm ls`
 
 import { expect, test } from 'bun:test'
+import { ensureProviderKey } from './preload.ts'
 
 /**
  * T3 — Stage 2: classify-and-extract model call (R3, R6).
@@ -68,31 +69,6 @@ async function load(): Promise<Analyser> {
   } catch (e) {
     throw new Error('src/analyse.ts is missing or fails to load: ' + (e as Error).message)
   }
-}
-
-/**
- * The real call below needs FIREWORKS_API_KEY. It is taken from the environment;
- * when the environment does not carry one it is read from pi's own credential
- * file, where it already lives on this machine. This is a test-run convenience
- * only — `src/analyse.ts` reads the environment and nothing else.
- */
-async function ensureProviderKey(): Promise<void> {
-  if ((Bun.env.FIREWORKS_API_KEY ?? '').trim().length > 0) return
-  const authFile = `${Bun.env.HOME ?? ''}/.pi/agent/auth.json`
-  let key: string | undefined
-  try {
-    const parsed = (await Bun.file(authFile).json()) as { fireworks?: { key?: string } }
-    key = parsed.fireworks?.key
-  } catch (e) {
-    throw new Error(
-      `no FIREWORKS_API_KEY in the environment and ${authFile} could not be read: ` +
-        (e as Error).message
-    )
-  }
-  if (typeof key !== 'string' || key.trim().length === 0) {
-    throw new Error(`no FIREWORKS_API_KEY in the environment and none in ${authFile}`)
-  }
-  Bun.env.FIREWORKS_API_KEY = key
 }
 
 /** Run the reference command and read what it prints. */

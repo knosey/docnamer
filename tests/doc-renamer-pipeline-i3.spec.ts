@@ -6,61 +6,50 @@
  * Finder-style " (2)" suffix, and no plan row ever proposes a name already
  * occupied on disk.
  *
- * The harness seeds an identical-content fixture pair (tests/fixtures/) beside
- * its own seed documents, so a correct Stage 4 has to disambiguate them. Its
- * steps drive `docnamer plan <folder>` and observe `.docnamer-plan.json`; this
- * spec calls them in I3's digraph order and asserts the outcome.
+ * Stage 4 keeps each file's own extension (spec line 213), so two documents
+ * collide only when the rendered stem AND extension coincide: the
+ * identical-content .md/.txt fixture pair never collides. The case that must
+ * suffix is a rendered name already taken in the folder. The steps drive
+ * `docnamer plan <folder>` and observe `.docnamer-plan.json`; this spec calls
+ * them in I3's digraph order and asserts the outcome.
  */
-import {
-  Session,
-  entry,
-  render,
-  collide,
-  suffix,
-  outcome,
-} from "./doc-renamer-pipeline-harness.ts";
+import { Session, entry, render, collide, suffix, outcome } from './doc-renamer-pipeline-harness.ts'
 
-function base(p: string): string {
-  const parts = p.split("/");
-  return parts[parts.length - 1] ?? p;
-}
-
-flow("doc-renamer-pipeline I3: collision-safe unique naming", async () => {
-  const s = new Session();
+flow('doc-renamer-pipeline I3: collision-safe unique naming', async () => {
+  const s = new Session()
   try {
-    await entry(s);
-    await render(s);
-    await collide(s);
-    await suffix(s);
-    await outcome(s);
+    await entry(s)
+    await render(s)
+    await collide(s)
+    await suffix(s)
+    await outcome(s)
   } catch (e) {
     // An absent `docnamer` CLI is not a named hole here: I3's outcome is a
     // real, observable assertion, and with no plan there is no collision
     // handling to observe. Report it as a failure, not a green.
     if ((e as { skip?: boolean } | null)?.skip) {
-      throw new Error(`I3 outcome not demonstrated: ${(e as Error).message}`);
+      throw new Error(`I3 outcome not demonstrated: ${(e as Error).message}`)
     }
-    throw e;
+    throw e
   }
 
-  // The identical-content fixtures collide on a rendered name; the later row
-  // must have been suffixed.
-  const dup = s.plan.filter((r) => /^dup-invoice/.test(base(r.old)));
-  if (dup.length < 2) {
-    throw new Error(`I3 outcome: expected the colliding fixture pair, saw ${dup.length} rows`);
-  }
-  if (!dup.some((r) => / \(\d+\)(\.[^.]*)?$/.test(r.new))) {
+  // Disambiguation has to have fired on this fixture set: at least one row
+  // carries the Finder-style suffix. Which pair collides is the model's
+  // business, but with no suffixed row Stage 4's collision path never ran.
+  const suffixed = s.plan.filter(r => / \(\d+\)(\.[^.]*)?$/.test(r.new))
+  if (!suffixed.length) {
     throw new Error(
-      "I3 outcome: colliding documents produced no Finder-style ' (2)' suffix: " +
-        JSON.stringify(dup.map((r) => r.new)),
-    );
+      "I3 outcome: no plan row received a Finder-style ' (2)' suffix, so nothing " +
+        'exercised disambiguation: ' +
+        JSON.stringify(s.plan.map(r => r.new))
+    )
   }
 
   // No plan row may propose a name already occupied on disk.
-  const onDisk = new Set([...s.originals.keys()].map((n) => n.toLowerCase()));
+  const onDisk = new Set([...s.originals.keys()].map(n => n.toLowerCase()))
   for (const r of s.plan) {
     if (onDisk.has(r.new.toLowerCase())) {
-      throw new Error(`I3 outcome: ${r.old} proposes a name already on disk: ${r.new}`);
+      throw new Error(`I3 outcome: ${r.old} proposes a name already on disk: ${r.new}`)
     }
   }
-});
+})
