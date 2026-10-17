@@ -9,6 +9,8 @@
 - `other` is always present in the type roster as the fallback and the retarget of last resort — R2, R7.
 - Text handed to a model is capped at 4000 characters — R4.
 - The `folder` config key is parsed but ignored; no folder moves in this feature — R1.
+- Two documents of the same type carrying the same extracted field values MUST render to the same name before disambiguation; making them unique is Stage 4's job — I3.
+- `tests/fixtures/` holds such a pair: two byte-identical bodies named `dup-invoice`, one with a `.txt` extension and one with `.md`, so a correct Stage 4 suffixes exactly one of them — I3, T2.
 
 ## Setup
 - `mkdir -p ~/bin`
@@ -39,7 +41,7 @@
   - Test: [read.test.ts](../../../tests/read.test.ts)
 - Interfaces:
   - Consumes: `loadConfig(path: string): Config`; `type Config`
-  - Produces: `read(file: string, config: Config): Promise<Content>`; `type Content = { text: string; images: string[]; method: "text" | "ocr" | "vision"; ocrConfidence: number | null; pages: number }`; `downloadICloud(file: string): Promise<void>`; `ocrPages(pages: string[]): Promise<{ text: string; chars: number; meanConfidence: number | null }>`; a `tests/fixtures/` directory holding a text-layer PDF, a scanned PDF, a PNG image, a DOCX and a TXT, each named so its expected type is unambiguous
+  - Produces: `read(file: string, config: Config): Promise<Content>`; `type Content = { text: string; images: string[]; method: "text" | "ocr" | "vision"; ocrConfidence: number | null; pages: number }`; `downloadICloud(file: string): Promise<void>`; `ocrPages(pages: string[]): Promise<{ text: string; chars: number; meanConfidence: number | null }>`; a `tests/fixtures/` directory holding a text-layer PDF, a scanned PDF, a PNG image, a DOCX, a TXT, and the colliding pair of byte-identical `dup-invoice` bodies the Global Constraints name, each named so its expected type is unambiguous
 - done_when: `bun test tests/read.test.ts`
 - Reference: `shortcuts list`
 <!-- record:T2 -->

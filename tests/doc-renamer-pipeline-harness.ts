@@ -47,6 +47,20 @@ function base(p: string): string {
   return parts[parts.length - 1] ?? p
 }
 
+/**
+ * Two documents, byte-identical: same type, same extracted field values, so a
+ * correct Stage 4 renders the SAME name for both and must suffix one (I3). The
+ * body is deliberately not the seed invoice's, so only this pair collides.
+ */
+const DUP_INVOICE = [
+  'INVOICE',
+  'Northwind Traders',
+  'Invoice number: INV-0777',
+  'Date: 11/04/2026',
+  'Total: 129.00 GBP',
+  ''
+].join('\n')
+
 /** Fixture documents seeded into every run's temp folder. */
 const SEED: Array<{ name: string; body: string }> = [
   {
@@ -63,7 +77,9 @@ const SEED: Array<{ name: string; body: string }> = [
   {
     name: 'letter-hmrc.txt',
     body: ['Dear Sir,', 'A letter from HMRC dated 12 March 2026.', ''].join('\n')
-  }
+  },
+  { name: 'dup-invoice.txt', body: DUP_INVOICE },
+  { name: 'dup-invoice.md', body: DUP_INVOICE }
 ]
 
 export class Session {
