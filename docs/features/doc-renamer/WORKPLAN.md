@@ -13,6 +13,21 @@
 ## Setup
 - `bun install`
 
+## T0: Package manifest and toolchain
+- Covers: R1, R2, R3
+- Depends on: none
+- Files:
+  - Create: [package.json](../../../package.json)
+  - Create: [tsconfig.json](../../../tsconfig.json)
+  - Test: [manifest.test.ts](../../../tests/manifest.test.ts)
+- Interfaces:
+  - Consumes: none
+  - Produces: a `package.json` declaring `@earendil-works/pi-ai` pinned at exactly `1.3.0`, `"type": "module"`, and the scripts `build` (`bun build --compile --outfile ~/bin/docnamer src/cli.ts`) and `test` (`bun test`); a `tsconfig.json` with `"module": "ESNext"`, `"moduleResolution": "bundler"`, `"target": "ESNext"`, `"strict": true`, `"noEmit": true`
+- done_when: `bun test tests/manifest.test.ts`
+- Reference: `bun pm ls`
+<!-- record:T0 -->
+<!-- /record:T0 -->
+
 ## T1: Config loader and shipped type roster
 - Covers: R4, R5
 - Depends on: none
@@ -22,7 +37,7 @@
   - Test: [config.test.ts](../../../tests/config.test.ts)
 - Interfaces:
   - Consumes: none
-  - Produces: `loadConfig(path: string): Config`; `type DocType = { describe: string; fields: Record<string, FieldSpec>; template: string; tag?: string; folder?: string | null }`; `type Config = { defaults: { date_format: string; date_order: "day-first" | "month-first"; max_name_length: number }; types: Record<string, DocType>; entities: Record<string, string[]> }`
+  - Produces: `loadConfig(path: string): Config`; `type DocType = { describe: string; fields: Record<string, FieldSpec>; template: string; tag?: string; folder?: string | null }`; `type Config = { defaults: { date_format: string; date_order: "day-first" | "month-first"; max_name_length: number; ocr_text_layer: boolean; finder_tags: boolean; finder_comment: boolean }; types: Record<string, DocType>; entities: Record<string, string[]> }`
 - done_when: `bun test tests/config.test.ts`
 - Reference: `grep "^- R5" docs/features/doc-renamer/BRIEF.md`
 <!-- record:T1 -->
@@ -84,24 +99,37 @@
 <!-- record:T5 -->
 <!-- /record:T5 -->
 
-## T6: Stage 5 plan, apply, undo with Spotlight extras
-- Covers: R12, R13, R14, R15, R16, R18, I1, I3, I4
-- Depends on: T2, T3, T4, T5
+## T6: Spotlight extras — Finder tags, comments and OCR text layer
+- Covers: R14, R15, R18
+- Depends on: T1
 - Files:
-  - Create: [commands.ts](../../../src/commands.ts)
   - Create: [spotlight.ts](../../../src/spotlight.ts)
-  - Test: [commands.test.ts](../../../tests/commands.test.ts)
+  - Test: [spotlight.test.ts](../../../tests/spotlight.test.ts)
 - Interfaces:
-  - Consumes: `read(file: string, config: Config): Promise<Content>`; `analyse(content: Content, fileName: string, config: Config): Promise<Analysis | Failed>`; `validate(a: Analysis, content: Content, config: Config): Checked`; `buildName(checked: Checked, config: Config, file: { dir: string; ext: string }, planned: Set<string>): Promise<string>`
-  - Produces: `plan(folder: string, opts: { recursive: boolean; applyUnflagged: boolean }, config: Config): Promise<PlanRow[]>`; `apply(folder: string, config: Config): Promise<void>`; `undo(folder: string, run?: string): Promise<void>`; `type PlanRow = { old: string; new: string; type: string; fields: Record<string, string>; evidence: Record<string, string>; flags: string[]; size: number; mtime: number; status: "pending" | "accepted" | "skipped" }`; `setFinderTag(path: string, tag: string): Promise<void>`; `setFinderComment(path: string, comment: string): Promise<void>`; `addOcrTextLayer(path: string): Promise<void>`
-- done_when: `bun test tests/commands.test.ts`
+  - Consumes: `type Config` (T1)
+  - Produces: `setFinderTag(path: string, tag: string): Promise<void>`; `setFinderComment(path: string, comment: string): Promise<void>`; `addOcrTextLayer(path: string): Promise<void>`
+- done_when: `bun test tests/spotlight.test.ts`
 - Reference: `xattr -px com.apple.metadata:_kMDItemUserTags tests/fixtures/tagged.pdf`
 <!-- record:T6 -->
 <!-- /record:T6 -->
 
-## T7: Review TUI and CLI entry
-- Covers: R1, R2, R12, I2
-- Depends on: T6
+## T7: Stage 5 plan, apply, undo
+- Covers: R12, R13, R16, I1, I3, I4
+- Depends on: T2, T3, T4, T5, T6
+- Files:
+  - Create: [commands.ts](../../../src/commands.ts)
+  - Test: [commands.test.ts](../../../tests/commands.test.ts)
+- Interfaces:
+  - Consumes: `read(file: string, config: Config): Promise<Content>`; `analyse(content: Content, fileName: string, config: Config): Promise<Analysis | Failed>`; `validate(a: Analysis, content: Content, config: Config): Checked`; `buildName(checked: Checked, config: Config, file: { dir: string; ext: string }, planned: Set<string>): Promise<string>`; `setFinderTag(path: string, tag: string): Promise<void>`; `setFinderComment(path: string, comment: string): Promise<void>`; `addOcrTextLayer(path: string): Promise<void>`
+  - Produces: `plan(folder: string, opts: { recursive: boolean; applyUnflagged: boolean }, config: Config): Promise<PlanRow[]>`; `apply(folder: string, config: Config): Promise<void>`; `undo(folder: string, run?: string): Promise<void>`; `type PlanRow = { old: string; new: string; type: string; fields: Record<string, string>; evidence: Record<string, string>; flags: string[]; size: number; mtime: number; status: "pending" | "accepted" | "skipped" }`
+- done_when: `bun test tests/commands.test.ts`
+- Reference: `ls tests/fixtures`
+<!-- record:T7 -->
+<!-- /record:T7 -->
+
+## T8: Review TUI and CLI entry
+- Covers: R12, I2
+- Depends on: T7
 - Files:
   - Create: [cli.ts](../../../src/cli.ts)
   - Create: [review.ts](../../../src/review.ts)
@@ -111,12 +139,12 @@
   - Produces: `review(folder: string, config: Config): Promise<void>`; `main(argv: string[]): Promise<number>`
 - done_when: `bun test tests/review.test.ts`
 - Reference: `bun --version`
-<!-- record:T7 -->
-<!-- /record:T7 -->
+<!-- record:T8 -->
+<!-- /record:T8 -->
 
-## T8: Eval command
+## T9: Eval command
 - Covers: R17, I7
-- Depends on: T7
+- Depends on: T8
 - Files:
   - Modify: [cli.ts](../../../src/cli.ts)
   - Create: [eval.ts](../../../src/eval.ts)
@@ -126,7 +154,20 @@
   - Produces: `evalTestset(testset: string, config: Config): Promise<EvalReport>`; `type EvalReport = { typeAccuracy: number; fieldExactMatch: number; fullNameMatch: number; visionShare: number; avgSeconds: number; avgCost: number; misses: { file: string; expected: string; got: string; evidence: Record<string, string> }[] }`
 - done_when: `bun test tests/eval.test.ts`
 - Reference: `ls tests/fixtures`
-<!-- record:T8 -->
-<!-- /record:T8 -->
+<!-- record:T9 -->
+<!-- /record:T9 -->
+
+## T10: Compile, install and prove the binary standalone
+- Covers: R1, R2
+- Depends on: T9
+- Files:
+  - Create: [build.test.ts](../../../tests/build.test.ts)
+- Interfaces:
+  - Consumes: `main(argv: string[]): Promise<number>`
+  - Produces: a `tests/build.test.ts` that runs `bun build --compile` into a temp path, executes the produced binary with `--version` and with a real `plan` run over a fixture folder, asserts exit 0 and the written plan file's rows, and asserts no `node:` specifier appears anywhere under `src/`
+- done_when: `bun test tests/build.test.ts`
+- Reference: `bun build --compile --outfile /tmp/docnamer-probe src/cli.ts`
+<!-- record:T10 -->
+<!-- /record:T10 -->
 <!-- record:run -->
 <!-- /record:run -->
