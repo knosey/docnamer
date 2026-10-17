@@ -30,11 +30,11 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun --version`
 <!-- record:T1 -->
-**done** · run `ship-feature-08bbaa`
-- Commits: none — HEAD stayed at `340bfdb`
-- Landed: [tests/config.test.ts](../../../tests/config.test.ts), [tests/manifest.test.ts](../../../tests/manifest.test.ts), [tests/name.test.ts](../../../tests/name.test.ts), [tests/plan.test.ts](../../../tests/plan.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/config.test.ts and tests/manifest.test.ts for T1; `bun test tests/config.test.ts tests/manifest.test.ts` exits 1 with 3 test-reported failures for the missing src/config.ts and docnamer.yaml, so the gate is red on the missing work.
+**done** · run `ship-feature-8af576`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, RED STANDS: `bun test tests/config.test.ts tests/manifest.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/config.test.ts, tests/manifest.test.ts
 <!-- /record:T1 -->
 
 ## T2: Stage 1 read ladder and fixtures
@@ -50,11 +50,11 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `shortcuts list`
 <!-- record:T2 -->
-**done** · run `ship-feature-08bbaa`
-- Commits: none — HEAD stayed at `340bfdb`
-- Landed: [tests/name.test.ts](../../../tests/name.test.ts), [tests/plan.test.ts](../../../tests/plan.test.ts), [tests/read.test.ts](../../../tests/read.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/read.test.ts for T2 (Stage 1 read ladder and fixtures): it keeps `export const reference`, adds bun:test cases for the reference command, src/read.ts exports (read/downloadICloud/ocrPages), the tests/fixtures set (text-layer + scanned PDF, PNG, DOCX, TXT, byte-identical dup-invoice pair) and the read ladder incl. the I2 vision-only-on-weak-OCR rule; `bun test tests/read.test.ts` exits … [+117 chars]
+**done** · run `ship-feature-8af576`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, RED STANDS: `bun test tests/read.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/read.test.ts
 <!-- /record:T2 -->
 
 ## T3: Stage 2 classify-and-extract model call
@@ -69,11 +69,11 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun pm ls`
 <!-- record:T3 -->
-**done** · run `ship-feature-08bbaa`
-- Commits: none — HEAD stayed at `340bfdb`
-- Landed: [tests/analyse.test.ts](../../../tests/analyse.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/analyse.test.ts for T3 (Stage 2 classify-and-extract model call): it loads src/analyse.ts inside each check so the missing module is a reported failure, and covers the reference (`bun pm ls` → pi-ai@1.3.0), the exported surface, buildSchema, isFailed, and a real analyse() call on a text invoice.
+**done** · run `ship-feature-8af576`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, RED STANDS: `bun test tests/analyse.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/analyse.test.ts
 <!-- /record:T3 -->
 
 ## T4: Stage 3 validation and normalisers
@@ -88,11 +88,11 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**done** · run `ship-feature-08bbaa`
-- Commits: none — HEAD stayed at `340bfdb`
-- Landed: [tests/name.test.ts](../../../tests/name.test.ts), [tests/plan.test.ts](../../../tests/plan.test.ts), [tests/validate.test.ts](../../../tests/validate.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/validate.test.ts (cases only, below the preserved `reference` constant) covering T4's parseDate, normaliseMoney, canonicalEntity, reduceLast4, validate flags/normalisation, and retargetToOther; `bun test tests/validate.test.ts` is red for the right reason — 0 pass, 12 fail, exit 1, each failing check reporting "src/validate.ts is not written" via a caught dynamic import, not a load-tim… [+8 chars]
+**done** · run `ship-feature-8af576`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, RED STANDS: `bun test tests/validate.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/validate.test.ts
 <!-- /record:T4 -->
 
 ## T5: Stage 4 naming, plan command and CLI entry
@@ -110,15 +110,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
-**failed** · run `ship-feature-08bbaa`
-- Commits: none recorded
-- Landed: nothing
-- Gates: none recorded
-- Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `ls tests/fixtures` exited 1: ``` ls: tests/fixtures: No such file or directory ```
+**done** · run `ship-feature-8af576`
+- Commits: none — HEAD stayed at `c7dd9fe`
+- Landed: [tests/name.test.ts](../../../tests/name.test.ts), [tests/plan.test.ts](../../../tests/plan.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
+- Summary: Wrote tests/name.test.ts and tests/plan.test.ts for T5 (Stage 4 naming, plan command, CLI entry), keeping each file's `reference` constant and adding dynamic-import loaders so the missing modules are reported failures, not load crashes.
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-08bbaa`
-- Tasks: T1 done · T2 done · T3 done · T4 done · T5 failed
-- Commits: none — HEAD stayed at `340bfdb`
-- Detail: task-tests: fan-out child 'task-test#4' failed: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `ls tests/fixtures` exited 1: ``` ls: tests/fixtures: No such file or directory ``` — and landed nothing, so it is not a hole
+**failed** · run `ship-feature-8af576`
+- Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
+- Commits: none — HEAD stayed at `c7dd9fe`
+- Detail: verify: exit 1 — output tail: … [+5960 earlier chars] alidate flags an implausible date [0.04ms] (pass) T4 retargetToOther switches the type to other [0.04ms] tests/analyse.test.ts: (pass) the model SDK Stage 2 calls is the installed dependency [6.04ms] (pass) analyse.ts exports its Stage 2 surface [59.58ms] (pass) buildSchema enumerates every configured type and its fields [0.14ms] (pass) isFaile… [+3563 chars]
 <!-- /record:run -->
