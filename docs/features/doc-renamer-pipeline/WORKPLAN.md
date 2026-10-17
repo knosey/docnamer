@@ -30,11 +30,11 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun --version`
 <!-- record:T1 -->
-**done** · run `ship-feature-8af576`
+**done** · run `ship-feature-cd388b`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, RED STANDS: `bun test tests/config.test.ts tests/manifest.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/config.test.ts, tests/manifest.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/config.test.ts tests/manifest.test.ts` passes as committed — the work shipped in an earlier run: tests/config.test.ts, tests/manifest.test.ts
 <!-- /record:T1 -->
 
 ## T2: Stage 1 read ladder and fixtures
@@ -49,11 +49,11 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `shortcuts list`
 <!-- record:T2 -->
-**done** · run `ship-feature-8af576`
+**done** · run `ship-feature-cd388b`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, RED STANDS: `bun test tests/read.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/read.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/read.test.ts` passes as committed — the work shipped in an earlier run: tests/read.test.ts
 <!-- /record:T2 -->
 
 ## T3: Stage 2 classify-and-extract model call
@@ -68,11 +68,11 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun pm ls`
 <!-- record:T3 -->
-**done** · run `ship-feature-8af576`
+**done** · run `ship-feature-cd388b`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, RED STANDS: `bun test tests/analyse.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/analyse.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/analyse.test.ts` passes as committed — the work shipped in an earlier run: tests/analyse.test.ts
 <!-- /record:T3 -->
 
 ## T4: Stage 3 validation and normalisers
@@ -87,11 +87,11 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**done** · run `ship-feature-8af576`
+**done** · run `ship-feature-cd388b`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, RED STANDS: `bun test tests/validate.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/validate.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/validate.test.ts` passes as committed — the work shipped in an earlier run: tests/validate.test.ts
 <!-- /record:T4 -->
 
 ## T5: Stage 4 naming, plan command and CLI entry
@@ -109,15 +109,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
-**done** · run `ship-feature-8af576`
-- Commits: none — HEAD stayed at `c7dd9fe`
-- Landed: [tests/name.test.ts](../../../tests/name.test.ts), [tests/plan.test.ts](../../../tests/plan.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/name.test.ts and tests/plan.test.ts for T5 (Stage 4 naming, plan command, CLI entry), keeping each file's `reference` constant and adding dynamic-import loaders so the missing modules are reported failures, not load crashes.
+**done** · run `ship-feature-cd388b`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/name.test.ts tests/plan.test.ts` passes as committed — the work shipped in an earlier run: tests/name.test.ts, tests/plan.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-8af576`
+**failed** · run `ship-feature-cd388b`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
-- Commits: none — HEAD stayed at `c7dd9fe`
-- Detail: verify: exit 1 — output tail: … [+5960 earlier chars] alidate flags an implausible date [0.04ms] (pass) T4 retargetToOther switches the type to other [0.04ms] tests/analyse.test.ts: (pass) the model SDK Stage 2 calls is the installed dependency [6.04ms] (pass) analyse.ts exports its Stage 2 surface [59.58ms] (pass) buildSchema enumerates every configured type and its fields [0.14ms] (pass) isFaile… [+3563 chars]
+- Commits: none recorded
+- Detail: build: fan-out child 'part-build#1' failed: reference_decides — `bun test tests/read.test.ts` passed with its reference swapped for a wrong truth — the test's verdict does not depend on its reference; that is the test's defect, not this build's: … [+11 earlier line(s)] 8 pass 0 fail 37 expect() calls Ran 8 tests across 1 file. [1334.00ms] — and landed nothing, so it is not a hole
 <!-- /record:run -->
