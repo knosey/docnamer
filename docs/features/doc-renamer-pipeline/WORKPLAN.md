@@ -47,7 +47,7 @@
   - Consumes: `loadConfig(path: string): Config`; `type Config`
   - Produces: `read(file: string, config: Config): Promise<Content>`; `type Content = { text: string; images: string[]; method: "text" | "ocr" | "vision"; ocrConfidence: number | null; pages: number }`; `downloadICloud(file: string): Promise<void>`; `ocrPages(pages: string[]): Promise<{ text: string; chars: number; meanConfidence: number | null }>`; a `tests/fixtures/` directory holding a text-layer PDF, a scanned PDF, a PNG image, a DOCX, a TXT, and the colliding pair of byte-identical `dup-invoice` bodies the Global Constraints name, each named so its expected type is unambiguous
 - done_when: `bun test tests/read.test.ts`
-- Reference: `shortcuts list`
+- Reference: `swiftc --version`
 <!-- record:T2 -->
 **done** · run `ship-feature-cd388b`
 - Commits: none recorded

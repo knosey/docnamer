@@ -136,12 +136,16 @@ export async function boot(s: Session): Promise<void> {
   for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
 
   // A real fixture set, when one exists, is copied in beside the seed files.
+  // Bun.file(dir).exists() is false for a DIRECTORY (Bun 1.4.2), so the scan is
+  // the existence check: ENOENT means there is no fixture set to copy.
   const fixtures = `${repo}/tests/fixtures`
-  if (await Bun.file(fixtures).exists()) {
+  try {
     for await (const rel of new Bun.Glob('**/*').scan({ cwd: fixtures, onlyFiles: true })) {
       const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
       await Bun.write(`${dir}/${base(rel)}`, bytes)
     }
+  } catch (err) {
+    if ((err as { code?: string }).code !== 'ENOENT') throw err
   }
 
   for (const name of await listFiles(dir)) {
@@ -262,7 +266,7 @@ export async function text(s: Session): Promise<Session> {
 /** ocr: a scanned document is read by OCR. */
 export async function ocr(s: Session): Promise<Session> {
   await ensure(s)
-  const scanned = [...s.originals.keys()].filter(n => /scann/i.test(n))
+  const scanned = [...s.originals.keys()].filter(n => /scan/i.test(n))
   if (!scanned.length)
     throw new Skipped('I2 ocr: no scanned fixture seeded (tests/fixtures/ absent)')
   const planned = new Set(s.plan.map(r => base(r.old)))
