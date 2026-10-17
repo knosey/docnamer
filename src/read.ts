@@ -152,6 +152,18 @@ function pdfToPng(file: string): string {
   return out
 }
 
+/**
+ * Page images for a vision call (I2). macOS ships no CLI that extracts page N>1
+ * of a PDF as an image — sips writes page 1 only — so a vision fallback sees the
+ * document's first page, which carries its issuer, date and reference.
+ */
+export function pageImages(file: string): string[] {
+  const ext = extOf(file)
+  if (IMAGE_EXTS.has(ext)) return [file]
+  if (ext === '.pdf') return [pdfToPng(file)]
+  return []
+}
+
 // --- The ladder -----------------------------------------------------------------
 
 /**
@@ -197,7 +209,9 @@ export async function read(file: string): Promise<Content | null> {
       }
     }
     const png = pdfToPng(file)
-    const ocr = await ocrPages([png])
+    // mac-ocr reads every page of a PDF itself (--pdf-dpi, --password), so the
+    // whole document is OCRed, not the first page alone.
+    const ocr = await ocrPages([file])
     if (ocr.meanConfidence !== null && ocr.meanConfidence >= OCR_MIN_CONFIDENCE) {
       return {
         text: ocr.text.slice(0, TEXT_CAP),
@@ -207,7 +221,7 @@ export async function read(file: string): Promise<Content | null> {
         pages
       }
     }
-    // OCR was weak: the page images ride along for Stage 2's vision call.
+    // OCR was weak: the first page's image rides along for Stage 2's vision call.
     return {
       text: ocr.text.slice(0, TEXT_CAP),
       images: [png],

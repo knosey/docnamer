@@ -34,7 +34,7 @@ type Analyser = {
 
 // Consumed shapes, declared here so this suite loads with no `src/` module
 // present (the same names T1/T2 produce; bun strips the types at run time).
-type FieldSpec = { kind: 'text' | 'date' | 'money' | 'entity' | 'last4'; required: boolean }
+type FieldSpec = { kind: 'text' | 'date' | 'entity' | 'last4'; required: boolean }
 type DocType = {
   describe: string
   fields: Record<string, FieldSpec>
@@ -51,7 +51,7 @@ type Config = {
     finder_tags: boolean
     finder_comment: boolean
   }
-  models: { cheap: string; vision: string }
+  models: { cheap: string; vision: string; strong: string }
   types: Record<string, DocType>
   entities: Record<string, string[]>
 }
@@ -92,7 +92,8 @@ const config: Config = {
   },
   models: {
     cheap: 'fireworks/accounts/fireworks/models/deepseek-v4p1-flash',
-    vision: 'fireworks/accounts/fireworks/models/qwen3p8-max'
+    vision: 'fireworks/accounts/fireworks/models/qwen3p8-max',
+    strong: 'fireworks/accounts/fireworks/models/kimi-k3'
   },
   types: {
     invoice: {
@@ -101,7 +102,7 @@ const config: Config = {
         date: { kind: 'date', required: true },
         vendor: { kind: 'entity', required: true },
         number: { kind: 'text', required: false },
-        amount: { kind: 'money', required: false }
+        amount: { kind: 'text', required: false }
       },
       template: '{date} {vendor} - Invoice - {number} - {amount}',
       tag: 'Invoice',

@@ -270,12 +270,47 @@ export async function analyse(s: Session): Promise<Session> {
   return s
 }
 
-/** name: Stage 4 — each row proposes a non-empty, filesystem-safe name. */
+/** Alphanumerics only, uppercased — the form a value and a name both reduce to. */
+function flat(s: string): string {
+  return s.toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+/**
+ * Does the rendered name CARRY this extracted value? Not a substring test: the
+ * name is sanitised, and a date is reformatted rather than copied, so compare
+ * the value's longest token against the flattened name. Tokens over 20
+ * characters are skipped — Stage 4 may have shortened them away.
+ */
+function carries(name: string, value: string): boolean {
+  let longest = ''
+  for (const t of value.split(/[^A-Za-z0-9]+/)) if (t.length > longest.length) longest = t
+  if (!longest || longest.length > 20) return true
+  return flat(name).includes(flat(longest))
+}
+
+/** name: Stage 4 — each row proposes a non-empty, filesystem-safe name that
+ *  carries the values it extracted.
+ *
+ *  The value assertion is the regression guard for the whole feature. Without
+ *  it a name can be well-formed and still empty of content: when the tool
+ *  schema stopped naming the per-type fields, the model invented
+ *  `invoice_number` / `vendor` / `total_amount`, validate() found none of them
+ *  in the roster, normalised nothing, and every template slot rendered empty —
+ *  a bare date. Stage 4's claim is the rendered VALUES, not the shape. */
 export async function name(s: Session): Promise<Session> {
   await ensure(s)
   for (const r of s.plan) {
     if (!r.new) throw new Error(`Stage 4 produced no name for ${r.old}`)
     if (/[/\\:*?"<>|]/.test(r.new)) throw new Error(`Stage 4 name not sanitised: ${r.new}`)
+    // `date` is excluded: the template REFORMATS it (03/04/2026 -> 2026-04-03),
+    // so its tokens need not survive verbatim.
+    for (const [field, value] of Object.entries(r.fields)) {
+      if (!value || field === 'date') continue
+      if (carries(r.new, value)) continue
+      throw new Error(
+        `Stage 4 name drops ${r.old}'s ${field} ${JSON.stringify(value)}: ${JSON.stringify(r.new)}`
+      )
+    }
   }
   return s
 }

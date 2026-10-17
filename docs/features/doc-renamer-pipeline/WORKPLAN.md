@@ -6,7 +6,7 @@
 - `docnamer <command> <folder>` is the entire integration surface; no importable library API — D3.
 - Ambiguous slashed dates are read day-first, driven by `date_order` in config — R8.
 - `plan` renames, moves and rewrites nothing; `.docnamer-plan.json` is plain JSON — R11.
-- `other` is always present in the type roster as the fallback and the retarget of last resort — R2, R7.
+- `other` is always present in the type roster as the fallback for a file whose type cannot be read — R2, R7.
 - Text handed to a model is capped at 4000 characters — R4.
 - The `folder` config key is parsed but ignored; no folder moves in this feature — R1.
 - Stage 4 keeps each file's own extension, so a collision needs the rendered stem AND the extension to coincide; when two documents render to the same name, the later row MUST receive a Finder-style ` (n)` suffix, and no row may ever propose a name already on disk — I3.
@@ -83,7 +83,7 @@
   - Test: [validate.test.ts](../../../tests/validate.test.ts)
 - Interfaces:
   - Consumes: `type Analysis`; `type Failed`; `type Config`; `type Content`
-  - Produces: `validate(a: Analysis, content: Content, config: Config): Checked`; `type Checked = Analysis & { flags: string[] }`; `parseDate(value: string, order: "day-first" | "month-first"): string | null`; `normaliseMoney(value: string): string`; `canonicalEntity(value: string, aliases: Record<string, string[]>): string`; `reduceLast4(value: string): string`; `retargetToOther(checked: Checked): Checked`
+  - Produces: `validate(a: Analysis, content: Content, config: Config): Checked`; `type Checked = Analysis & { flags: string[] }`; `parseDate(value: string, order: "day-first" | "month-first"): string | null`; `canonicalEntity(value: string, aliases: Record<string, string[]>): string`; `reduceLast4(value: string): string`
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->

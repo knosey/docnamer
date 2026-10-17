@@ -47,10 +47,10 @@ subprocess as the only integration surface; all model calls through
   images use the config's vision model.
 - R7: Stage 3 validation is code-side: flags for low type confidence (<0.6),
   missing required fields, evidence not fuzzy-found in extracted text, implausible
-  dates (unparseable, >today+60d, <1980-01-01); money normalised to "amount ISO"
-  (e.g. `482.50 GBP`); entities canonicalised via the alias map with legal-suffix
-  tidying; a `last4` field reduced to its last four digits. Missing required fields
-  retarget the row to `other`.
+  dates (unparseable, >today+60d, <1980-01-01); entities canonicalised via the
+  alias map with legal-suffix tidying; a `last4` field reduced to its last four
+  digits. A missing required field is flagged and its template slot dropped — the
+  type the model read is the type the file is.
 - R8: Ambiguous slashed dates are read day-first (03/04/2026 = 3 April 2026),
   driven by `date_order` in config, not guessed.
 - R9: Stage 4 builds the name from the type's template: empty parts dropped
@@ -77,8 +77,8 @@ subprocess as the only integration surface; all model calls through
    collision, and never an overwrite of an existing file.
 4. A scanned PDF whose OCR is weak is planned from a vision-model call, while a PDF
    with a usable text layer sends no image to the model.
-5. A missing required field retargets the row to `other` rather than emitting a
-   name with an empty part.
+5. A missing required field is flagged and its empty template slot dropped; the
+   row keeps the type the model read.
 6. `03/04/2026` is planned as 3 April 2026 under `date_order: day-first`.
 
 ## Out of scope

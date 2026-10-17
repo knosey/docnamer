@@ -10,7 +10,7 @@
 import { analyse, isFailed, type Analysis } from './analyse.ts'
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
-import { read } from './read.ts'
+import { read, pageImages } from './read.ts'
 import { validate, type Checked } from './validate.ts'
 
 export type PlanRow = {
@@ -113,8 +113,26 @@ export async function plan(
         config
       )
       if (isFailed(result as never)) {
-        failedReason = (result as { reason: string }).reason
-        checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
+        // A reply the tool contract could not read is the one case worth a
+        // second, stronger look: hand the first page's image to the strong seat
+        // and take whatever name it returns (R4, I2).
+        const images = pageImages(path)
+        const retry: Analysis | { failed: true; reason: string } =
+          images.length === 0
+            ? result
+            : await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
+        if (isFailed(retry as never)) {
+          failedReason = (retry as { reason: string }).reason
+          checked = {
+            type: 'other',
+            type_confidence: 0,
+            fields: {},
+            summary: stemOf(old),
+            flags: []
+          }
+        } else {
+          checked = validate(retry as Analysis, content, config)
+        }
       } else {
         checked = validate(result as Analysis, content, config)
       }

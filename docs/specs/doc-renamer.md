@@ -38,8 +38,7 @@ types:
       date:   { describe: "Invoice date printed on the document", kind: date, required: true }
       vendor: { describe: "Company that issued the invoice", kind: entity, required: true }
       number: { describe: "Invoice number, often starting INV or #" }
-      amount: { describe: "Total due including tax", kind: money }
-    template: "{date} {vendor} - Invoice - {number} - {amount}"
+    template: "{date} {vendor} - Invoice - {number}"
     tag: Invoice
     folder: null                # optional, e.g. "{year}/Invoices"; off = rename in place
 
@@ -77,7 +76,7 @@ entities:                       # canonical spellings, so one name per organisat
   HMRC:     ["HM Revenue & Customs", "HM Revenue and Customs"]
 ```
 
-Field kinds are `text` (default), `date`, `money`, `entity` and `last4`; each kind has its own normaliser in Stage 3. A field's `describe` doubles as its extraction instruction, which is the NameQuick idea.
+Field kinds are `text` (default), `date`, `entity` and `last4`; each kind has its own normaliser in Stage 3. A field's `describe` doubles as its extraction instruction, which is the NameQuick idea.
 
 ## Stage 1: Read, cheapest method first
 
@@ -156,7 +155,7 @@ function analyse(content, file, config) -> Analysis:
 
 ## Stage 3: Validate and normalise
 
-Code, not the model, has the last word on dates, money and names, and anything doubtful is flagged for review rather than silently accepted.
+Code, not the model, has the last word on dates, entities and names, and anything doubtful is flagged for review rather than silently accepted.
 
 ```
 function validate(a: Analysis, content, config) -> Checked:
@@ -176,15 +175,13 @@ function validate(a: Analysis, content, config) -> Checked:
         date:   v = parse_date(field.value, config.defaults.date_order)
                 if v is null or v > today + 60 days or v < 1980-01-01:
                     flags.add(name + ": implausible date")
-        money:  v = normalise_money(field.value)        # "£482.50" -> "482.50 GBP"
         entity: v = canonical(field.value, config.entities)  # alias map, else tidy case
         last4:  v = last(digits(field.value), 4)
         text:   v = tidy(field.value)                   # trim, collapse spaces
       a.fields[name] = v
 
   if any required field missing:
-      a = retarget_to("other", a)                      # use the safer generic template
-      flags.add("fell back to 'other'")
+      flags.add("missing required field <name>")   # the empty slot is dropped by the template
   return { ...a, flags }
 ```
 
@@ -199,9 +196,8 @@ The type's template is filled from the checked fields, empty parts are dropped c
 function build_name(checked, config, file, planned) -> string:
   t = config.types[checked.type].template
   s = render(t, checked.fields,
-             date  -> format(value, config.defaults.date_format),
-             money -> value)                       # already "482.50 GBP"
-  s = drop_empty_parts(s)        # no number -> "... - Invoice - 482.50 GBP", not "- Invoice -  -"
+             date -> format(value, config.defaults.date_format))
+  s = drop_empty_parts(s)        # no number -> "... - Invoice", not "- Invoice -  -"
   s = sanitise(s)                # remove / : * ? " < > |, collapse spaces, trim . and -
   s = shorten(s, config.defaults.max_name_length,
               cut_first = ["subject", "number"])  # date, entity and type stay whole
@@ -215,7 +211,7 @@ function build_name(checked, config, file, planned) -> string:
   return name
 ```
 
-Example results: `2026-03-14 Acme - Invoice - INV-1042 - 482.50 GBP.pdf`, `2026-02-28 Barclays - Statement - 1234.pdf`, `2026-04-05 HMRC - Letter - Self Assessment reminder.pdf`. Words stay separated by spaces so Spotlight treats each as its own word; worth a quick test on your Mac.
+Example results: `2026-03-14 Acme - Invoice - INV-1042.pdf`, `2026-02-28 Barclays - Statement - 1234.pdf`, `2026-04-05 HMRC - Letter - Self Assessment reminder.pdf`. Words stay separated by spaces so Spotlight treats each as its own word; worth a quick test on your Mac.
 
 ## Stage 5: Plan, review, apply, undo
 

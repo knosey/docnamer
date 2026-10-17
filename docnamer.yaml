@@ -9,23 +9,22 @@ defaults:
 models:
   cheap: fireworks/accounts/fireworks/models/deepseek-v4p1-flash
   vision: fireworks/accounts/fireworks/models/qwen3p8-max
+  strong: fireworks/accounts/fireworks/models/kimi-k3
 
 types:
   invoice:
     describe: A bill requesting payment for goods or services.
-    template: "{date} {issuer} invoice {number} {total}"
+    template: "{date} {issuer} invoice {number}"
     fields:
       date: { kind: date, required: true }
       issuer: { kind: entity, required: true }
       number: { kind: text, required: true }
-      total: { kind: money, required: true }
   receipt:
     describe: Proof of payment after a purchase.
-    template: "{date} {vendor} receipt {total}"
+    template: "{date} {vendor} receipt"
     fields:
       date: { kind: date, required: true }
       vendor: { kind: entity, required: true }
-      total: { kind: money, required: true }
   bank_statement:
     describe: A periodic statement of account activity from a bank.
     template: "{date} {bank} statement {last4}"
@@ -41,11 +40,10 @@ types:
       employer: { kind: entity, required: true }
   utility_bill:
     describe: A bill for utilities such as power, water or internet.
-    template: "{date} {provider} utility bill {total}"
+    template: "{date} {provider} utility bill"
     fields:
       date: { kind: date, required: true }
       provider: { kind: entity, required: true }
-      total: { kind: money, required: true }
   tax_document:
     describe: A tax return, assessment or official tax correspondence.
     template: "{date} tax {form}"

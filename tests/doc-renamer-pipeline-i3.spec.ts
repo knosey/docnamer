@@ -15,11 +15,13 @@
  *
  * The second flow covers the same outcome on a row Stage 2 could NOT analyse.
  * I3 is unconditional — no row may ever propose a name already on disk — and
- * the first flow reaches that path only when the model nondeterministically
- * returns unparseable JSON (measured: 2 of 8 runs against the 12x12
- * unreadable-scan.pdf fixture). A flaky reach is not a tested path, so the
- * second flow makes the failure deterministic without faking a model: the
- * folder's config names model refs that resolve to nothing in the catalog.
+ * the first flow reaches that path only when the model returns an unparseable
+ * reply, which is nondeterministic: the earlier claim that this happened in
+ * "2 of 8 runs" against the 12x12 unreadable-scan.pdf fixture did NOT
+ * reproduce (0 of 8, measured twice, text and vision). A flaky reach is not a
+ * tested path, so the second flow makes the failure deterministic without
+ * faking a model: the folder's config names model refs that resolve to nothing
+ * in the catalog.
  */
 import {
   Session,
@@ -83,14 +85,15 @@ flow('doc-renamer-pipeline I3: a failed analysis still proposes a free name', as
   const rewritten = (await Bun.file(`${repo}/${CONFIG_FILE}`).text())
     .replace(/^(\s*cheap:\s*).*$/m, `$1${unknown}`)
     .replace(/^(\s*vision:\s*).*$/m, `$1${unknown}`)
+    .replace(/^(\s*strong:\s*).*$/m, `$1${unknown}`)
 
   // Guard the guard. If the config's shape ever moves, the rewrite does nothing,
   // this flow silently runs against the real models, and it passes for the wrong
   // reason. Count the substitutions rather than trusting them.
   const swapped = rewritten.split(unknown).length - 1
-  if (swapped !== 2) {
+  if (swapped !== 3) {
     throw new Error(
-      `I3 failed-analysis: expected 2 model refs replaced in ${CONFIG_FILE}, replaced ${swapped}`
+      `I3 failed-analysis: expected 3 model refs replaced in ${CONFIG_FILE}, replaced ${swapped}`
     )
   }
   await Bun.write(`${s.dir}/${CONFIG_FILE}`, rewritten)
