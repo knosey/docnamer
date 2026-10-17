@@ -30,6 +30,11 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun --version`
 <!-- record:T1 -->
+**hole** · run `ship-feature-562921`
+- Commits: none — HEAD stayed at `3b7b5b5`
+- Landed: [tests/config.test.ts](../../../tests/config.test.ts), [tests/manifest.test.ts](../../../tests/manifest.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✗
+- Summary: reference — tests/config.test.ts, tests/manifest.test.ts runs the reference but not through GRAPH_REFERENCE — the runner swaps it to prove the test's verdict follows it
 <!-- /record:T1 -->
 
 ## T2: Stage 1 read ladder and fixtures
@@ -45,6 +50,11 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `shortcuts list`
 <!-- record:T2 -->
+**hole** · run `ship-feature-562921`
+- Commits: none — HEAD stayed at `3b7b5b5`
+- Landed: [tests/read.test.ts](../../../tests/read.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✗
+- Summary: reference — tests/read.test.ts runs the reference but not through GRAPH_REFERENCE — the runner swaps it to prove the test's verdict follows it
 <!-- /record:T2 -->
 
 ## T3: Stage 2 classify-and-extract model call
@@ -59,6 +69,11 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun pm ls`
 <!-- record:T3 -->
+**failed** · run `ship-feature-562921`
+- Commits: none recorded
+- Landed: nothing
+- Gates: none recorded
+- Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun pm ls` exited 1: ``` error: missing lockfile, nothing to list note: run 'bun install' first ```
 <!-- /record:T3 -->
 
 ## T4: Stage 3 validation and normalisers
@@ -73,6 +88,11 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
+**hole** · run `ship-feature-562921`
+- Commits: none — HEAD stayed at `3b7b5b5`
+- Landed: [tests/validate.test.ts](../../../tests/validate.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✗
+- Summary: reference — tests/validate.test.ts runs the reference but not through GRAPH_REFERENCE — the runner swaps it to prove the test's verdict follows it
 <!-- /record:T4 -->
 
 ## T5: Stage 4 naming, plan command and CLI entry
@@ -90,6 +110,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T5 -->
+**failed** · run `ship-feature-562921`
+- Commits: none recorded
+- Landed: nothing
+- Gates: none recorded
+- Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `ls tests/fixtures` exited 1: ``` ls: tests/fixtures: No such file or directory ```
 <!-- /record:T5 -->
 <!-- record:run -->
+**failed** · run `ship-feature-562921`
+- Tasks: T1 hole · T2 hole · T3 failed · T4 hole · T5 failed
+- Commits: none — HEAD stayed at `3b7b5b5`
+- Detail: task-tests: fan-out child 'task-test#2' failed: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun pm ls` exited 1: ``` error: missing lockfile, nothing to list note: run 'bun install' first ``` — and landed nothing, so it is not a hole
 <!-- /record:run -->
