@@ -11,8 +11,14 @@
  * paid for.
  *
  * The assertion below is false by construction and reads no CLI, so this fails
- * before the build as well as after it. Discovery leaves it out (run-e2e.ts
- * CONTROL); it is run by name.
+ * before the build as well as after it.
+ *
+ * It keeps its `.spec.ts` name because harness-smoke reaches it by path, and bun
+ * only treats an argument as a path when it matches a test-file glob — a `.red.ts`
+ * name would be read as a name filter and match nothing. `bun test` alone would
+ * therefore run it and be red forever, so the whole-suite script carries
+ * `--path-ignore-patterns='**\/*.red.spec.ts'`, while `test:e2e` carries no
+ * ignore, which is how this file still fails when it is the file named.
  */
 import { Session } from './doc-renamer-pipeline-harness.ts'
 
