@@ -318,16 +318,14 @@ export async function analyse(
   ]
   const messages: Message[] = [{ role: 'user', content: blocks as never, timestamp: Date.now() }]
 
+  // The schema depends only on the roster: build the tool once, not per attempt.
+  const tools = [analysisTool(config.types)]
   let raw = ''
   let error = ''
   for (const attempt of ATTEMPTS) {
     let msg: AssistantMessage
     try {
-      msg = await completeSimple(
-        model as never,
-        { messages, tools: [analysisTool(config.types)] } as never,
-        { temperature: 0 }
-      )
+      msg = await completeSimple(model as never, { messages, tools } as never, { temperature: 0 })
     } catch (e) {
       return {
         failed: true,

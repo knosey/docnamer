@@ -164,6 +164,67 @@ export function pageImages(file: string): string[] {
   return []
 }
 
+// --- OOXML / iWork extraction (R4) -----------------------------------------------
+// xlsx and pptx are zip archives of XML; a .pages document is a zip whose only
+// readable text is the embedded QuickLook preview PDF. `unzip` ships with macOS,
+// like sips and textutil, so extraction stays native (D2).
+
+/** One entry of a zip archive as text; null when the archive lacks the entry. */
+function zipEntry(file: string, entry: string): string | null {
+  const proc = Bun.spawnSync(['unzip', '-p', file, entry])
+  if (proc.exitCode !== 0) return null
+  return proc.stdout.toString()
+}
+
+function unescapeXml(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+}
+
+/** Text content of every `<tag>` element in an XML document, in document order. */
+function xmlTexts(xml: string, tag: string): string[] {
+  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, 'g')
+  return [...xml.matchAll(re)].map(m => unescapeXml(m[1]))
+}
+
+/** Direct text extraction for xlsx, pptx and pages (R4). */
+async function officeText(file: string, ext: string): Promise<string> {
+  if (ext === '.xlsx') {
+    const shared = zipEntry(file, 'xl/sharedStrings.xml')
+    if (shared === null) {
+      throw new Error(`read: ${file} is an xlsx with no xl/sharedStrings.xml`)
+    }
+    return xmlTexts(shared, 't').join(' ')
+  }
+  if (ext === '.pptx') {
+    const listing = Bun.spawnSync(['unzip', '-Z1', file])
+    if (listing.exitCode !== 0) {
+      throw new Error(`read: unzip could not list ${file}: ${listing.stderr.toString().trim()}`)
+    }
+    const slides = listing.stdout
+      .toString()
+      .split('\n')
+      .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+      .sort()
+    const texts = slides.flatMap(s => xmlTexts(zipEntry(file, s) ?? '', 'a:t'))
+    return texts.join(' ')
+  }
+  // .pages: the document body is protobuf; the readable text is the QuickLook
+  // preview PDF every Pages export embeds, parsed by the PDF text-layer path.
+  const proc = Bun.spawnSync(['unzip', '-p', file, 'QuickLook/Preview.pdf'])
+  if (proc.exitCode !== 0) {
+    throw new Error(
+      `read: ${file} is a pages document with no QuickLook/Preview.pdf, so there is no text to extract`
+    )
+  }
+  const raw = new TextDecoder('latin1').decode(proc.stdout)
+  return pdfTextLayer(raw)
+}
+
 // --- The ladder -----------------------------------------------------------------
 
 /**
@@ -229,6 +290,11 @@ export async function read(file: string): Promise<Content | null> {
       ocrConfidence: ocr.meanConfidence,
       pages
     }
+  }
+
+  if (ext === '.xlsx' || ext === '.pptx' || ext === '.pages') {
+    const text = await officeText(file, ext)
+    return { text: text.slice(0, TEXT_CAP), images: [], method: 'text', ocrConfidence: null, pages: 1 }
   }
 
   if (IMAGE_EXTS.has(ext)) {

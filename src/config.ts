@@ -8,7 +8,6 @@ export type DocType = {
   describe: string
   fields: Record<string, FieldSpec>
   template: string
-  tag?: string
   folder?: string | null
 }
 

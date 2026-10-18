@@ -54,19 +54,6 @@ function stemOf(name: string): string {
   return e ? name.slice(0, name.length - e.length) : name
 }
 
-function flatten(checked: Checked): {
-  fields: Record<string, string>
-  evidence: Record<string, string>
-} {
-  const fields: Record<string, string> = {}
-  const evidence: Record<string, string> = {}
-  for (const [k, v] of Object.entries(checked.fields)) {
-    fields[k] = v.value ?? ''
-    evidence[k] = v.evidence ?? ''
-  }
-  return { fields, evidence }
-}
-
 /** Every non-hidden file in the folder, recursively when asked. */
 async function scan(folder: string, recursive: boolean): Promise<string[]> {
   const out: string[] = []
@@ -85,34 +72,31 @@ export async function plan(
   opts: { recursive: boolean; applyUnflagged: boolean },
   config: Config
 ): Promise<PlanRow[]> {
-  const rows: PlanRow[] = []
+  const rels = await scan(folder, opts.recursive)
   const planned = new Set<string>()
   // Names already on disk are occupied too: no row may propose one (I3).
-  for (const rel of await scan(folder, opts.recursive)) {
-    planned.add(base(rel).toLowerCase())
-  }
+  for (const rel of rels) planned.add(base(rel).toLowerCase())
 
-  for (const rel of await scan(folder, opts.recursive)) {
-    const path = `${folder}/${rel}`
-    const f = Bun.file(path)
-    const old = base(rel)
-
-    let checked: Checked
-    let failedReason: string | null = null
-    let method: PlanRow['method'] = null
-    try {
-      const content = await read(path)
-      // Stage 1 SKIPped the file (unsupported type): it is not a document, so it
-      // gets no row at all. The folder's own docnamer.yaml is the case in point —
-      // a row for it would propose its own name back at it and collide.
-      if (content === null) continue
-      method = content.method
-      const result: Analysis | { failed: true; reason: string } = await analyse(
-        content,
-        old,
-        config
-      )
-      if (isFailed(result as never)) {
+  // Stages 1-3 are independent per file — one model call each (R6) — so they
+  // run concurrently; Stage 4 below is serial because it mutates `planned`.
+  const examined = await Promise.all(
+    rels.map(async rel => {
+      const path = `${folder}/${rel}`
+      const old = base(rel)
+      try {
+        const content = await read(path)
+        // Stage 1 SKIPped the file (unsupported type): it is not a document, so
+        // it gets no row at all. The folder's own docnamer.yaml is the case in
+        // point — a row for it would propose its own name back at it and collide.
+        if (content === null) return null
+        const result: Analysis | { failed: true; reason: string } = await analyse(
+          content,
+          old,
+          config
+        )
+        if (!isFailed(result as never)) {
+          return { rel, old, checked: validate(result as Analysis, content, config), failedReason: null as string | null, method: content.method as PlanRow['method'] }
+        }
         // A reply the tool contract could not read is the one case worth a
         // second, stronger look: hand the first page's image to the strong seat
         // and take whatever name it returns (R4, I2).
@@ -121,27 +105,40 @@ export async function plan(
           images.length === 0
             ? result
             : await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
-        if (isFailed(retry as never)) {
-          failedReason = (retry as { reason: string }).reason
-          checked = {
-            type: 'other',
-            type_confidence: 0,
-            fields: {},
-            summary: stemOf(old),
-            flags: []
-          }
-        } else {
-          checked = validate(retry as Analysis, content, config)
+        if (!isFailed(retry as never)) {
+          return { rel, old, checked: validate(retry as Analysis, content, config), failedReason: null, method: content.method as PlanRow['method'] }
         }
-      } else {
-        checked = validate(result as Analysis, content, config)
+        const checked: Checked = {
+          type: 'other',
+          type_confidence: 0,
+          fields: {},
+          summary: stemOf(old),
+          flags: []
+        }
+        return { rel, old, checked, failedReason: (retry as { reason: string }).reason, method: content.method as PlanRow['method'] }
+      } catch (e) {
+        const checked: Checked = {
+          type: 'other',
+          type_confidence: 0,
+          fields: {},
+          summary: stemOf(old),
+          flags: []
+        }
+        return { rel, old, checked, failedReason: (e as Error)?.message ?? String(e), method: null as PlanRow['method'] }
       }
-    } catch (e) {
-      failedReason = (e as Error)?.message ?? String(e)
-      checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
-    }
+    })
+  )
 
-    const { fields, evidence } = flatten(checked)
+  const rows: PlanRow[] = []
+  for (const ex of examined) {
+    if (ex === null) continue
+    const { rel, old, checked, failedReason, method } = ex
+    const fields: Record<string, string> = {}
+    const evidence: Record<string, string> = {}
+    for (const [k, v] of Object.entries(checked.fields)) {
+      fields[k] = v.value ?? ''
+      evidence[k] = v.evidence ?? ''
+    }
     const flags = [...checked.flags]
     if (failedReason !== null) flags.push(`analysis failed: ${failedReason}`)
 
@@ -151,6 +148,7 @@ export async function plan(
     // failed row lands on the stem plus a Finder-style " (2)" (I3).
     const name = await buildName(checked, config, { dir: folder, ext: extOf(old) }, planned)
 
+    const f = Bun.file(`${folder}/${rel}`)
     rows.push({
       old,
       new: name,
