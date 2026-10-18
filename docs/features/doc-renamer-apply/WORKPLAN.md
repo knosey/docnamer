@@ -97,10 +97,11 @@
 - Depends on: T4
 - Files:
   - Create: [package.json](../../../package.json)
+  - Modify: [read.ts](../../../src/read.ts)
   - Test: [build.test.ts](../../../tests/build.test.ts)
 - Interfaces:
   - Consumes: `main(argv: string[]): Promise<number>`
-  - Produces: a `package.json` declaring a `build` script running `bun build --compile --outfile ~/bin/docnamer src/cli.ts` and an `install` script copying that binary into `~/bin`
+  - Produces: a `package.json` declaring `build` as `mkdir -p ~/bin && bun build --compile --outfile ~/bin/docnamer src/cli.ts` and `install` as `bun run build`; a `read.ts` whose `macOcrBinary()` keeps the `mac-ocr`-on-PATH check first and otherwise unpacks the copy embedded in the binary — `import macOcr from '../node_modules/mac-ocr/bin/mac-ocr' with { type: 'file' }` together with `import macOcrPkg from '../node_modules/mac-ocr/package.json'` — to `${Bun.env.TMPDIR}/docnamer-mac-ocr-${macOcrPkg.version}`, throwing when `TMPDIR` is unset (R2: never a fallback); a compiled binary's own asset path is Bun's virtual `/$bunfs/...`, which cannot be exec'd, so the unpack writes with `Bun.write(dest, Bun.file(macOcr))` and then runs `Bun.spawnSync(['chmod', '755', dest])` — Bun exposes no chmod API, and `Bun.write`'s `mode` option is silently IGNORED inside a compiled binary (verified on bun 1.4.2: `mode: 0o755` yields 0644 compiled against 0755 uncompiled), so the chmod is not optional — reusing the file when it already exists, the embedded bytes being byte-identical to `node_modules/mac-ocr/bin/mac-ocr` (sha256 `1817fff474a88706104167f8f47983ecea93a3b41cd10fa6b8585c026ffd7668`, and the unpacked copy runs `--version` → `1.2.1`); a `tests/build.test.ts` asserting (a) `bun run build` exits 0 and `~/bin/docnamer` exists and is executable, (b) `BUN_BE_BUN=1 ~/bin/docnamer --version` prints exactly what the Reference prints, and (c) that same binary plans a fresh temp folder holding `tests/fixtures/acme-statement-scan.pdf` and a copy of the repo's own `docnamer.yaml` — exit 0, exactly one row, `row.type !== "other"`, and no flag containing `mac-ocr`, because a compiled binary that cannot reach mac-ocr degrades every scan to `other` carrying that flag, which is the whole reason this assertion exists
 - done_when: `bun test tests/build.test.ts`
 - Reference: `bun --version`
 <!-- record:T5 -->
