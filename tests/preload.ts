@@ -30,13 +30,20 @@ export async function ensureProviderKey(): Promise<void> {
   Bun.env.FIREWORKS_API_KEY = key
 }
 
+/**
+ * The budget a test that waits on a real model call is given. One paid call per
+ * document measured 1.5-2.8s with a tail past 5s (2 of 20 fresh-process runs of
+ * tests/review.test.ts), while bun allows a test 5s by default — so the default
+ * budget sits below the call the test waits on. `[test] timeout` in bunfig.toml
+ * is not applied by bun 1.4.2, so the budget is named here, in code, once.
+ */
+export const MODEL_CALL_MS = 300000
+
 ;(globalThis as unknown as { flow: (name: string, fn: unknown) => void }).flow = (
   name: string,
   fn: unknown
 ): void => {
   // A flow drives the real CLI end to end: Apple Vision OCR plus one paid model
-  // call per document, run one file at a time. That is tens of seconds, well past
-  // the 5s bun allows a test by default, and `[test] timeout` in bunfig.toml is
-  // not applied by bun 1.4.2 — so the budget is named here, in code.
-  test(name, fn as () => unknown, 300000)
+  // call per document, run one file at a time. That is tens of seconds.
+  test(name, fn as () => unknown, MODEL_CALL_MS)
 }

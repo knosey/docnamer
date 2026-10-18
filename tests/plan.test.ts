@@ -6,6 +6,7 @@ import { expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { MODEL_CALL_MS } from './preload.ts'
 
 /**
  * T5 — Stage 4 plan command and CLI entry (R9, R10, R11, I1, I3).
@@ -197,6 +198,7 @@ test('T5 writePlan writes .docnamer-plan.json in the folder', async () => {
   expect(readFileSync(p, 'utf8')).toContain('invoice-acme.txt')
 })
 
+// `plan` makes one real paid model call, so it waits past bun's 5s default.
 test('T5 CLI main plans a folder end to end', async () => {
   const cli = await loadCli()
   const dir = seed()
@@ -204,4 +206,4 @@ test('T5 CLI main plans a folder end to end', async () => {
   expect(typeof code).toBe('number')
   expect(code).toBe(0)
   expect(existsSync(join(dir, '.docnamer-plan.json'))).toBe(true)
-})
+}, MODEL_CALL_MS)

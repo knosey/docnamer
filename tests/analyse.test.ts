@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { ensureProviderKey } from './preload.ts'
+import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
  * T3 — Stage 2: classify-and-extract model call (R3, R6).
@@ -151,6 +151,7 @@ test('isFailed distinguishes a Failed from an Analysis', async () => {
   expect(mod.isFailed(analysis)).toBe(false)
 })
 
+// One real paid model call, so it waits past bun's 5s default.
 test('analyse classifies and extracts a text invoice in one model call', async () => {
   const mod = await load()
   await ensureProviderKey()
@@ -171,4 +172,4 @@ test('analyse classifies and extracts a text invoice in one model call', async (
   expect(typeof result.fields.vendor.evidence).toBe('string')
   expect(typeof result.summary).toBe('string')
   expect(result.summary.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(20)
-})
+}, MODEL_CALL_MS)

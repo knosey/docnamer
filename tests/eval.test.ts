@@ -4,7 +4,7 @@ export const reference = process.env.GRAPH_REFERENCE ?? String.raw`ls tests/fixt
 
 import { expect, test } from 'bun:test'
 import { loadConfig } from '../src/config.ts'
-import { ensureProviderKey } from './preload.ts'
+import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
  * T4 — the eval command and the scored test set (R8, I4).
@@ -182,7 +182,7 @@ test('evalTestset scores the graded set without renaming anything', async () => 
 
   // eval observes: the graded set is unchanged on disk.
   expect(await gradedFiles()).toEqual(before)
-}, 300000)
+}, MODEL_CALL_MS)
 
 test('formatEvalReport renders the metrics and the expected-vs-got misses', async () => {
   const mod = await loadEval()
@@ -215,4 +215,4 @@ test('cli.ts dispatches eval against a test set and prints the report', async ()
   expect(code).toBe(0)
   // Nothing renamed: the graded set is still there, exactly as before.
   expect(await gradedFiles()).toEqual(before)
-}, 300000)
+}, MODEL_CALL_MS)
