@@ -30,7 +30,7 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun --version`
 <!-- record:T1 -->
-**done** · run `ship-feature-7e9751`
+**done** · run `ship-feature-2283ca`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -49,7 +49,7 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `./node_modules/.bin/mac-ocr --version`
 <!-- record:T2 -->
-**done** · run `ship-feature-7e9751`
+**done** · run `ship-feature-2283ca`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -68,7 +68,7 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun pm ls`
 <!-- record:T3 -->
-**done** · run `ship-feature-7e9751`
+**done** · run `ship-feature-2283ca`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -87,7 +87,7 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**done** · run `ship-feature-7e9751`
+**done** · run `ship-feature-2283ca`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -109,15 +109,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
-**done** · run `ship-feature-7e9751`
+**done** · run `ship-feature-2283ca`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/name.test.ts tests/plan.test.ts` passes as committed — the work shipped in an earlier run: tests/name.test.ts, tests/plan.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-7e9751`
+**failed** · run `ship-feature-2283ca`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
 - Commits: none recorded
-- Detail: visual-review: visual_clean — FAIL: "old→new name table printed by `docnamer plan <folder>`" is answered: a person cannot read or see it; "flagged rows listed first in the plan output table" is answered: a person cannot read or see it; defect: no-frames [capture] missing .audit/screenshots is empty (verified by three direct listings across correction turns; .audit holds only the bare directory) an… [+562 chars]
+- Detail: visual-review: visual_clean — FAIL: defect: i1-plan-table.png [NEW column, rows 3-4] wrong-state: dup-invoice-2.md and dup-invoice.md both propose the identical name "2024-02-04 Globex invoice GLX-0091 (2).md" — I3 requires every plan row's name to be unique (later collision should be " (3)"); applying this plan renames two files to one target. Notably src/name.ts's planned-set loop cannot produce… [+306 chars]
 <!-- /record:run -->
