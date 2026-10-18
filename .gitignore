@@ -1,1 +1,4 @@
 node_modules/
+
+# Frames are evidence the vision judge reads off the filesystem, not source.
+.audit/

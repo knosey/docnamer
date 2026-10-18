@@ -17,6 +17,7 @@
  *
  * Native Bun APIs only; no `node:` built-ins (D2).
  */
+import { frame } from './frame.ts'
 import { ensureProviderKey } from './preload.ts'
 
 export type PlanRow = {
@@ -315,12 +316,69 @@ export async function name(s: Session): Promise<Session> {
   return s
 }
 
-/** outcome: plan written with pending rows; originals unchanged. */
+/**
+ * outcome: plan written with pending rows, the old->new table PRINTED with
+ * flagged rows first, and the originals unchanged.
+ *
+ * The table is half of I1's Outcome sentence and it was the half nobody built:
+ * the CLI wrote the plan and printed a count, so the run's vision judge was
+ * handed `shows` = "the old->new name table printed by docnamer plan" and no
+ * such table existed to look at. An Outcome claim that is not asserted here is
+ * a claim no node can be held to.
+ */
 export async function outcome(s: Session): Promise<Session> {
   await ensure(s)
   if (!(await Bun.file(s.planPath).exists())) {
     throw new Error('outcome: .docnamer-plan.json not written')
   }
+
+  const lines = s.last.stdout.split('\n')
+  const at = (r: PlanRow): number => lines.findIndex(l => l.includes(base(r.old)))
+  for (const r of s.plan) {
+    const i = at(r)
+    if (i < 0) {
+      throw new Error(
+        `outcome: the table prints no line naming ${r.old}; stdout was:\n${s.last.stdout}`
+      )
+    }
+    if (!lines[i].includes(base(r.new))) {
+      throw new Error(
+        `outcome: ${r.old}'s table line does not carry its new name ${r.new}: ${JSON.stringify(lines[i])}`
+      )
+    }
+  }
+  // Flagged rows first. The MARGIN the CLI printed is what a person reads, so
+  // that is what is checked — a loop over r.flags passes on a table that marks
+  // nothing at all, which is the vacuous shape this assertion exists to avoid.
+  const flaggedCount = s.plan.filter(r => r.flags.length > 0).length
+  for (const r of s.plan) {
+    const marked = lines[at(r)].startsWith('!')
+    const hasFlags = r.flags.length > 0
+    if (marked !== hasFlags) {
+      throw new Error(
+        `outcome: ${r.old} is printed ${marked ? 'with' : 'without'} a "!" margin ` +
+          `but ${hasFlags ? 'has' : 'has no'} flags`
+      )
+    }
+  }
+  if (flaggedCount > 0) {
+    const firstRow = s.plan.reduce((a, b) => (at(a) <= at(b) ? a : b))
+    if (firstRow.flags.length === 0) {
+      throw new Error(
+        `outcome: ${flaggedCount} row(s) are flagged yet the table opens with the clean row ${firstRow.old}`
+      )
+    }
+  }
+  for (const f of s.plan.filter(r => r.flags.length > 0)) {
+    for (const c of s.plan.filter(r => r.flags.length === 0)) {
+      if (at(f) > at(c)) {
+        throw new Error(`outcome: flagged row ${f.old} is printed after clean row ${c.old}`)
+      }
+    }
+  }
+
+  // The frame is the only evidence the visual review gets.
+  await frame(s.last.stdout, 'i1-plan-table')
   for (const r of s.plan) {
     if (r.status !== 'pending') {
       throw new Error(`outcome: row ${r.old} status ${r.status} != pending`)

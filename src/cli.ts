@@ -4,6 +4,7 @@
  */
 import { loadConfig, type Config } from './config.ts'
 import { plan, writePlan } from './commands.ts'
+import { renderTable } from './table.ts'
 
 /**
  * The built-in config, used when the folder carries no docnamer.yaml. `other`
@@ -100,6 +101,9 @@ export async function main(argv: string[]): Promise<number> {
   const config = await configFor(folder)
   const rows = await plan(folder, { recursive, applyUnflagged: false }, config)
   await writePlan(folder, rows)
+  // The table is what a person reads before anything is renamed (I1): the
+  // count alone never showed which name a file would get.
+  console.log(renderTable(rows))
   console.log(`planned ${rows.length} document(s) -> ${folder}/.docnamer-plan.json`)
   return 0
 }
