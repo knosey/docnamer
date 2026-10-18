@@ -1,0 +1,176 @@
+/**
+ * Stage 5 review (R4, I3): a person walks the plan rows before apply, and
+ * every row ends up accepted, skipped or left pending. `docnamer review
+ * <folder>` prints each row's old name, proposed new name, type, flags,
+ * evidence and summary, and takes one key per decision:
+ *
+ *   a — accept this row
+ *   s — skip this row
+ *   e — edit the new name (rest of the line is the name), then accept
+ *   t — re-type the row (rest of the line is the type), re-render the name,
+ *       then accept
+ *   A — accept every flag-free row; flagged rows stay pending
+ *   q — stop; the plan file keeps whatever was decided so far
+ *
+ * Every decision is written back to `<folder>/.docnamer-plan.json` when the
+ * review ends (EOF or q). Nothing is renamed here — statuses only (R4).
+ */
+import type { Config } from './config.ts'
+import { buildName } from './name.ts'
+import { writePlan, type PlanRow } from './commands.ts'
+import type { Checked } from './validate.ts'
+
+export type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
+
+const PLAN_FILE = '.docnamer-plan.json'
+
+function extOf(name: string): string {
+  const m = /\.[^./]+$/.exec(name)
+  return m ? m[0] : ''
+}
+
+/**
+ * Apply one review decision to the rows and return the updated array. Pure
+ * apart from retype's name render: the plan file is the caller's to persist.
+ */
+export async function applyAction(
+  rows: PlanRow[],
+  index: number,
+  action: ReviewAction,
+  value: string | null,
+  config: Config
+): Promise<PlanRow[]> {
+  const out = rows.map(r => ({ ...r }))
+  const row = out[index]
+  if (!row) throw new Error(`applyAction: no row at index ${index} (${rows.length} rows)`)
+
+  switch (action) {
+    case 'accept':
+      row.status = 'accepted'
+      break
+    case 'skip':
+      row.status = 'skipped'
+      break
+    case 'edit':
+      if (!value) throw new Error('applyAction: edit needs the new name as its value')
+      row.new = value
+      row.status = 'accepted'
+      break
+    case 'retype': {
+      if (!value) throw new Error('applyAction: retype needs the type as its value')
+      if (!config.types[value]) throw new Error(`applyAction: config has no type "${value}"`)
+      row.type = value
+      // Re-render the name from the new type's template; the other rows'
+      // names occupy the namespace so the render cannot collide with them.
+      const checked: Checked = {
+        type: value,
+        type_confidence: 1,
+        fields: Object.fromEntries(
+          Object.entries(row.fields).map(([k, v]) => [k, { value: v, evidence: row.evidence[k] ?? '' }])
+        ),
+        summary: row.summary,
+        flags: row.flags
+      }
+      const planned = new Set(out.filter((_, i) => i !== index).map(r => r.new))
+      row.new = await buildName(checked, config, { dir: '', ext: extOf(row.new) }, planned)
+      row.status = 'accepted'
+      break
+    }
+    case 'accept-unflagged':
+      for (const r of out) {
+        if (r.status === 'pending' && r.flags.length === 0) r.status = 'accepted'
+      }
+      break
+  }
+  return out
+}
+
+/** One row rendered for the person deciding on it (I3). */
+function renderRow(row: PlanRow, index: number): string {
+  const lines = [
+    `[${index + 1}] ${row.old}`,
+    `    new: ${row.new}`,
+    `    type: ${row.type}${row.flags.length ? `  flags: ${row.flags.join(', ')}` : ''}`,
+    `    summary: ${row.summary}`
+  ]
+  for (const [k, v] of Object.entries(row.evidence)) {
+    if (v) lines.push(`    evidence ${k}: ${v}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * Review the plan file of `folder`: present every pending row (flagged first,
+ * I3), apply the keys read from stdin and write the updated plan back. Keys
+ * are consumed as they arrive; `e` and `t` take the rest of the line as their
+ * value. EOF ends the review.
+ */
+export async function review(folder: string, config: Config): Promise<void> {
+  const planPath = `${folder}/${PLAN_FILE}`
+  if (!(await Bun.file(planPath).exists())) {
+    throw new Error(`review: no plan file at ${planPath} — run docnamer plan first`)
+  }
+  let rows = JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
+  // Flagged rows are where a person is needed; they go first (I3).
+  const order = rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.status === 'pending')
+    .sort((a, b) => Number(b.row.flags.length > 0) - Number(a.row.flags.length > 0))
+
+  console.log(`reviewing ${order.length} pending row(s) in ${planPath}`)
+  console.log('keys: a accept · s skip · e edit name · t retype · A accept all unflagged · q quit')
+
+  const stdin = process.stdin
+  if (stdin.isTTY && typeof stdin.setRawMode === 'function') stdin.setRawMode(true)
+  const stream = Bun.stdin.stream()
+  try {
+    let cursor = 0
+    const show = () => {
+      const item = order[cursor]
+      if (item) console.log(renderRow(rows[item.index] ?? item.row, item.index))
+    }
+    show()
+    const decoder = new TextDecoder()
+    for await (const chunk of stream) {
+      const text = decoder.decode(chunk)
+      let stop = false
+      for (let i = 0; i < text.length && !stop; i++) {
+        const ch = text[i] ?? ''
+        const item = order[cursor]
+        if (ch === '\n' || ch === '\r') continue
+        if (ch === 'q') {
+          stop = true
+        } else if (ch === 'A') {
+          rows = await applyAction(rows, item?.index ?? 0, 'accept-unflagged', null, config)
+        } else if (item) {
+          if (ch === 'a') {
+            rows = await applyAction(rows, item.index, 'accept', null, config)
+            cursor++
+            show()
+          } else if (ch === 's') {
+            rows = await applyAction(rows, item.index, 'skip', null, config)
+            cursor++
+            show()
+          } else if (ch === 'e' || ch === 't') {
+            const rest = text.slice(i + 1)
+            const end = rest.search(/[\r\n]/)
+            const value = (end < 0 ? rest : rest.slice(0, end)).trim()
+            i = text.length // value runs to the chunk's end of line
+            rows = await applyAction(rows, item.index, ch === 'e' ? 'edit' : 'retype', value, config)
+            cursor++
+            show()
+          }
+        }
+      }
+      if (stop) break
+    }
+  } finally {
+    if (stdin.isTTY && typeof stdin.setRawMode === 'function') stdin.setRawMode(false)
+  }
+
+  await writePlan(folder, rows)
+  const accepted = rows.filter(r => r.status === 'accepted').length
+  const skipped = rows.filter(r => r.status === 'skipped').length
+  const pending = rows.filter(r => r.status === 'pending').length
+  console.log(`review done: ${accepted} accepted, ${skipped} skipped, ${pending} pending`)
+}

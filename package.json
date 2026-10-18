@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "bun test --path-ignore-patterns='**/*.red.spec.ts'",
-    "test:e2e": "bun test"
+    "test:e2e": "bun test",
+    "build": "mkdir -p ~/bin && bun build --compile --outfile ~/bin/docnamer src/cli.ts",
+    "install": "bun run build"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.3.0",

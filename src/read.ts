@@ -50,18 +50,35 @@ export async function downloadICloud(file: string): Promise<void> {
 // first-run swiftc compile. Native Bun + platform frameworks only (D2).
 
 /** Resolve mac-ocr: PATH first, then this project's own install (R5). */
+import macOcr from '../node_modules/mac-ocr/bin/mac-ocr' with { type: 'file' }
+import macOcrPkg from '../node_modules/mac-ocr/package.json'
+
 let macOcrPromise: Promise<string> | null = null
+
+/**
+ * Unpack the mac-ocr copy embedded in the compiled binary. A compiled binary's
+ * own asset path is Bun's virtual `/$bunfs/...`, which cannot be exec'd, so the
+ * bytes are written to TMPDIR and chmod'd 755 — `Bun.write`'s mode option is
+ * silently ignored inside a compiled binary, so the chmod is not optional.
+ */
+async function unpackMacOcr(): Promise<string> {
+  const tmp = Bun.env.TMPDIR
+  if (tmp === undefined) {
+    throw new Error('ocrPages: TMPDIR is unset, so the embedded mac-ocr has nowhere to unpack to')
+  }
+  const dest = `${tmp}/docnamer-mac-ocr-${macOcrPkg.version}`
+  if (await Bun.file(dest).exists()) return dest
+  await Bun.write(dest, Bun.file(macOcr))
+  Bun.spawnSync(['chmod', '755', dest])
+  return dest
+}
 
 function macOcrBinary(): Promise<string> {
   if (!macOcrPromise) {
     macOcrPromise = (async () => {
       const onPath = Bun.which('mac-ocr')
       if (onPath !== null) return onPath
-      const local = `${import.meta.dir}/../node_modules/mac-ocr/bin/mac-ocr`
-      if (await Bun.file(local).exists()) return local
-      throw new Error(
-        `ocrPages: mac-ocr is not installed: nothing named mac-ocr on PATH and none at ${local}. Run \`bun add mac-ocr\`.`
-      )
+      return unpackMacOcr()
     })()
   }
   return macOcrPromise
