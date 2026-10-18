@@ -30,7 +30,7 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun --version`
 <!-- record:T1 -->
-**done** · run `ship-feature-327645`
+**done** · run `ship-feature-325e90`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -49,7 +49,7 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `./node_modules/.bin/mac-ocr --version`
 <!-- record:T2 -->
-**done** · run `ship-feature-327645`
+**done** · run `ship-feature-325e90`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -68,11 +68,11 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun pm ls`
 <!-- record:T3 -->
-**done** · run `ship-feature-327645`
+**failed** · run `ship-feature-325e90`
 - Commits: none recorded
 - Landed: nothing
-- Gates: reference ✓
-- Summary: RE-RUN, ALREADY GREEN: `bun test tests/analyse.test.ts` passes as committed — the work shipped in an earlier run: tests/analyse.test.ts
+- Gates: reference ✗
+- Summary: reference — Rule "bun pm*" requires approval and approval was NOT granted: the operator declined it or did not answer before the deadline. Do NOT retry this command or a reworded variant — the engine refuses it at every attempt, and each attempt spends one of the node's corrections until the node fails; carry on without it, and report in your result what you could not do and what you need approved… [+25 chars]
 <!-- /record:T3 -->
 
 ## T4: Stage 3 validation and normalisers
@@ -87,7 +87,7 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**done** · run `ship-feature-327645`
+**done** · run `ship-feature-325e90`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -109,15 +109,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
-**done** · run `ship-feature-327645`
+**done** · run `ship-feature-325e90`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/name.test.ts tests/plan.test.ts` passes as committed — the work shipped in an earlier run: tests/name.test.ts, tests/plan.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-327645`
-- Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
+**failed** · run `ship-feature-325e90`
+- Tasks: T1 done · T2 done · T3 failed · T4 done · T5 done
 - Commits: none recorded
-- Detail: repairs: fan-out child 'repair#1' failed: The check itself passes (`python3 /tmp/probe.py` → EXIT=0, both PROBE-OK lines, just re-run), but the harness's stored done_when command is malformed prose that no shell can parse — it fails at sh parse time on `(e.g.` before python3 is invoked, so I cannot make it exit 0 from the tree; the done_when string must be fixed to `python3 /tmp/probe.py`.
+- Detail: task-tests: fan-out child 'task-test#2' failed: reference — Rule "bun pm*" requires approval and approval was NOT granted: the operator declined it or did not answer before the deadline. Do NOT retry this command or a reworded variant — the engine refuses it at every attempt, and each attempt spends one of the node's corrections until the node fails; carry on without it, and report in your result … [+115 chars]
 <!-- /record:run -->
