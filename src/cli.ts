@@ -2,83 +2,21 @@
  * docnamer CLI entry (D3). `docnamer plan <folder>` is the entire integration
  * surface: it writes `<folder>/.docnamer-plan.json` and touches nothing else.
  */
-import { loadConfig, CONFIG_FILE, type Config } from './config.ts'
+import { loadConfig, CONFIG_FILE, BUILTIN_CONFIG, type Config } from './config.ts'
 import { plan, writePlan, apply, undo } from './commands.ts'
 import { review } from './review.ts'
 import { evalTestset, formatEvalReport } from './eval.ts'
 import { renderTable } from './table.ts'
 
 /**
- * The built-in config, used when the folder carries no docnamer.json. `other`
- * is always in the roster as the fallback of last resort (R2, R7).
- */
-const DEFAULT_CONFIG: Config = {
-  defaults: {
-    date_format: 'YYYY-MM-DD',
-    date_order: 'day-first',
-    max_name_length: 150,
-    ocr_text_layer: false,
-    finder_tags: false,
-    finder_comment: false
-  },
-  models: {
-    cheap: 'anthropic/claude-haiku-4-5',
-    vision: 'anthropic/claude-sonnet-4-5',
-    strong: 'anthropic/claude-sonnet-4-5'
-  },
-  types: {
-    invoice: {
-      describe: 'A bill asking for payment for goods or services',
-      fields: {
-        date: { kind: 'date', required: true },
-        vendor: { kind: 'entity', required: true }
-      },
-      template: '{date} {vendor} - Invoice'
-    },
-    letter: {
-      describe: 'Personal or business correspondence',
-      fields: {
-        date: { kind: 'date', required: false },
-        sender: { kind: 'entity', required: false },
-        subject: { kind: 'text', required: true }
-      },
-      template: '{date} {sender} - {subject}'
-    },
-    receipt: {
-      describe: 'Proof of a completed purchase',
-      fields: {
-        date: { kind: 'date', required: true },
-        vendor: { kind: 'entity', required: true }
-      },
-      template: '{date} {vendor} - Receipt'
-    },
-    statement: {
-      describe: 'A bank or card statement',
-      fields: {
-        date: { kind: 'date', required: true },
-        account: { kind: 'last4', required: false },
-        bank: { kind: 'entity', required: false }
-      },
-      template: '{date} {bank} - Statement'
-    },
-    other: {
-      describe: 'Anything that fits no type above',
-      fields: { subject: { kind: 'text', required: true } },
-      template: '{date} {sender} - {subject}'
-    }
-  },
-  entities: {}
-}
-
-/**
  * The folder's own config: one name, one location. A folder that does not carry
- * it is planned by DEFAULT_CONFIG — a stale config under any other name is not
- * a config location and is never read.
+ * it is planned by the roster the binary was built from — a stale config under
+ * any other name is not a config location and is never read.
  */
 export async function configFor(folder: string): Promise<Config> {
   const path = `${folder}/${CONFIG_FILE}`
   if (await Bun.file(path).exists()) return loadConfig(path)
-  return DEFAULT_CONFIG
+  return BUILTIN_CONFIG
 }
 
 const USAGE =

@@ -68,9 +68,14 @@ test('the compiled binary plans a scan PDF as itself, not degraded to other', as
     join(repo, 'tests/fixtures/acme-statement-scan.pdf'),
     join(dir, 'acme-statement-scan.pdf')
   )
-  copyFileSync(join(repo, 'docnamer.json'), join(dir, 'docnamer.json'))
+  // No docnamer.json is copied in, on purpose: the binary must carry its own
+  // roster to a bare folder, which is the whole point of shipping one file.
 
-  const proc = Bun.spawnSync([binPath, 'plan', dir], { cwd: repo, env: { ...Bun.env } })
+  // cwd is the bare folder, not the repo: with cwd=repo the checkout's own
+  // docnamer.json is one relative path away, so a binary that read its config
+  // off disk would pass here without carrying one at all. From the bare folder
+  // there is nothing to read, and only an inlined roster can produce a type.
+  const proc = Bun.spawnSync([binPath, 'plan', dir], { cwd: dir, env: { ...Bun.env } })
   expect(proc.exitCode, `plan failed:\n${proc.stderr.toString()}`).toBe(0)
 
   const planPath = join(dir, '.docnamer-plan.json')
@@ -81,4 +86,5 @@ test('the compiled binary plans a scan PDF as itself, not degraded to other', as
   expect(rows[0].type, 'a scan must not degrade to other').not.toBe('other')
   const macOcrFlags = rows[0].flags.filter((f: string) => f.includes('mac-ocr'))
   expect(macOcrFlags, 'a compiled binary must reach the embedded mac-ocr').toEqual([])
+  Bun.spawnSync(['rm', '-rf', dir])
 })

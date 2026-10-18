@@ -111,3 +111,20 @@ test('config: the folder config is docnamer.json and no other name', async () =>
   const ignored = await cli.configFor(dir)
   expect(Object.keys(ignored.types)).not.toContain('bogus')
 })
+
+test('config: a folder with no docnamer.json is planned by the shipped roster itself', async () => {
+  const cli = (await import('../src/cli.ts')) as {
+    configFor: (folder: string) => Promise<Record<string, unknown>>
+  }
+  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-config-${crypto.randomUUID()}`
+  Bun.spawnSync(['mkdir', '-p', dir])
+
+  // One shipped binary, usable on any folder: the roster it was built from IS
+  // the config for a folder that carries none. There is no second, thinner
+  // config for the no-file case, so a folder without docnamer.json plans with
+  // the same 16 types, the same real models and the same entities as one that
+  // carries a copy of the shipped file.
+  const shipped = await cli.configFor(dir)
+  const built = JSON.parse(await Bun.file(jsonPath).text()) as Record<string, unknown>
+  expect(shipped).toEqual(built)
+})

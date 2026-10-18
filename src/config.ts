@@ -1,3 +1,5 @@
+import builtin from '../docnamer.json' with { type: 'json' }
+
 export type FieldSpec = {
   kind: 'text' | 'date' | 'entity' | 'last4'
   required: boolean
@@ -26,9 +28,18 @@ export type Config = {
 }
 
 /**
+ * The roster the binary was built from, inlined by the bundler so one compiled
+ * binary carries its own config to any folder on any machine. A folder that
+ * carries its own docnamer.json replaces it; a folder that carries none is
+ * planned by this, which is the same file — there is no thinner config for the
+ * no-file case, and nothing to install beside the binary.
+ */
+export const BUILTIN_CONFIG = builtin as Config
+
+/**
  * The one shipped config name, read from the folder being planned. One file,
  * one location: a folder either carries this and is configured by it, or it
- * carries nothing and DEFAULT_CONFIG applies. No other name is ever read.
+ * carries nothing and the built-in roster applies. No other name is ever read.
  */
 export const CONFIG_FILE = 'docnamer.json'
 
