@@ -25,11 +25,11 @@
 - done_when: `bun test tests/spotlight.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T1 -->
-**done** · run `ship-feature-f5eff0`
-- Commits: none — HEAD stayed at `414624c`
-- Landed: [tests/spotlight.test.ts](../../../tests/spotlight.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/spotlight.test.ts (T1): keeps the injected `export const reference` untouched, adds a safe dynamic import of ../src/spotlight.ts and six cases over the T1 interface, so `bun test tests/spotlight.test.ts` now exits 1 on the test's own checks (module missing => 5 fail / 1 pass), not a load crash.
+**done** · run `ship-feature-36c929`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, RED STANDS: `bun test tests/spotlight.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/spotlight.test.ts
 <!-- /record:T1 -->
 
 ## T2: Apply and undo with the backup record
@@ -44,11 +44,11 @@
 - done_when: `bun test tests/apply.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T2 -->
-**done** · run `ship-feature-f5eff0`
-- Commits: none — HEAD stayed at `414624c`
-- Landed: [tests/apply.test.ts](../../../tests/apply.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/apply.test.ts for T2 (apply/undo with backup record); it fails now for the right reason — src/commands.ts has no apply/undo export — reporting the missing work from its own check, exit 1.
+**done** · run `ship-feature-36c929`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, RED STANDS: `bun test tests/apply.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/apply.test.ts
 <!-- /record:T2 -->
 
 ## T3: Review TUI and its CLI wiring
@@ -64,11 +64,11 @@
 - done_when: `bun test tests/review.test.ts`
 - Reference: `bun --version`
 <!-- record:T3 -->
-**done** · run `ship-feature-f5eff0`
-- Commits: none — HEAD stayed at `414624c`
-- Landed: [tests/review.test.ts](../../../tests/review.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/review.test.ts for T3: applyAction cases (accept/skip/edit/retype/accept-unflagged) via dynamic import of src/review.ts, plus CLI-wiring cases that spawn `review` and call main(); missing modules/exports are printed failed checks, not load-time throws, so the suite is RED for the missing work. Not executed — the turn budget ended before I could run `bun test tests/review.test.ts`.
+**done** · run `ship-feature-36c929`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, RED STANDS: `bun test tests/review.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/review.test.ts
 <!-- /record:T3 -->
 
 ## T4: Eval command and the scored test set
@@ -85,11 +85,11 @@
 - done_when: `bun test tests/eval.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T4 -->
-**done** · run `ship-feature-f5eff0`
-- Commits: none — HEAD stayed at `414624c`
-- Landed: [tests/eval.test.ts](../../../tests/eval.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/eval.test.ts for T4 (eval command + scored test set): it dynamically loads src/eval.ts and src/cli.ts inside each check, asserts the graded test set equals the reference `ls tests/fixtures`, exercises evalTestset/formatEvalReport and the CLI eval dispatch, and now fails for the missing work (exit 1, 5 fail / 0 pass).
+**done** · run `ship-feature-36c929`
+- Commits: none recorded
+- Landed: nothing
+- Gates: reference ✓
+- Summary: RE-RUN, RED STANDS: `bun test tests/eval.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/eval.test.ts
 <!-- /record:T4 -->
 
 ## T5: Compile to one standalone binary and install it
@@ -105,15 +105,15 @@
 - done_when: `bun test tests/build.test.ts`
 - Reference: `bun --version`
 <!-- record:T5 -->
-**failed** · run `ship-feature-f5eff0`
-- Commits: none — HEAD stayed at `414624c`
-- Landed: nothing
-- Gates: none recorded
-- Summary: Could not write tests/build.test.ts — the turn budget (10 turns) was exhausted on reconnaissance before the test file could be written; the repo still holds only the seeded reference constant.
+**done** · run `ship-feature-36c929`
+- Commits: none — HEAD stayed at `2ea9892`
+- Landed: [tests/build.test.ts](../../../tests/build.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
+- Summary: Wrote tests/build.test.ts for T5 (compile+install standalone binary), reaching the missing work only through runtime checks so the suite fails RED on the work being absent. `bun test tests/build.test.ts` exits 1 with 0 pass / 3 fail, each a reported assertion (build script missing, ~/bin/docnamer missing), not a crash.
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-f5eff0`
-- Tasks: T1 done · T2 done · T3 done · T4 done · T5 failed
-- Commits: none — HEAD stayed at `414624c`
-- Detail: task-tests: fan-out child 'task-test#4' failed: Could not write tests/build.test.ts — the turn budget (10 turns) was exhausted on reconnaissance before the test file could be written; the repo still holds only the seeded reference constant. — and landed nothing, so it is not a hole
+**failed** · run `ship-feature-36c929`
+- Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
+- Commits: none — HEAD stayed at `2ea9892`
+- Detail: verify: exit 1 — output tail: … [+9447 earlier chars] got: (no row) evidence: type: expected receipt, got (none); name: expected 2024-01-15 Receipt - Receipt.png, got (none); date: expected 2024-01-15, got (empty); vendor: expected Receipt, got (empty) statement-text.pdf expected: statement | 2024-01-31 Statement - Statement.pdf got: (no row) evidence: type: expected statement, got (none); name: e… [+3564 chars]
 <!-- /record:run -->
