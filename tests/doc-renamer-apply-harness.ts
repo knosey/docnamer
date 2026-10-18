@@ -24,7 +24,9 @@
  *
  * Native Bun APIs only; no `node:` built-ins (D2).
  */
+import { mkdir } from 'node:fs/promises'
 import { CONFIG_FILE } from '../src/config.ts'
+import { EXPECTED_FILE } from '../src/eval.ts'
 import { frame } from './frame.ts'
 import { ensureProviderKey } from './preload.ts'
 
@@ -438,6 +440,34 @@ export async function act(s: Session, keys = 'A'): Promise<Session> {
 
 // --- I4: Score a test set with eval --------------------------------------------
 
+/**
+ * The set I4's frame is captured from: the committed one, copied, with ONE file's
+ * expected type mis-stated so the run has a miss to show.
+ *
+ * The committed set is tuned so the model gets every file right, and a report that
+ * prints "misses: none" shows a person neither the expected-vs-got pair nor the
+ * evidence beside it — the whole of what I4's frame exists to demonstrate. Nothing
+ * is fabricated: the report is the renderer's own output over a real
+ * `docnamer eval` run, and only the truth it is scored against is deliberately
+ * wrong in one place — which is what a real test set with a hard file does too.
+ */
+export async function missTestset(): Promise<string> {
+  const from = `${repo}/tests/testset`
+  const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-miss-${crypto.randomUUID()}`
+  await mkdir(dir, { recursive: true })
+  for (const rel of await listFiles(from)) {
+    await Bun.write(`${dir}/${rel}`, Bun.file(`${from}/${rel}`))
+  }
+  const truth = `${dir}/${EXPECTED_FILE}`
+  const before = await Bun.file(truth).text()
+  const after = before.replace('type: letter', 'type: receipt')
+  if (after === before) {
+    throw new Error(`missTestset: ${truth} states no "type: letter" to mis-state`)
+  }
+  await Bun.write(truth, after)
+  return dir
+}
+
 /** run: run Stages 1-4 against the test set without renaming anything. */
 export async function run(s: Session, testset?: string): Promise<Session> {
   await boot(s)
@@ -483,11 +513,15 @@ export async function outcome(s: Session, name: string): Promise<Session> {
   // with a plan table, and then the misses would be looked for in the wrong text.
   if (flow === 'eval') {
     const out = s.last.stdout
-    if (!/misses\s*\(/i.test(out) && !/misses:\s*none/i.test(out)) {
-      throw new Error(`I4 outcome: the report shows neither misses nor a clean set:\n${out}`)
+    // I4's whole point is a miss a person can read: the report pairs the value it
+    // expected with the one it got and prints the evidence behind it. A frame that
+    // says "misses: none" demonstrates none of that, so the flow scores a test set
+    // built with a miss in it and the frame must carry the block.
+    if (!/misses\s*\(/i.test(out)) {
+      throw new Error(`I4 outcome: the report shows no miss, so nothing demonstrates expected-vs-got:\n${out}`)
     }
-    if (/misses\s*\(/i.test(out) && !(/expected/i.test(out) && /got/i.test(out))) {
-      throw new Error(`I4 outcome: misses are not shown expected-vs-got:\n${out}`)
+    if (!(/expected/i.test(out) && /got/i.test(out) && /evidence/i.test(out))) {
+      throw new Error(`I4 outcome: the miss is not shown expected-vs-got with its evidence:\n${out}`)
     }
     await frame(out, name)
     return s

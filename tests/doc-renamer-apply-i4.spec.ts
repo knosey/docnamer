@@ -11,14 +11,17 @@
  * and asserts the outcome. The harness owns how each step observes the app —
  * `run` proves nothing was renamed, `score` reads the metrics off the report,
  * and `outcome(s, ...)` asserts the side-by-side misses and writes the frame.
+ *
+ * The set it scores is built by `missTestset`: the committed one with a single
+ * expectation mis-stated, so the frame always carries a miss a person can read.
  */
-import { Session, entry, run, score, outcome } from './doc-renamer-apply-harness.ts'
+import { Session, entry, missTestset, run, score, outcome } from './doc-renamer-apply-harness.ts'
 
 flow('doc-renamer-apply I4: score a test set with eval', async () => {
   const s = new Session()
   try {
     await entry(s, 'eval')
-    await run(s)
+    await run(s, await missTestset())
     await score(s)
     await outcome(s, 'i4-eval-score')
   } catch (e) {
