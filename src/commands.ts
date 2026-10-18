@@ -184,7 +184,8 @@ export type ApplyReport = {
 }
 
 export type UndoReport = {
-  restored: number
+  /** The original names this run put back, in the order it restored them. */
+  restored: string[]
   skipped: { file: string; reason: string }[]
 }
 
@@ -308,7 +309,7 @@ export async function undo(
   const record = JSON.parse(await Bun.file(path).text()) as UndoRecord
 
   const skipped: { file: string; reason: string }[] = []
-  let restored = 0
+  const restored: string[] = []
   for (const entry of [...record.entries].reverse()) {
     const from = `${folder}/${entry.new}`
     const to = `${folder}/${entry.old}`
@@ -323,7 +324,7 @@ export async function undo(
     renameFile(from, to)
     if (entry.tag && config.defaults.finder_tags) await setFinderTag(to, entry.tag)
     if (entry.sidecar) removeFile(`${folder}/${entry.sidecar}`)
-    restored++
+    restored.push(entry.old)
   }
   removeFile(path)
   return { restored, skipped }

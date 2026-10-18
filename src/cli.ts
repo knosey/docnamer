@@ -74,7 +74,10 @@ export async function main(argv: string[]): Promise<number> {
     return 0
   }
   const report = await undo(folder, run, config)
-  console.log(`restored ${report.restored} file(s)`)
+  // The names, not a count (I2): after an operation whose whole point is
+  // reversibility, a person has to see which file is sitting at which name.
+  console.log(`restored ${report.restored.length} file(s)`)
+  for (const name of report.restored) console.log(`restored ${name}`)
   for (const s of report.skipped) console.log(`skipped ${s.file}: ${s.reason}`)
   return 0
 }

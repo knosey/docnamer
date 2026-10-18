@@ -40,7 +40,7 @@
   - Test: [apply.test.ts](../../../tests/apply.test.ts)
 - Interfaces:
   - Consumes: `plan(folder: string, opts: { recursive: boolean; applyUnflagged: boolean }, config: Config): Promise<PlanRow[]>`; `type PlanRow`; `type Config`; `setFinderTag(file: string, tag: string): Promise<void>`; `setFinderComment(file: string, comment: string): Promise<void>`; `addOcrTextLayer(file: string): Promise<{ bytes: number; sidecar: string }>`
-  - Produces: `apply(folder: string, config: Config): Promise<ApplyReport>`; `undo(folder: string, run: string | null, config: Config): Promise<UndoReport>`; `type ApplyReport = { renamed: number; skipped: { file: string; reason: string }[]; undoFile: string }`; `type UndoReport = { restored: number; skipped: { file: string; reason: string }[] }`; `type UndoRecord = { run: string; at: string; entries: { old: string; new: string; size: number; mtime: number; tag?: string; comment?: string; sidecar?: string }[] }`
+  - Produces: `apply(folder: string, config: Config): Promise<ApplyReport>`; `undo(folder: string, run: string | null, config: Config): Promise<UndoReport>`; `type ApplyReport = { renamed: number; skipped: { file: string; reason: string }[]; undoFile: string }`; `type UndoReport = { restored: string[]; skipped: { file: string; reason: string }[] }`; `type UndoRecord = { run: string; at: string; entries: { old: string; new: string; size: number; mtime: number; tag?: string; comment?: string; sidecar?: string }[] }`
 - done_when: `bun test tests/apply.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T2 -->

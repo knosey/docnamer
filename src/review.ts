@@ -4,7 +4,7 @@
  * <folder>` prints each row's old name, proposed new name, type, flags,
  * evidence and summary, and takes one key per decision:
  *
- *   a — accept this row
+ *   Enter — accept this row
  *   s — skip this row
  *   e — edit the new name (rest of the line is the name), then accept
  *   t — re-type the row (rest of the line is the type), re-render the name,
@@ -66,7 +66,10 @@ export async function applyAction(
         type: value,
         type_confidence: 1,
         fields: Object.fromEntries(
-          Object.entries(row.fields).map(([k, v]) => [k, { value: v, evidence: row.evidence[k] ?? '' }])
+          Object.entries(row.fields).map(([k, v]) => [
+            k,
+            { value: v, evidence: row.evidence[k] ?? '' }
+          ])
         ),
         summary: row.summary,
         flags: row.flags
@@ -118,7 +121,9 @@ export async function review(folder: string, config: Config): Promise<void> {
     .sort((a, b) => Number(b.row.flags.length > 0) - Number(a.row.flags.length > 0))
 
   console.log(`reviewing ${order.length} pending row(s) in ${planPath}`)
-  console.log('keys: a accept · s skip · e edit name · t retype · A accept all unflagged · q quit')
+  console.log(
+    'keys: Enter accept · s skip · e edit name · t retype · A accept all unflagged · q quit'
+  )
 
   const stdin = process.stdin
   if (stdin.isTTY && typeof stdin.setRawMode === 'function') stdin.setRawMode(true)
@@ -137,13 +142,14 @@ export async function review(folder: string, config: Config): Promise<void> {
       for (let i = 0; i < text.length && !stop; i++) {
         const ch = text[i] ?? ''
         const item = order[cursor]
-        if (ch === '\n' || ch === '\r') continue
         if (ch === 'q') {
           stop = true
         } else if (ch === 'A') {
           rows = await applyAction(rows, item?.index ?? 0, 'accept-unflagged', null, config)
         } else if (item) {
-          if (ch === 'a') {
+          // Enter accepts the row on screen (R4/I3). A raw-mode terminal sends
+          // CR; a piped line sends LF. Both are Enter, and neither is a skip.
+          if (ch === '\r' || ch === '\n') {
             rows = await applyAction(rows, item.index, 'accept', null, config)
             cursor++
             show()
@@ -156,7 +162,13 @@ export async function review(folder: string, config: Config): Promise<void> {
             const end = rest.search(/[\r\n]/)
             const value = (end < 0 ? rest : rest.slice(0, end)).trim()
             i = text.length // value runs to the chunk's end of line
-            rows = await applyAction(rows, item.index, ch === 'e' ? 'edit' : 'retype', value, config)
+            rows = await applyAction(
+              rows,
+              item.index,
+              ch === 'e' ? 'edit' : 'retype',
+              value,
+              config
+            )
             cursor++
             show()
           }
