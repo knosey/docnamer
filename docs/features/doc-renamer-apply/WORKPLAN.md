@@ -25,11 +25,11 @@
 - done_when: `bun test tests/spotlight.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T1 -->
-**done** · run `ship-feature-fe16cd`
+**done** · run `ship-feature-258640`
 - Commits: none recorded
-- Landed: src/spotlight.ts, tests/spotlight.test.ts
+- Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, ALREADY GREEN: `bun test tests/spotlight.test.ts` passes as committed — the work shipped in an earlier run
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/spotlight.test.ts` passes as committed — the work shipped in an earlier run: tests/spotlight.test.ts
 <!-- /record:T1 -->
 
 ## T2: Apply and undo with the backup record
@@ -44,11 +44,11 @@
 - done_when: `bun test tests/apply.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T2 -->
-**done** · run `ship-feature-fe16cd`
+**done** · run `ship-feature-258640`
 - Commits: none recorded
-- Landed: src/commands.ts, tests/apply.test.ts
+- Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, ALREADY GREEN: `bun test tests/apply.test.ts` passes as committed — the work shipped in an earlier run
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/apply.test.ts` passes as committed — the work shipped in an earlier run: tests/apply.test.ts
 <!-- /record:T2 -->
 
 ## T3: Review TUI and its CLI wiring
@@ -64,11 +64,11 @@
 - done_when: `bun test tests/review.test.ts`
 - Reference: `bun --version`
 <!-- record:T3 -->
-**done** · run `ship-feature-fe16cd`
+**done** · run `ship-feature-258640`
 - Commits: none recorded
-- Landed: src/cli.ts, src/review.ts, tests/review.test.ts
+- Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, ALREADY GREEN: `bun test tests/review.test.ts` passes as committed — the work shipped in an earlier run
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/review.test.ts` passes as committed — the work shipped in an earlier run: tests/review.test.ts
 <!-- /record:T3 -->
 
 ## T4: Eval command and the scored test set
@@ -85,11 +85,11 @@
 - done_when: `bun test tests/eval.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T4 -->
-**done** · run `ship-feature-fe16cd`
+**done** · run `ship-feature-258640`
 - Commits: none recorded
-- Landed: src/eval.ts, tests/eval.test.ts
+- Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, ALREADY GREEN: `bun test tests/eval.test.ts` passes as committed — the work shipped in an earlier run
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/eval.test.ts` passes as committed — the work shipped in an earlier run: tests/eval.test.ts
 <!-- /record:T4 -->
 
 ## T5: Compile to one standalone binary and install it
@@ -105,15 +105,15 @@
 - done_when: `bun test tests/build.test.ts`
 - Reference: `bun --version`
 <!-- record:T5 -->
-**done** · run `ship-feature-fe16cd`
+**done** · run `ship-feature-258640`
 - Commits: none recorded
-- Landed: package.json, src/read.ts, tests/build.test.ts
+- Landed: nothing
 - Gates: reference ✓
-- Summary: RE-RUN, ALREADY GREEN: `bun test tests/build.test.ts` passes as committed — the work shipped in an earlier run
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/build.test.ts` passes as committed — the work shipped in an earlier run: tests/build.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-fe16cd`
+**failed** · run `ship-feature-258640`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
 - Commits: none recorded
-- Detail: visual-review: visual_clean — FAIL: "Enter-accept key hint in the review TUI prompt" is answered: a person cannot read or see it; "restored names in the undo run's terminal summary" is answered: a person cannot read or see it; "skipped-with-reason entries in the undo run's terminal summary" is answered: a person cannot read or see it; defect: i3-review-accept.png [keys line] wrong-state accept hin… [+728 chars]
+- Detail: repairs: fan-out child 'repair#0' failed: touches_only — wrote docs/features/doc-renamer-apply/WORKPLAN.md — outside this step's files (src/review.ts, src/commands.ts)
 <!-- /record:run -->
