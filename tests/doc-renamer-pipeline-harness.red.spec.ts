@@ -10,8 +10,13 @@
  * passes this file, so harness-smoke refuses it there, before any flow test is
  * paid for.
  *
- * The assertion below is false by construction and reads no CLI, so this fails
- * before the build as well as after it.
+ * Unlike the smoke's sibling shape this is a real flow through the harness: it
+ * boots a run exactly as `doc-renamer-pipeline-harness.smoke.spec.ts` does, then
+ * holds ONE expectation that is false by construction. boot() sets
+ * `s.booted = true` on success, so asserting the session is NOT booted after a
+ * successful boot is a claim no correct harness can satisfy. The assertion reads
+ * no CLI, so this fails before the docnamer CLI is built as well as after it,
+ * and a runner that reports this flow as failed is the point of the control.
  *
  * It keeps its `.spec.ts` name because harness-smoke reaches it by path, and bun
  * only treats an argument as a path when it matches a test-file glob — a `.red.ts`
@@ -20,15 +25,18 @@
  * `--path-ignore-patterns='**\/*.red.spec.ts'`, while `test:e2e` carries no
  * ignore, which is how this file still fails when it is the file named.
  */
-import { Session } from './doc-renamer-pipeline-harness.ts'
+import { Session, boot } from './doc-renamer-pipeline-harness.ts'
 
 flow('doc-renamer-pipeline red control: the runner reports a failing flow', async () => {
   const s = new Session()
-  // FALSE BY CONSTRUCTION: a Session boots on demand and is born un-booted, so
-  // this flow must fail, and a runner that reports it passes this control.
-  if (s.booted === false) {
+  await boot(s)
+
+  // FALSE BY CONSTRUCTION: boot() set s.booted = true, so this flow's claim is
+  // false and the runner must report it failed. A runner that reports it passed
+  // is a runner harness-smoke must refuse.
+  if (s.booted) {
     throw new Error(
-      "red control: a fresh Session is un-booted, so this flow's claim is false and the runner must report it failed"
+      "red control: boot() succeeded, so this flow's claim that the session is NOT booted is false by construction — a runner reporting it as failed is the point"
     )
   }
 })
