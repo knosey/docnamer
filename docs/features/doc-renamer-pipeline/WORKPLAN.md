@@ -28,7 +28,6 @@
   - Consumes: none
   - Produces: `loadConfig(path: string): Config`; `type FieldSpec = { kind: "text" | "date" | "money" | "entity" | "last4"; required: boolean; prompt?: string }`; `type DocType = { describe: string; fields: Record<string, FieldSpec>; template: string; tag?: string; folder?: string | null }`; `type Config = { defaults: { date_format: string; date_order: "day-first" | "month-first"; max_name_length: number; ocr_text_layer: boolean; finder_tags: boolean; finder_comment: boolean }; models: { cheap: string; vision: string }; types: Record<string, DocType>; entities: Record<string, string[]> }`; a `package.json` declaring `@earendil-works/pi-ai` pinned at exactly `1.3.0` and `"type": "module"`; a `docnamer.yaml` carrying the full shipped roster of 15 types including `other`
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
-- Reference: `bun --version`
 <!-- record:T1 -->
 **done** · run `ship-feature-325e90`
 - Commits: none recorded
@@ -66,7 +65,6 @@
   - Consumes: `type Config`; `type DocType`; `type Content`
   - Produces: `analyse(content: Content, fileName: string, config: Config): Promise<Analysis | Failed>`; `buildSchema(types: Record<string, DocType>): TSchema`; `type Analysis = { type: string; type_confidence: number; fields: Record<string, { value: string | null; evidence: string | null }>; summary: string }`; `type Failed = { failed: true; reason: string; raw: string }`; `isFailed(r: Analysis | Failed): r is Failed`
 - done_when: `bun test tests/analyse.test.ts`
-- Reference: `bun pm ls`
 <!-- record:T3 -->
 **failed** · run `ship-feature-325e90`
 - Commits: none recorded

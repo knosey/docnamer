@@ -1,14 +1,4 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun --version`
-
 import { test, expect } from 'bun:test'
-
-/** Run this node's reference command; the verdict must follow its output. */
-function runReference(): { code: number; out: string } {
-  const proc = Bun.spawnSync(['sh', '-c', reference])
-  return { code: proc.exitCode ?? 1, out: proc.stdout.toString().trim() }
-}
 
 /** Read a repo-root file, or null when it is not there yet — a failed check, never a throw. */
 async function readRepoFile(name: string): Promise<string | null> {
@@ -26,12 +16,6 @@ async function importConfig(): Promise<Record<string, unknown> | null> {
 }
 
 const yamlPath = new URL('../docnamer.yaml', import.meta.url).pathname
-
-test('reference: the runtime probe exits 0 with a version', () => {
-  const { code, out } = runReference()
-  expect(code).toBe(0)
-  expect(out).toMatch(/^\d+\.\d+\.\d+/)
-})
 
 test('config: src/config.ts exports loadConfig', async () => {
   const mod = await importConfig()

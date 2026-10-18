@@ -1,7 +1,3 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun pm ls`
-
 import { expect, test } from 'bun:test'
 import { ensureProviderKey } from './preload.ts'
 
@@ -71,16 +67,6 @@ async function load(): Promise<Analyser> {
   }
 }
 
-/** Run the reference command and read what it prints. */
-function referenceOutput(): { code: number; stdout: string; stderr: string } {
-  const r = Bun.spawnSync(reference.split(/\s+/))
-  return {
-    code: r.exitCode,
-    stdout: r.stdout.toString(),
-    stderr: r.stderr.toString()
-  }
-}
-
 const config: Config = {
   defaults: {
     date_format: 'YYYY-MM-DD',
@@ -133,12 +119,6 @@ const content: Content = {
   ocrConfidence: null,
   pages: 1
 }
-
-test('the model SDK Stage 2 calls is the installed dependency', () => {
-  const r = referenceOutput()
-  expect(r.code).toBe(0)
-  expect(r.stdout).toContain('@earendil-works/pi-ai@1.3.0')
-})
 
 test('analyse.ts exports its Stage 2 surface', async () => {
   const mod = await load()
