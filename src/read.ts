@@ -49,17 +49,27 @@ export async function downloadICloud(file: string): Promise<void> {
 // project dependency, so the CLI depends on neither a global install nor a
 // first-run swiftc compile. Native Bun + platform frameworks only (D2).
 
-/** Resolve mac-ocr: PATH first, then this project's own install (R5). */
+/** Resolve mac-ocr from this project's own install only — never PATH (R5). */
 import macOcr from '../node_modules/mac-ocr/bin/mac-ocr' with { type: 'file' }
 import macOcrPkg from '../node_modules/mac-ocr/package.json'
 
+/** sha256 of node_modules/mac-ocr/bin/mac-ocr, pinned so the embedded copy is the only mac-ocr ever exec'd. */
+const MAC_OCR_SHA256 = '1817fff474a88706104167f8f47983ecea93a3b41cd10fa6b8585c026ffd7668'
+
 let macOcrPromise: Promise<string> | null = null
+
+const sha256 = async (path: string): Promise<string> => {
+  const hasher = new Bun.CryptoHasher('sha256')
+  hasher.update(await Bun.file(path).arrayBuffer())
+  return hasher.digest('hex')
+}
 
 /**
  * Unpack the mac-ocr copy embedded in the compiled binary. A compiled binary's
  * own asset path is Bun's virtual `/$bunfs/...`, which cannot be exec'd, so the
  * bytes are written to TMPDIR and chmod'd 755 — `Bun.write`'s mode option is
  * silently ignored inside a compiled binary, so the chmod is not optional.
+ * A copy already at the destination is reused only when it hashes to the pin.
  */
 async function unpackMacOcr(): Promise<string> {
   const tmp = Bun.env.TMPDIR
@@ -67,20 +77,20 @@ async function unpackMacOcr(): Promise<string> {
     throw new Error('ocrPages: TMPDIR is unset, so the embedded mac-ocr has nowhere to unpack to')
   }
   const dest = `${tmp}/docnamer-mac-ocr-${macOcrPkg.version}`
-  if (await Bun.file(dest).exists()) return dest
-  await Bun.write(dest, Bun.file(macOcr))
+  if ((await Bun.file(dest).exists()) && (await sha256(dest)) === MAC_OCR_SHA256) return dest
+  const bytes = Bun.file(macOcr)
+  const hash = new Bun.CryptoHasher('sha256')
+  hash.update(await bytes.arrayBuffer())
+  if (hash.digest('hex') !== MAC_OCR_SHA256) {
+    throw new Error(`ocrPages: the embedded mac-ocr fails its sha256 pin (${MAC_OCR_SHA256})`)
+  }
+  await Bun.write(dest, bytes)
   Bun.spawnSync(['chmod', '755', dest])
   return dest
 }
 
 function macOcrBinary(): Promise<string> {
-  if (!macOcrPromise) {
-    macOcrPromise = (async () => {
-      const onPath = Bun.which('mac-ocr')
-      if (onPath !== null) return onPath
-      return unpackMacOcr()
-    })()
-  }
+  if (!macOcrPromise) macOcrPromise = unpackMacOcr()
   return macOcrPromise
 }
 

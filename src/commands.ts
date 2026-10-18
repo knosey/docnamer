@@ -11,7 +11,7 @@ import { analyse, isFailed, type Analysis } from './analyse.ts'
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
 import { read, pageImages } from './read.ts'
-import { setFinderTag, setFinderComment, addOcrTextLayer } from './spotlight.ts'
+import { setFinderTag, setFinderComments, addOcrTextLayer } from './spotlight.ts'
 import { validate, type Checked } from './validate.ts'
 
 export type PlanRow = {
@@ -84,73 +84,40 @@ export async function plan(
     rels.map(async rel => {
       const path = `${folder}/${rel}`
       const old = base(rel)
+      let checked: Checked
+      let failedReason: string | null = null
+      let method: PlanRow['method'] = null
       try {
         const content = await read(path)
         // Stage 1 SKIPped the file (unsupported type): it is not a document, so
         // it gets no row at all. The folder's own docnamer.json is the case in
         // point — a row for it would propose its own name back at it and collide.
         if (content === null) return null
-        const result: Analysis | { failed: true; reason: string } = await analyse(
+        method = content.method
+        let result: Analysis | { failed: true; reason: string } = await analyse(
           content,
           old,
           config
         )
-        if (!isFailed(result as never)) {
-          return {
-            rel,
-            old,
-            checked: validate(result as Analysis, content, config),
-            failedReason: null as string | null,
-            method: content.method as PlanRow['method']
-          }
-        }
         // A reply the tool contract could not read is the one case worth a
         // second, stronger look: hand the first page's image to the strong seat
         // and take whatever name it returns (R4, I2).
-        const images = pageImages(path)
-        const retry: Analysis | { failed: true; reason: string } =
-          images.length === 0
-            ? result
-            : await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
-        if (!isFailed(retry as never)) {
-          return {
-            rel,
-            old,
-            checked: validate(retry as Analysis, content, config),
-            failedReason: null,
-            method: content.method as PlanRow['method']
-          }
+        const images = isFailed(result as never) ? pageImages(path) : []
+        if (images.length > 0) {
+          result = await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
         }
-        const checked: Checked = {
-          type: 'other',
-          type_confidence: 0,
-          fields: {},
-          summary: stemOf(old),
-          flags: []
-        }
-        return {
-          rel,
-          old,
-          checked,
-          failedReason: (retry as { reason: string }).reason,
-          method: content.method as PlanRow['method']
+        if (isFailed(result as never)) failedReason = (result as { reason: string }).reason
+        else {
+          checked = validate(result as Analysis, content, config)
+          return { rel, old, checked, failedReason, method }
         }
       } catch (e) {
-        const checked: Checked = {
-          type: 'other',
-          type_confidence: 0,
-          fields: {},
-          summary: stemOf(old),
-          flags: []
-        }
-        return {
-          rel,
-          old,
-          checked,
-          failedReason: (e as Error)?.message ?? String(e),
-          method: null as PlanRow['method']
-        }
+        failedReason = (e as Error)?.message ?? String(e)
       }
+      // A row nothing could analyse still gets a name: its own stem, which
+      // Stage 4 renders unique against the names already on disk (I3).
+      checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
+      return { rel, old, checked, failedReason, method }
     })
   )
 
@@ -258,6 +225,7 @@ export async function apply(folder: string, config: Config): Promise<ApplyReport
 
   const entries: UndoEntry[] = []
   const skipped: { file: string; reason: string }[] = []
+  const comments: { file: string; comment: string }[] = []
   for (const row of rows) {
     if (row.status !== 'accepted') continue
     const from = `${folder}/${row.old}`
@@ -278,19 +246,24 @@ export async function apply(folder: string, config: Config): Promise<ApplyReport
     renameFile(from, to)
 
     const entry: UndoEntry = { old: row.old, new: row.new, size: row.size, mtime: row.mtime }
-    if (config.defaults.finder_tags && row.type !== 'other') {
-      await setFinderTag(to, row.type)
+    // Tagging and OCR touch independent systems, so they run concurrently.
+    const tagging =
+      config.defaults.finder_tags && row.type !== 'other' ? setFinderTag(to, row.type) : null
+    const ocrLayer =
+      config.defaults.ocr_text_layer && row.method === 'ocr' ? addOcrTextLayer(to) : null
+    if (tagging) {
+      await tagging
       entry.tag = row.type
     }
     if (config.defaults.finder_comment) {
-      await setFinderComment(to, row.summary)
+      // Comments are batched into one osascript after the loop.
+      comments.push({ file: to, comment: row.summary })
       entry.comment = row.summary
     }
-    if (config.defaults.ocr_text_layer && row.method === 'ocr') {
-      entry.sidecar = (await addOcrTextLayer(to)).sidecar
-    }
+    if (ocrLayer) entry.sidecar = (await ocrLayer).sidecar
     entries.push(entry)
   }
+  await setFinderComments(comments)
 
   const now = new Date()
   const stamp = undoStamp(now)

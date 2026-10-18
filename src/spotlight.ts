@@ -13,10 +13,6 @@ import { ocrPages } from './read.ts'
 
 const TAG_XATTR = 'com.apple.metadata:_kMDItemUserTags'
 
-function tmpPath(name: string): string {
-  return `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-${name}`
-}
-
 // --- Tag plist codec -----------------------------------------------------------
 
 /** Encode Finder tags as the binary plist the _kMDItemUserTags xattr stores. */
@@ -27,21 +23,24 @@ export function encodeTagPlist(tags: string[]): Uint8Array {
     `<plist version="1.0"><array>${tags
       .map(t => `<string>${escapeXml(t)}</string>`)
       .join('')}</array></plist>\n`
-  const tmp = tmpPath(`tags-${crypto.randomUUID()}.plist`)
-  const proc = Bun.spawnSync(['plutil', '-convert', 'binary1', '-o', tmp, '-'], {
+  const proc = Bun.spawnSync(['plutil', '-convert', 'binary1', '-o', '-', '-'], {
     stdin: new TextEncoder().encode(xml)
   })
   if (proc.exitCode !== 0) {
-    throw new Error(`encodeTagPlist: plutil could not encode tags: ${proc.stderr.toString().trim()}`)
+    throw new Error(
+      `encodeTagPlist: plutil could not encode tags: ${proc.stderr.toString().trim()}`
+    )
   }
-  return new Uint8Array(Bun.spawnSync(['cat', tmp]).stdout)
+  return proc.stdout
 }
 
 /** Decode the binary plist stored in the _kMDItemUserTags xattr back to tags. */
 export function decodeTagPlist(bytes: Uint8Array): string[] {
   const proc = Bun.spawnSync(['plutil', '-convert', 'json', '-o', '-', '-'], { stdin: bytes })
   if (proc.exitCode !== 0) {
-    throw new Error(`decodeTagPlist: plutil could not decode plist: ${proc.stderr.toString().trim()}`)
+    throw new Error(
+      `decodeTagPlist: plutil could not decode plist: ${proc.stderr.toString().trim()}`
+    )
   }
   const parsed = JSON.parse(proc.stdout.toString()) as unknown
   if (!Array.isArray(parsed)) {
@@ -86,16 +85,32 @@ export async function setFinderTag(file: string, tag: string): Promise<void> {
 
 // --- Finder comment ---------------------------------------------------------------
 
-/** Set the file's Finder comment via Finder itself, so it lands in the .DS_Store store. */
-export async function setFinderComment(file: string, comment: string): Promise<void> {
+/**
+ * Set Finder comments via Finder itself, so they land in the .DS_Store store.
+ * The batch is one osascript process for the whole apply run — one spawn per
+ * file would pay a Finder round-trip for every renamed document.
+ */
+export async function setFinderComments(pairs: { file: string; comment: string }[]): Promise<void> {
+  if (pairs.length === 0) return
   const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-  const script = `tell application "Finder" to set comment of (POSIX file "${esc(file)}" as alias) to "${esc(comment)}"`
-  const proc = Bun.spawnSync(['osascript', '-e', script])
+  const lines = pairs.map(
+    p => `set comment of (POSIX file "${esc(p.file)}" as alias) to "${esc(p.comment)}"`
+  )
+  const proc = Bun.spawnSync([
+    'osascript',
+    '-e',
+    `tell application "Finder"\n${lines.join('\n')}\nend tell`
+  ])
   if (proc.exitCode !== 0) {
     throw new Error(
-      `setFinderComment: osascript could not comment ${file}: ${proc.stderr.toString().trim()}`
+      `setFinderComments: osascript could not comment ${pairs.map(p => p.file).join(', ')}: ${proc.stderr.toString().trim()}`
     )
   }
+}
+
+/** Set one file's Finder comment. */
+export function setFinderComment(file: string, comment: string): Promise<void> {
+  return setFinderComments([{ file, comment }])
 }
 
 // --- OCR text layer -----------------------------------------------------------------
