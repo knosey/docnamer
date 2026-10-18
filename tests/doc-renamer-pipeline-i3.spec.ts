@@ -42,7 +42,7 @@ flow('doc-renamer-pipeline I3: collision-safe unique naming', async () => {
     await render(s)
     await collide(s)
     await suffix(s)
-    await outcome(s)
+    await outcome(s, 'i3-render-collide-suffix')
   } catch (e) {
     // An absent `docnamer` CLI is not a named hole here: I3's outcome is a
     // real, observable assertion, and with no plan there is no collision

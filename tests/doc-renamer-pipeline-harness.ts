@@ -326,7 +326,7 @@ export async function name(s: Session): Promise<Session> {
  * such table existed to look at. An Outcome claim that is not asserted here is
  * a claim no node can be held to.
  */
-export async function outcome(s: Session): Promise<Session> {
+export async function outcome(s: Session, name: string): Promise<Session> {
   await ensure(s)
   if (!(await Bun.file(s.planPath).exists())) {
     throw new Error('outcome: .docnamer-plan.json not written')
@@ -377,8 +377,10 @@ export async function outcome(s: Session): Promise<Session> {
     }
   }
 
-  // The frame is the only evidence the visual review gets.
-  await frame(s.last.stdout, 'i1-plan-table')
+  // The frame is the only evidence the visual review gets, and each flow names
+  // its own: one shared name means the last spec to run overwrites the others'
+  // frames, so the judge reviews a different flow than the one it is judging.
+  await frame(s.last.stdout, name)
   for (const r of s.plan) {
     if (r.status !== 'pending') {
       throw new Error(`outcome: row ${r.old} status ${r.status} != pending`)

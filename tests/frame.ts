@@ -7,12 +7,18 @@
  *   text -> SVG (monospace, xml:space="preserve", one <text> per line) -> sips -> PNG
  *
  * One <text> element per line, never a wrapped paragraph: the line breaks a
- * person reads in a terminal are the ones in the frame. `xml:space="preserve"`
- * keeps the columns' padding, which is what makes a table legible.
+ * person reads in a terminal are the ones in the frame.
  *
- * The judge reads every .png under .audit/screenshots/ (the graph's capture
- * node clears and counts that directory), so the frame lands there and nowhere
- * else. Test-only: it shells out to sips and is never imported by src/.
+ * xml:space="preserve" keeps the padding BETWEEN columns, which is what makes a
+ * table legible. It does NOT keep the indent that STARTS a line: sips strips a
+ * text run's leading whitespace regardless. That is why the "!" rows used to
+ * render two characters right of the rest — the marked rows kept their margin
+ * while every other row lost it. A line's leading indent is therefore emitted as
+ * geometry (the run's x) and the run itself is left-trimmed.
+ *
+ * The judge reads every .png under .audit/screenshots/ (the graph's capture node
+ * clears and counts that directory), so the frame lands there and nowhere else.
+ * Test-only: it shells out to sips and is never imported by src/.
  */
 const FRAMES_DIR = '.audit/screenshots'
 
@@ -36,12 +42,14 @@ export function toSvg(text: string): string {
   const w = Math.ceil(cols * CHAR_W) + PAD * 2
   const h = lines.length * LINE_H + PAD * 2
   const body = lines
-    .map(
-      (l, i) =>
-        `<text x="${PAD}" y="${PAD + (i + 1) * LINE_H - 4}" ` +
+    .map((l, i) => {
+      const lead = l.length - l.trimStart().length
+      return (
+        `<text x="${PAD + lead * CHAR_W}" y="${PAD + (i + 1) * LINE_H - 4}" ` +
         `font-family="Menlo, monospace" font-size="${FONT_SIZE}" ` +
-        `fill="#e6e6e6" xml:space="preserve">${esc(l)}</text>`
-    )
+        `fill="#e6e6e6" xml:space="preserve">${esc(l.trimStart())}</text>`
+      )
+    })
     .join('\n  ')
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">\n` +
@@ -57,6 +65,14 @@ export function toSvg(text: string): string {
  */
 export async function frame(text: string, name: string): Promise<string> {
   if (!text.trim()) throw new Error(`frame ${name}: nothing to render, stdout was empty`)
+  const svgText = toSvg(text)
+  // The regression guard for the ragged table. sips strips whitespace that
+  // STARTS a run, so a run must never begin with one — the rows carrying a "!"
+  // margin rendered two characters right of the rest, and a column nobody can
+  // read down is what made the judge misread the names in it.
+  if (/<text[^>]*>\s/.test(svgText)) {
+    throw new Error(`frame ${name}: a <text> run begins with whitespace; indent must be its x`)
+  }
   const dir = `${repo}/${FRAMES_DIR}`
   // sips does not create missing parent directories, and .audit/ is gitignored,
   // so on a fresh clone the directory is not there. The graph's capture node
@@ -68,7 +84,7 @@ export async function frame(text: string, name: string): Promise<string> {
   const out = `${dir}/${name}.png`
   // A predictable name in a shared TMPDIR is a symlink target. Unique per call.
   const svg = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-frame-${name}-${crypto.randomUUID()}.svg`
-  await Bun.write(svg, toSvg(text))
+  await Bun.write(svg, svgText)
   const p = Bun.spawnSync(['sips', '-s', 'format', 'png', svg, '--out', out])
   if (p.exitCode !== 0) {
     throw new Error(`frame ${name}: sips failed (${p.exitCode}): ${p.stderr.toString().trim()}`)
