@@ -163,3 +163,16 @@ test("T5 buildName appends a Finder-style ' (2)' when the name is taken", async 
   expect(second).toMatch(/ \(\d+\)\.pdf$/)
   expect(second.length).toBeLessThanOrEqual(Number(referenceOutput()))
 })
+
+test('T5 buildName treats a name differing only in case as taken (macOS is case-insensitive)', async () => {
+  const n = await loadName()
+  const first = await n.buildName(CHECKED, CONFIG, { dir: '/tmp', ext: '.pdf' }, new Set())
+  const second = await n.buildName(
+    CHECKED,
+    CONFIG,
+    { dir: '/tmp', ext: '.pdf' },
+    new Set([first.toUpperCase()])
+  )
+  expect(second).not.toBe(first)
+  expect(second).toMatch(/ \(\d+\)\.pdf$/)
+})
