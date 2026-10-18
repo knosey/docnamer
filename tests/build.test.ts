@@ -6,6 +6,7 @@ import { expect, test } from 'bun:test'
 import { copyFileSync, existsSync, mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ensureProviderKey } from './preload.ts'
 
 /**
  * T5 — Compile to one standalone binary and install it (R1).
@@ -54,6 +55,13 @@ test('BUN_BE_BUN=1 ~/bin/docnamer --version prints what the reference prints', (
 })
 
 test('the compiled binary plans a scan PDF as itself, not degraded to other', async () => {
+  // A spawned child does NOT inherit `Bun.env` mutations made after startup.
+  // Verified on bun 1.4.2: `ensureProviderKey()` sets both `Bun.env` and
+  // `process.env`, and a child spawned with no `env` option still sees neither,
+  // because the default is a snapshot taken when the process started. So the key
+  // has to be handed over explicitly, and asking for it here is what makes
+  // `bun test tests/build.test.ts` on its own a real check.
+  await ensureProviderKey()
   expect(existsSync(binPath), `${binPath} does not exist, so there is nothing to run`).toBe(true)
   const dir = mkdtempSync(join(tmpdir(), 'docnamer-build-'))
   copyFileSync(
@@ -62,7 +70,7 @@ test('the compiled binary plans a scan PDF as itself, not degraded to other', as
   )
   copyFileSync(join(repo, 'docnamer.json'), join(dir, 'docnamer.json'))
 
-  const proc = Bun.spawnSync([binPath, 'plan', dir], { cwd: repo })
+  const proc = Bun.spawnSync([binPath, 'plan', dir], { cwd: repo, env: { ...Bun.env } })
   expect(proc.exitCode, `plan failed:\n${proc.stderr.toString()}`).toBe(0)
 
   const planPath = join(dir, '.docnamer-plan.json')
