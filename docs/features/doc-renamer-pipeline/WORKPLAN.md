@@ -1,7 +1,7 @@
 # WORKPLAN: doc-renamer-pipeline
 
 ## Global Constraints
-- Native Bun APIs only (`Bun.file`, `Bun.$`, `Bun.Glob`, `Bun.spawn`, `Bun.YAML`, `bun:sqlite`); no `node:` built-ins anywhere in the codebase — R3, D2.
+- Native Bun APIs only (`Bun.file`, `Bun.$`, `Bun.Glob`, `Bun.spawn`, `Bun.YAML`); no `node:` built-ins anywhere in the codebase — R3, D2.
 - All model calls go through `@earendil-works/pi-ai` version 1.3.0, declared in `package.json` and pinned exactly; no hand-rolled provider HTTP layer — R3, D4.
 - `docnamer <command> <folder>` is the entire integration surface; no importable library API — D3.
 - Ambiguous slashed dates are read day-first, driven by `date_order` in config — R8.
@@ -26,15 +26,15 @@
   - Test: [manifest.test.ts](../../../tests/manifest.test.ts)
 - Interfaces:
   - Consumes: none
-  - Produces: `loadConfig(path: string): Config`; `type FieldSpec = { kind: "text" | "date" | "money" | "entity" | "last4"; required: boolean; prompt?: string }`; `type DocType = { describe: string; fields: Record<string, FieldSpec>; template: string; tag?: string; folder?: string | null }`; `type Config = { defaults: { date_format: string; date_order: "day-first" | "month-first"; max_name_length: number; ocr_text_layer: boolean; finder_tags: boolean; finder_comment: boolean }; models: { cheap: string; vision: string }; types: Record<string, DocType>; entities: Record<string, string[]> }`; a `package.json` declaring `@earendil-works/pi-ai` pinned at exactly `1.3.0` and `"type": "module"`; a `docnamer.yaml` carrying the full shipped roster of 15 types including `other`
+  - Produces: `loadConfig(path: string): Config`; `type FieldSpec = { kind: "text" | "date" | "money" | "entity" | "last4"; required: boolean; prompt?: string }`; `type DocType = { describe: string; fields: Record<string, FieldSpec>; template: string; folder?: string | null }`; `type Config = { defaults: { date_format: string; date_order: "day-first" | "month-first"; max_name_length: number; ocr_text_layer: boolean; finder_tags: boolean; finder_comment: boolean }; models: { cheap: string; vision: string }; types: Record<string, DocType>; entities: Record<string, string[]> }`; a `package.json` declaring `@earendil-works/pi-ai` pinned at exactly `1.3.0` and `"type": "module"`; a `docnamer.yaml` carrying the full shipped roster of 15 types including `other`
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun test --path-ignore-patterns='**/*.red.spec.ts'`
 <!-- record:T1 -->
-**failed** · run `ship-feature-f9b9ee`
+**done** · run `ship-feature-54777a`
 - Commits: none recorded
 - Landed: nothing
-- Gates: none recorded
-- Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun test` exited 1 (output cut to its last 4000 chars): ``` e.json declares type module [0.28ms] (pass) manifest: @earendil-works/pi-ai is pinned at exactly 1.3.0 [0.10ms] tests/read.test.ts: (pass) reference is the truth this suite is anchored to [7.97ms] (pass) src/read.ts exports the Sta… [+3720 chars]
+- Gates: reference ✓
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/config.test.ts tests/manifest.test.ts` passes as committed — the work shipped in an earlier run: tests/config.test.ts, tests/manifest.test.ts
 <!-- /record:T1 -->
 
 ## T2: Stage 1 read ladder and fixtures
@@ -49,7 +49,7 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `./node_modules/.bin/mac-ocr --version`
 <!-- record:T2 -->
-**done** · run `ship-feature-f9b9ee`
+**done** · run `ship-feature-54777a`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -68,11 +68,11 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun test --path-ignore-patterns='**/*.red.spec.ts'`
 <!-- record:T3 -->
-**failed** · run `ship-feature-f9b9ee`
+**done** · run `ship-feature-54777a`
 - Commits: none recorded
 - Landed: nothing
-- Gates: none recorded
-- Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun test` exited 1 (output cut to its last 4000 chars): ``` .json declares type module [0.31ms] (pass) manifest: @earendil-works/pi-ai is pinned at exactly 1.3.0 [0.13ms] tests/read.test.ts: (pass) reference is the truth this suite is anchored to [10.39ms] (pass) src/read.ts exports the Sta… [+3720 chars]
+- Gates: reference ✓
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/analyse.test.ts` passes as committed — the work shipped in an earlier run: tests/analyse.test.ts
 <!-- /record:T3 -->
 
 ## T4: Stage 3 validation and normalisers
@@ -87,7 +87,7 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**done** · run `ship-feature-f9b9ee`
+**done** · run `ship-feature-54777a`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -109,15 +109,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
-**done** · run `ship-feature-f9b9ee`
+**done** · run `ship-feature-54777a`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/name.test.ts tests/plan.test.ts` passes as committed — the work shipped in an earlier run: tests/name.test.ts, tests/plan.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-f9b9ee`
-- Tasks: T1 failed · T2 done · T3 failed · T4 done · T5 done
+**success** · run `ship-feature-54777a`
+- Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
 - Commits: none recorded
-- Detail: task-tests: fan-out child 'task-test#0' failed: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun test` exited 1 (output cut to its last 4000 chars): ``` e.json declares type module [0.28ms] (pass) manifest: @earendil-works/pi-ai is pinned at exactly 1.3.0 [0.10ms] tests/read.test.ts: (pass) reference is the truth this suite is anchore… [+3810 chars]
+- Detail: every node succeeded
 <!-- /record:run -->
