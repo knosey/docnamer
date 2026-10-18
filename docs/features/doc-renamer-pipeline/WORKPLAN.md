@@ -30,11 +30,11 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun test`
 <!-- record:T1 -->
-**done** · run `ship-feature-325e90`
+**failed** · run `ship-feature-f9b9ee`
 - Commits: none recorded
 - Landed: nothing
-- Gates: reference ✓
-- Summary: RE-RUN, ALREADY GREEN: `bun test tests/config.test.ts tests/manifest.test.ts` passes as committed — the work shipped in an earlier run: tests/config.test.ts, tests/manifest.test.ts
+- Gates: none recorded
+- Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun test` exited 1 (output cut to its last 4000 chars): ``` e.json declares type module [0.28ms] (pass) manifest: @earendil-works/pi-ai is pinned at exactly 1.3.0 [0.10ms] tests/read.test.ts: (pass) reference is the truth this suite is anchored to [7.97ms] (pass) src/read.ts exports the Sta… [+3720 chars]
 <!-- /record:T1 -->
 
 ## T2: Stage 1 read ladder and fixtures
@@ -49,7 +49,7 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `./node_modules/.bin/mac-ocr --version`
 <!-- record:T2 -->
-**done** · run `ship-feature-325e90`
+**done** · run `ship-feature-f9b9ee`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -68,11 +68,11 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun test`
 <!-- record:T3 -->
-**failed** · run `ship-feature-325e90`
+**failed** · run `ship-feature-f9b9ee`
 - Commits: none recorded
 - Landed: nothing
-- Gates: reference ✗
-- Summary: reference — Rule "bun pm*" requires approval and approval was NOT granted: the operator declined it or did not answer before the deadline. Do NOT retry this command or a reworded variant — the engine refuses it at every attempt, and each attempt spends one of the node's corrections until the node fails; carry on without it, and report in your result what you could not do and what you need approved… [+25 chars]
+- Gates: none recorded
+- Summary: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun test` exited 1 (output cut to its last 4000 chars): ``` .json declares type module [0.31ms] (pass) manifest: @earendil-works/pi-ai is pinned at exactly 1.3.0 [0.13ms] tests/read.test.ts: (pass) reference is the truth this suite is anchored to [10.39ms] (pass) src/read.ts exports the Sta… [+3720 chars]
 <!-- /record:T3 -->
 
 ## T4: Stage 3 validation and normalisers
@@ -87,7 +87,7 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**done** · run `ship-feature-325e90`
+**done** · run `ship-feature-f9b9ee`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -109,15 +109,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
-**done** · run `ship-feature-325e90`
+**done** · run `ship-feature-f9b9ee`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/name.test.ts tests/plan.test.ts` passes as committed — the work shipped in an earlier run: tests/name.test.ts, tests/plan.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-325e90`
-- Tasks: T1 done · T2 done · T3 failed · T4 done · T5 done
+**failed** · run `ship-feature-f9b9ee`
+- Tasks: T1 failed · T2 done · T3 failed · T4 done · T5 done
 - Commits: none recorded
-- Detail: task-tests: fan-out child 'task-test#2' failed: reference — Rule "bun pm*" requires approval and approval was NOT granted: the operator declined it or did not answer before the deadline. Do NOT retry this command or a reworded variant — the engine refuses it at every attempt, and each attempt spends one of the node's corrections until the node fails; carry on without it, and report in your result … [+115 chars]
+- Detail: task-tests: fan-out child 'task-test#0' failed: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `bun test` exited 1 (output cut to its last 4000 chars): ``` e.json declares type module [0.28ms] (pass) manifest: @earendil-works/pi-ai is pinned at exactly 1.3.0 [0.10ms] tests/read.test.ts: (pass) reference is the truth this suite is anchore… [+3810 chars]
 <!-- /record:run -->
