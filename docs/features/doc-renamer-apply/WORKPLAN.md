@@ -25,7 +25,7 @@
 - done_when: `bun test tests/spotlight.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T1 -->
-**done** · run `ship-feature-258640`
+**done** · run `ship-feature-f08137`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -44,7 +44,7 @@
 - done_when: `bun test tests/apply.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T2 -->
-**done** · run `ship-feature-258640`
+**done** · run `ship-feature-f08137`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -64,7 +64,7 @@
 - done_when: `bun test tests/review.test.ts`
 - Reference: `bun --version`
 <!-- record:T3 -->
-**done** · run `ship-feature-258640`
+**done** · run `ship-feature-f08137`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -85,7 +85,7 @@
 - done_when: `bun test tests/eval.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T4 -->
-**done** · run `ship-feature-258640`
+**done** · run `ship-feature-f08137`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -105,15 +105,15 @@
 - done_when: `bun test tests/build.test.ts`
 - Reference: `bun --version`
 <!-- record:T5 -->
-**done** · run `ship-feature-258640`
+**done** · run `ship-feature-f08137`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/build.test.ts` passes as committed — the work shipped in an earlier run: tests/build.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-258640`
+**failed** · run `ship-feature-f08137`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
 - Commits: none recorded
-- Detail: repairs: fan-out child 'repair#0' failed: touches_only — wrote docs/features/doc-renamer-apply/WORKPLAN.md — outside this step's files (src/review.ts, src/commands.ts)
+- Detail: verify: exit 1 — output tail: … [+5249 earlier chars] report [4197.06ms] tests/doc-renamer-apply-i2.spec.ts: (pass) doc-renamer-apply I2: undo restores every renamed file [5087.61ms] tests/plan.test.ts: (pass) T5 plan returns a PlanRow per document with the declared shape [3.71ms] (pass) T5 writePlan writes .docnamer-plan.json in the folder [0.47ms] OLD NEW TYPE FLAGS ---------------- ------------… [+3536 chars]
 <!-- /record:run -->
