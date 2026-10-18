@@ -30,7 +30,7 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun --version`
 <!-- record:T1 -->
-**done** · run `ship-feature-65da44`
+**done** · run `ship-feature-7e9751`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -49,7 +49,7 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `./node_modules/.bin/mac-ocr --version`
 <!-- record:T2 -->
-**done** · run `ship-feature-65da44`
+**done** · run `ship-feature-7e9751`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -68,7 +68,7 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun pm ls`
 <!-- record:T3 -->
-**done** · run `ship-feature-65da44`
+**done** · run `ship-feature-7e9751`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -87,7 +87,7 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**done** · run `ship-feature-65da44`
+**done** · run `ship-feature-7e9751`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -109,15 +109,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
-**done** · run `ship-feature-65da44`
+**done** · run `ship-feature-7e9751`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/name.test.ts tests/plan.test.ts` passes as committed — the work shipped in an earlier run: tests/name.test.ts, tests/plan.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-65da44`
+**failed** · run `ship-feature-7e9751`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
 - Commits: none recorded
-- Detail: verify: exit 1 — output tail: … [+1517 earlier chars] or: I3 outcome: unreadable-scan.pdf proposes a name already on disk: unreadable-scan.pdf at <anonymous> (/Users/<user>/Knosey/projects/renamer/tests/doc-renamer-pipeline-i3.spec.ts:52:17) (fail) doc-renamer-pipeline I3: collision-safe unique naming [26689.46ms] tests/doc-renamer-pipeline-i1.spec.ts: (pass) doc-renamer-pipeline I1: plan a folder en… [+3593 chars]
+- Detail: visual-review: visual_clean — FAIL: "old→new name table printed by `docnamer plan <folder>`" is answered: a person cannot read or see it; "flagged rows listed first in the plan output table" is answered: a person cannot read or see it; defect: no-frames [capture] missing .audit/screenshots is empty (verified by three direct listings across correction turns; .audit holds only the bare directory) an… [+562 chars]
 <!-- /record:run -->
