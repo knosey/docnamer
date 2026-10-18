@@ -30,7 +30,7 @@
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun --version`
 <!-- record:T1 -->
-**done** · run `ship-feature-2283ca`
+**done** · run `ship-feature-327645`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -49,7 +49,7 @@
 - done_when: `bun test tests/read.test.ts`
 - Reference: `./node_modules/.bin/mac-ocr --version`
 <!-- record:T2 -->
-**done** · run `ship-feature-2283ca`
+**done** · run `ship-feature-327645`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -68,7 +68,7 @@
 - done_when: `bun test tests/analyse.test.ts`
 - Reference: `bun pm ls`
 <!-- record:T3 -->
-**done** · run `ship-feature-2283ca`
+**done** · run `ship-feature-327645`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -87,7 +87,7 @@
 - done_when: `bun test tests/validate.test.ts`
 - Reference: `date -j -f "%Y-%m-%d" "2026-04-03" "+%Y-%m-%d"`
 <!-- record:T4 -->
-**done** · run `ship-feature-2283ca`
+**done** · run `ship-feature-327645`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
@@ -109,15 +109,15 @@
 - done_when: `bun test tests/name.test.ts tests/plan.test.ts`
 - Reference: `getconf NAME_MAX /`
 <!-- record:T5 -->
-**done** · run `ship-feature-2283ca`
+**done** · run `ship-feature-327645`
 - Commits: none recorded
 - Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/name.test.ts tests/plan.test.ts` passes as committed — the work shipped in an earlier run: tests/name.test.ts, tests/plan.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-2283ca`
+**failed** · run `ship-feature-327645`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
 - Commits: none recorded
-- Detail: visual-review: visual_clean — FAIL: defect: i1-plan-table.png [NEW column, rows 3-4] wrong-state: dup-invoice-2.md and dup-invoice.md both propose the identical name "2024-02-04 Globex invoice GLX-0091 (2).md" — I3 requires every plan row's name to be unique (later collision should be " (3)"); applying this plan renames two files to one target. Notably src/name.ts's planned-set loop cannot produce… [+306 chars]
+- Detail: repairs: fan-out child 'repair#1' failed: The check itself passes (`python3 /tmp/probe.py` → EXIT=0, both PROBE-OK lines, just re-run), but the harness's stored done_when command is malformed prose that no shell can parse — it fails at sh parse time on `(e.g.` before python3 is invoked, so I cannot make it exit 0 from the tree; the done_when string must be fixed to `python3 /tmp/probe.py`.
 <!-- /record:run -->
