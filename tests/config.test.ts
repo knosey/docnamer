@@ -15,7 +15,7 @@ async function importConfig(): Promise<Record<string, unknown> | null> {
   }
 }
 
-const yamlPath = new URL('../docnamer.yaml', import.meta.url).pathname
+const jsonPath = new URL('../docnamer.json', import.meta.url).pathname
 
 test('config: src/config.ts exports loadConfig', async () => {
   const mod = await importConfig()
@@ -23,10 +23,12 @@ test('config: src/config.ts exports loadConfig', async () => {
   expect(typeof mod?.loadConfig).toBe('function')
 })
 
-test('config: docnamer.yaml is shipped and non-empty', async () => {
-  const text = await readRepoFile('docnamer.yaml')
+test('config: docnamer.json is shipped, non-empty and parses as JSON', async () => {
+  const text = await readRepoFile('docnamer.json')
   expect(text).not.toBeNull()
   expect((text ?? '').trim().length).toBeGreaterThan(0)
+  const parsed = JSON.parse(text ?? '') as Record<string, unknown>
+  expect(Object.keys(parsed)).toContain('types')
 })
 
 test('config: loadConfig returns the shipped Config', async () => {
@@ -52,7 +54,7 @@ test('config: loadConfig returns the shipped Config', async () => {
     >
     entities: Record<string, string[]>
   }
-  const config = loadConfig(yamlPath)
+  const config = loadConfig(jsonPath)
 
   expect(typeof config.defaults.date_format).toBe('string')
   expect(['day-first', 'month-first']).toContain(config.defaults.date_order)
@@ -77,4 +79,35 @@ test('config: loadConfig returns the shipped Config', async () => {
       expect(typeof field.required).toBe('boolean')
     }
   }
+})
+
+test('config: the folder config is docnamer.json and no other name', async () => {
+  const cli = (await import('../src/cli.ts')) as {
+    configFor: (folder: string) => Promise<{ types: Record<string, unknown> }>
+  }
+  expect(typeof cli.configFor).toBe('function')
+
+  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-config-${crypto.randomUUID()}`
+  Bun.spawnSync(['mkdir', '-p', dir])
+
+  // The folder's own config is honoured under the one shipped name.
+  await Bun.write(`${dir}/docnamer.json`, await Bun.file(jsonPath).text())
+  const honoured = await cli.configFor(dir)
+  expect(Object.keys(honoured.types)).toContain('bank_statement')
+
+  // A folder carrying only the old YAML name is NOT a config location any more.
+  // One file, one location: a stale docnamer.yaml must not be read at all.
+  Bun.spawnSync(['rm', `${dir}/docnamer.json`])
+  await Bun.write(
+    `${dir}/docnamer.yaml`,
+    [
+      'types:',
+      '  bogus:',
+      '    describe: never read',
+      '    fields: {}',
+      '    template: bogus'
+    ].join('\n')
+  )
+  const ignored = await cli.configFor(dir)
+  expect(Object.keys(ignored.types)).not.toContain('bogus')
 })
