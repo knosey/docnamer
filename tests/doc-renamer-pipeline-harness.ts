@@ -17,6 +17,7 @@
  *
  * Native Bun APIs only; no `node:` built-ins (D2).
  */
+import { CONFIG_FILE } from '../src/config.ts'
 import { frame } from './frame.ts'
 import { ensureProviderKey } from './preload.ts'
 
@@ -48,7 +49,7 @@ export class Skipped extends Error {
 export const repo = import.meta.dir.replace(/\/tests$/, '')
 
 /** The folder's own config: Stage 1 SKIPs it, so it is never a plan row. */
-export const CONFIG_FILE = 'docnamer.yaml'
+export { CONFIG_FILE }
 
 function base(p: string): string {
   const parts = p.split('/')
@@ -173,7 +174,7 @@ export async function boot(s: Session): Promise<void> {
     if ((err as { code?: string }).code !== 'ENOENT') throw err
   }
 
-  // The folder's own config. docnamer.yaml is read from the FOLDER being planned
+  // The folder's own config. docnamer.json is read from the FOLDER being planned
   // (cli.ts configFor), so without this the run falls back to the built-in
   // DEFAULT_CONFIG — a different type roster, and a vision model this machine
   // cannot call. The feature is specified against the repo's config.

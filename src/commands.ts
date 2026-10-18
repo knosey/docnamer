@@ -87,7 +87,7 @@ export async function plan(
       try {
         const content = await read(path)
         // Stage 1 SKIPped the file (unsupported type): it is not a document, so
-        // it gets no row at all. The folder's own docnamer.yaml is the case in
+        // it gets no row at all. The folder's own docnamer.json is the case in
         // point — a row for it would propose its own name back at it and collide.
         if (content === null) return null
         const result: Analysis | { failed: true; reason: string } = await analyse(
@@ -96,7 +96,13 @@ export async function plan(
           config
         )
         if (!isFailed(result as never)) {
-          return { rel, old, checked: validate(result as Analysis, content, config), failedReason: null as string | null, method: content.method as PlanRow['method'] }
+          return {
+            rel,
+            old,
+            checked: validate(result as Analysis, content, config),
+            failedReason: null as string | null,
+            method: content.method as PlanRow['method']
+          }
         }
         // A reply the tool contract could not read is the one case worth a
         // second, stronger look: hand the first page's image to the strong seat
@@ -107,7 +113,13 @@ export async function plan(
             ? result
             : await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
         if (!isFailed(retry as never)) {
-          return { rel, old, checked: validate(retry as Analysis, content, config), failedReason: null, method: content.method as PlanRow['method'] }
+          return {
+            rel,
+            old,
+            checked: validate(retry as Analysis, content, config),
+            failedReason: null,
+            method: content.method as PlanRow['method']
+          }
         }
         const checked: Checked = {
           type: 'other',
@@ -116,7 +128,13 @@ export async function plan(
           summary: stemOf(old),
           flags: []
         }
-        return { rel, old, checked, failedReason: (retry as { reason: string }).reason, method: content.method as PlanRow['method'] }
+        return {
+          rel,
+          old,
+          checked,
+          failedReason: (retry as { reason: string }).reason,
+          method: content.method as PlanRow['method']
+        }
       } catch (e) {
         const checked: Checked = {
           type: 'other',
@@ -125,7 +143,13 @@ export async function plan(
           summary: stemOf(old),
           flags: []
         }
-        return { rel, old, checked, failedReason: (e as Error)?.message ?? String(e), method: null as PlanRow['method'] }
+        return {
+          rel,
+          old,
+          checked,
+          failedReason: (e as Error)?.message ?? String(e),
+          method: null as PlanRow['method']
+        }
       }
     })
   )
@@ -201,7 +225,9 @@ export type UndoReport = {
 function renameFile(from: string, to: string): void {
   const proc = Bun.spawnSync(['mv', '-n', from, to])
   if (proc.exitCode !== 0) {
-    throw new Error(`renameFile: could not rename ${from} to ${to}: ${proc.stderr.toString().trim()}`)
+    throw new Error(
+      `renameFile: could not rename ${from} to ${to}: ${proc.stderr.toString().trim()}`
+    )
   }
 }
 
@@ -278,7 +304,10 @@ export async function apply(folder: string, config: Config): Promise<ApplyReport
 /** The latest undo record file in the folder, or null. */
 async function latestUndoFile(folder: string): Promise<string | null> {
   const found: string[] = []
-  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({ cwd: folder, onlyFiles: true })) {
+  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({
+    cwd: folder,
+    onlyFiles: true
+  })) {
     found.push(rel)
   }
   found.sort()

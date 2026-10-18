@@ -24,6 +24,7 @@
  *
  * Native Bun APIs only; no `node:` built-ins (D2).
  */
+import { CONFIG_FILE } from '../src/config.ts'
 import { frame } from './frame.ts'
 import { ensureProviderKey } from './preload.ts'
 
@@ -68,7 +69,7 @@ export class Skipped extends Error {
 export const repo = import.meta.dir.replace(/\/tests$/, '')
 
 /** The folder's own config: Stage 1 SKIPs it, so it is never a plan row. */
-export const CONFIG_FILE = 'docnamer.yaml'
+export { CONFIG_FILE }
 
 /** One seeded file is mutated after the plan is written, so `apply` must skip
  *  it and report it (R7/I1). Its name is exported so a flow can name it. */
@@ -180,7 +181,7 @@ export async function boot(s: Session): Promise<void> {
     if ((err as { code?: string }).code !== 'ENOENT') throw err
   }
 
-  // The folder's own config. docnamer.yaml is read from the FOLDER being planned
+  // The folder's own config. docnamer.json is read from the FOLDER being planned
   // (cli.ts configFor), so without this the run falls back to the built-in
   // DEFAULT_CONFIG — a different type roster than the feature is specified against.
   const config = `${repo}/${CONFIG_FILE}`
@@ -275,7 +276,9 @@ async function apply(s: Session): Promise<void> {
   await Bun.write(changed, (await Bun.file(changed).text()) + 'amended after planning\n')
   s.applied = await runCli(s, ['apply', s.dir])
   if (s.applied.code !== 0) {
-    throw new Error(`docnamer apply exited ${s.applied.code}\n${s.applied.stderr}${s.applied.stdout}`)
+    throw new Error(
+      `docnamer apply exited ${s.applied.code}\n${s.applied.stderr}${s.applied.stdout}`
+    )
   }
 }
 
@@ -427,7 +430,8 @@ export async function run(s: Session, testset?: string): Promise<Session> {
   await boot(s)
   const target = testset ?? `${repo}/tests/testset`
   const res = await runCli(s, ['eval', target])
-  if (res.code !== 0) throw new Error(`docnamer eval exited ${res.code}\n${res.stderr}${res.stdout}`)
+  if (res.code !== 0)
+    throw new Error(`docnamer eval exited ${res.code}\n${res.stderr}${res.stdout}`)
   // Nothing was renamed: every seeded file still sits at its original name.
   for (const [n] of s.originals) {
     if (n === CONFIG_FILE) continue
@@ -460,8 +464,21 @@ export async function score(s: Session): Promise<Session> {
  *  eval   — accuracy metrics and side-by-side misses printed.
  */
 export async function outcome(s: Session, name: string): Promise<Session> {
-  await ensure(s)
   const flow = s.flow ?? 'apply'
+  // eval's report is `run`'s stdout in `last`. Planning here would overwrite it
+  // with a plan table, and then the misses would be looked for in the wrong text.
+  if (flow === 'eval') {
+    const out = s.last.stdout
+    if (!/misses\s*\(/i.test(out) && !/misses:\s*none/i.test(out)) {
+      throw new Error(`I4 outcome: the report shows neither misses nor a clean set:\n${out}`)
+    }
+    if (/misses\s*\(/i.test(out) && !(/expected/i.test(out) && /got/i.test(out))) {
+      throw new Error(`I4 outcome: misses are not shown expected-vs-got:\n${out}`)
+    }
+    await frame(out, name)
+    return s
+  }
+  await ensure(s)
   if (flow === 'apply') {
     if (await Bun.file(s.planPath).exists()) {
       throw new Error('I1 outcome: the plan file was not deleted after apply')
@@ -487,12 +504,6 @@ export async function outcome(s: Session, name: string): Promise<Session> {
       }
     }
     await frame(s.last.stdout, name)
-  } else {
-    const out = s.last.stdout
-    if (!/expected/i.test(out) || !/got/i.test(out)) {
-      throw new Error(`I4 outcome: misses are not shown expected-vs-got:\n${out}`)
-    }
-    await frame(out, name)
   }
   return s
 }

@@ -105,7 +105,9 @@ async function loadEval(): Promise<EvalModule> {
     throw new Error('src/eval.ts does not export evalTestset(): the work under test is missing')
   }
   if (typeof m.formatEvalReport !== 'function') {
-    throw new Error('src/eval.ts does not export formatEvalReport(): the work under test is missing')
+    throw new Error(
+      'src/eval.ts does not export formatEvalReport(): the work under test is missing'
+    )
   }
   return m as EvalModule
 }
@@ -122,7 +124,7 @@ async function loadCli(): Promise<CliModule> {
   return m as CliModule
 }
 
-const config: Config = loadConfig(`${repo}/docnamer.yaml`)
+const config: Config = loadConfig(`${repo}/docnamer.json`)
 
 // --- cases -------------------------------------------------------------------
 
@@ -135,7 +137,8 @@ test('eval.ts exports its T4 surface', async () => {
 test('the graded test set is the reference set, plus expected.yaml', async () => {
   const names: string[] = []
   try {
-    for await (const rel of new Bun.Glob('*').scan({ cwd: TESTSET, onlyFiles: true })) names.push(rel)
+    for await (const rel of new Bun.Glob('*').scan({ cwd: TESTSET, onlyFiles: true }))
+      names.push(rel)
   } catch (e) {
     if ((e as { code?: string }).code !== 'ENOENT') throw e
   }
@@ -145,45 +148,41 @@ test('the graded test set is the reference set, plus expected.yaml', async () =>
   expect(await gradedFiles()).toEqual(referenceOutput())
 })
 
-test(
-  'evalTestset scores the graded set without renaming anything',
-  async () => {
-    const mod = await loadEval()
-    await ensureProviderKey()
-    const before = await gradedFiles()
+test('evalTestset scores the graded set without renaming anything', async () => {
+  const mod = await loadEval()
+  await ensureProviderKey()
+  const before = await gradedFiles()
 
-    const report = await mod.evalTestset(TESTSET, config)
+  const report = await mod.evalTestset(TESTSET, config)
 
-    // The truth: the report covers exactly the reference file set.
-    expect(report.files).toBe(referenceOutput().length)
-    expect(typeof report.typeAccuracy).toBe('number')
-    expect(report.typeAccuracy).toBeGreaterThanOrEqual(0)
-    expect(report.typeAccuracy).toBeLessThanOrEqual(1)
-    expect(typeof report.fieldMatch).toBe('object')
-    for (const v of Object.values(report.fieldMatch)) {
-      expect(v).toBeGreaterThanOrEqual(0)
-      expect(v).toBeLessThanOrEqual(1)
-    }
-    expect(report.fullNameMatch).toBeGreaterThanOrEqual(0)
-    expect(report.fullNameMatch).toBeLessThanOrEqual(1)
-    expect(report.visionShare).toBeGreaterThanOrEqual(0)
-    expect(report.visionShare).toBeLessThanOrEqual(1)
-    expect(typeof report.secondsPerFile).toBe('number')
-    expect(report.secondsPerFile).toBeGreaterThan(0)
-    expect(typeof report.costPerFile).toBe('number')
-    expect(Array.isArray(report.misses)).toBe(true)
-    for (const miss of report.misses) {
-      expect(typeof miss.file).toBe('string')
-      expect(typeof miss.expected).toBe('string')
-      expect(typeof miss.got).toBe('string')
-      expect(typeof miss.evidence).toBe('string')
-    }
+  // The truth: the report covers exactly the reference file set.
+  expect(report.files).toBe(referenceOutput().length)
+  expect(typeof report.typeAccuracy).toBe('number')
+  expect(report.typeAccuracy).toBeGreaterThanOrEqual(0)
+  expect(report.typeAccuracy).toBeLessThanOrEqual(1)
+  expect(typeof report.fieldMatch).toBe('object')
+  for (const v of Object.values(report.fieldMatch)) {
+    expect(v).toBeGreaterThanOrEqual(0)
+    expect(v).toBeLessThanOrEqual(1)
+  }
+  expect(report.fullNameMatch).toBeGreaterThanOrEqual(0)
+  expect(report.fullNameMatch).toBeLessThanOrEqual(1)
+  expect(report.visionShare).toBeGreaterThanOrEqual(0)
+  expect(report.visionShare).toBeLessThanOrEqual(1)
+  expect(typeof report.secondsPerFile).toBe('number')
+  expect(report.secondsPerFile).toBeGreaterThan(0)
+  expect(typeof report.costPerFile).toBe('number')
+  expect(Array.isArray(report.misses)).toBe(true)
+  for (const miss of report.misses) {
+    expect(typeof miss.file).toBe('string')
+    expect(typeof miss.expected).toBe('string')
+    expect(typeof miss.got).toBe('string')
+    expect(typeof miss.evidence).toBe('string')
+  }
 
-    // eval observes: the graded set is unchanged on disk.
-    expect(await gradedFiles()).toEqual(before)
-  },
-  300000
-)
+  // eval observes: the graded set is unchanged on disk.
+  expect(await gradedFiles()).toEqual(before)
+}, 300000)
 
 test('formatEvalReport renders the metrics and the expected-vs-got misses', async () => {
   const mod = await loadEval()
@@ -209,15 +208,11 @@ test('formatEvalReport renders the metrics and the expected-vs-got misses', asyn
   expect(text).toContain('vision read the total')
 })
 
-test(
-  'cli.ts dispatches eval against a test set and prints the report',
-  async () => {
-    const cli = await loadCli()
-    const before = await gradedFiles()
-    const code = await cli.main(['eval', TESTSET])
-    expect(code).toBe(0)
-    // Nothing renamed: the graded set is still there, exactly as before.
-    expect(await gradedFiles()).toEqual(before)
-  },
-  300000
-)
+test('cli.ts dispatches eval against a test set and prints the report', async () => {
+  const cli = await loadCli()
+  const before = await gradedFiles()
+  const code = await cli.main(['eval', TESTSET])
+  expect(code).toBe(0)
+  // Nothing renamed: the graded set is still there, exactly as before.
+  expect(await gradedFiles()).toEqual(before)
+}, 300000)

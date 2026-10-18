@@ -83,9 +83,9 @@ flow('doc-renamer-pipeline I3: a failed analysis still proposes a free name', as
   await boot(s)
 
   const rewritten = (await Bun.file(`${repo}/${CONFIG_FILE}`).text())
-    .replace(/^(\s*cheap:\s*).*$/m, `$1${unknown}`)
-    .replace(/^(\s*vision:\s*).*$/m, `$1${unknown}`)
-    .replace(/^(\s*strong:\s*).*$/m, `$1${unknown}`)
+    .replace(/^(\s*"cheap":\s*)"[^"]*"(,?)$/m, `$1"${unknown}"$2`)
+    .replace(/^(\s*"vision":\s*)"[^"]*"(,?)$/m, `$1"${unknown}"$2`)
+    .replace(/^(\s*"strong":\s*)"[^"]*"(,?)$/m, `$1"${unknown}"$2`)
 
   // Guard the guard. If the config's shape ever moves, the rewrite does nothing,
   // this flow silently runs against the real models, and it passes for the wrong

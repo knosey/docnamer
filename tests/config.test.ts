@@ -68,7 +68,7 @@ test('config: loadConfig returns the shipped Config', async () => {
   expect(typeof config.entities).toBe('object')
 
   const names = Object.keys(config.types)
-  expect(names.length).toBe(15)
+  expect(names.length).toBe(16)
   expect(names).toContain('other')
   for (const name of names) {
     const t = config.types[name]!

@@ -1,0 +1,166 @@
+{
+  "defaults": {
+    "date_format": "YYYY-MM-DD",
+    "date_order": "day-first",
+    "max_name_length": 120,
+    "ocr_text_layer": true,
+    "finder_tags": true,
+    "finder_comment": true
+  },
+  "models": {
+    "cheap": "fireworks/accounts/fireworks/models/deepseek-v4p1-flash",
+    "vision": "fireworks/accounts/fireworks/models/qwen3p8-max",
+    "strong": "fireworks/accounts/fireworks/models/kimi-k3"
+  },
+  "types": {
+    "invoice": {
+      "describe": "A bill requesting payment for goods or services.",
+      "template": "{date} {issuer} invoice {number}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "issuer": { "kind": "entity", "required": true },
+        "number": { "kind": "text", "required": true }
+      }
+    },
+    "receipt": {
+      "describe": "Proof of payment after a purchase.",
+      "template": "{date} {vendor} receipt",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "vendor": { "kind": "entity", "required": true }
+      }
+    },
+    "bank_statement": {
+      "describe": "A periodic statement of account activity from a bank.",
+      "template": "{date} {bank} statement {last4}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "bank": { "kind": "entity", "required": true },
+        "last4": { "kind": "last4", "required": true }
+      }
+    },
+    "payslip": {
+      "describe": "An employer's statement of pay and deductions.",
+      "template": "{date} payslip {employer}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "employer": { "kind": "entity", "required": true }
+      }
+    },
+    "utility_bill": {
+      "describe": "A bill for utilities such as power, water or internet.",
+      "template": "{date} {provider} utility bill",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "provider": { "kind": "entity", "required": true }
+      }
+    },
+    "tax_document": {
+      "describe": "A tax return, assessment or official tax correspondence.",
+      "template": "{date} tax {form}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "form": { "kind": "text", "required": true }
+      }
+    },
+    "insurance_policy": {
+      "describe": "An insurance policy or schedule of cover.",
+      "template": "{date} {insurer} policy {number}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "insurer": { "kind": "entity", "required": true },
+        "number": { "kind": "text", "required": true }
+      }
+    },
+    "contract": {
+      "describe": "A signed agreement between parties.",
+      "template": "{date} contract {party}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "party": { "kind": "entity", "required": true }
+      }
+    },
+    "letter": {
+      "describe": "A letter or other correspondence addressed to me.",
+      "template": "{date} {sender} letter {subject}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "sender": { "kind": "entity", "required": true },
+        "subject": { "kind": "text", "required": false }
+      }
+    },
+    "medical_letter": {
+      "describe": "Correspondence from a doctor, clinic or hospital.",
+      "template": "{date} medical {clinic}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "clinic": { "kind": "entity", "required": true }
+      }
+    },
+    "prescription": {
+      "describe": "A prescription for medication.",
+      "template": "{date} prescription {prescriber}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "prescriber": { "kind": "entity", "required": true }
+      }
+    },
+    "boarding_pass": {
+      "describe": "A boarding pass for a flight.",
+      "template": "{date} boarding pass {flight}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "flight": { "kind": "text", "required": true }
+      }
+    },
+    "ticket": {
+      "describe": "A ticket for travel or an event.",
+      "template": "{date} ticket {event}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "event": { "kind": "text", "required": true }
+      }
+    },
+    "warranty": {
+      "describe": "A warranty or guarantee document for a product.",
+      "template": "{date} warranty {product}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "product": { "kind": "text", "required": true }
+      }
+    },
+    "government_letter": {
+      "describe": "Official correspondence from a government body.",
+      "template": "{date} government {agency}",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "agency": { "kind": "entity", "required": true }
+      }
+    },
+    "other": {
+      "describe": "Any document that fits no other type; the fallback of last resort.",
+      "template": "{date} {title}",
+      "fields": {
+        "date": { "kind": "date", "required": false },
+        "title": { "kind": "text", "required": false }
+      }
+    }
+  },
+  "entities": {
+    "Barclays": ["Barclays Bank UK PLC", "Barclays Bank", "BARCLAYS"],
+    "HSBC": ["HSBC UK Bank plc", "HSBC Bank", "HSBC UK"],
+    "Lloyds": ["Lloyds Bank plc", "Lloyds Bank"],
+    "NatWest": ["National Westminster Bank", "NatWest Bank"],
+    "Monzo": ["Monzo Bank Limited"],
+    "Revolut": ["Revolut Ltd"],
+    "British Gas": ["British Gas Trading Limited", "British Gas Energy"],
+    "EDF": ["EDF Energy", "EDF Energy Limited"],
+    "E.ON": ["EON", "E.ON Energy", "E.ON UK"],
+    "Octopus": ["Octopus Energy", "Octopus Energy Limited"],
+    "Thames Water": ["Thames Water Utilities Limited", "Thames Water Utilities"],
+    "Aviva": ["Aviva plc", "Aviva Insurance"],
+    "AXA": ["AXA UK", "AXA Insurance"],
+    "Direct Line": ["Direct Line Insurance", "Direct Line Group"],
+    "Admiral": ["Admiral Group", "Admiral Insurance"]
+  }
+}

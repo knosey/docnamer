@@ -56,8 +56,11 @@ test('BUN_BE_BUN=1 ~/bin/docnamer --version prints what the reference prints', (
 test('the compiled binary plans a scan PDF as itself, not degraded to other', async () => {
   expect(existsSync(binPath), `${binPath} does not exist, so there is nothing to run`).toBe(true)
   const dir = mkdtempSync(join(tmpdir(), 'docnamer-build-'))
-  copyFileSync(join(repo, 'tests/fixtures/acme-statement-scan.pdf'), join(dir, 'acme-statement-scan.pdf'))
-  copyFileSync(join(repo, 'docnamer.yaml'), join(dir, 'docnamer.yaml'))
+  copyFileSync(
+    join(repo, 'tests/fixtures/acme-statement-scan.pdf'),
+    join(dir, 'acme-statement-scan.pdf')
+  )
+  copyFileSync(join(repo, 'docnamer.json'), join(dir, 'docnamer.json'))
 
   const proc = Bun.spawnSync([binPath, 'plan', dir], { cwd: repo })
   expect(proc.exitCode, `plan failed:\n${proc.stderr.toString()}`).toBe(0)

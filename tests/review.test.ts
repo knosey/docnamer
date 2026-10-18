@@ -53,7 +53,8 @@ function referenceOutput(): string {
   const argv = reference.split(/\s+/).filter(Boolean)
   if (!argv.length) throw new Error('reference is empty')
   const p = Bun.spawnSync(argv)
-  if (p.exitCode !== 0) throw new Error(`reference exited ${p.exitCode}: ${p.stderr.toString().trim()}`)
+  if (p.exitCode !== 0)
+    throw new Error(`reference exited ${p.exitCode}: ${p.stderr.toString().trim()}`)
   return p.stdout.toString().trim()
 }
 
@@ -77,7 +78,7 @@ function fn(mod: Record<string, unknown>, name: string): (...args: unknown[]) =>
   return f as (...args: unknown[]) => unknown
 }
 
-const config = (): Config => loadConfig(`${repo}/docnamer.yaml`)
+const config = (): Config => loadConfig(`${repo}/docnamer.json`)
 
 describe('T3 applyAction', () => {
   test('accept marks the addressed row accepted and leaves the rest alone', async () => {

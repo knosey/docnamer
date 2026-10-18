@@ -2,14 +2,14 @@
  * docnamer CLI entry (D3). `docnamer plan <folder>` is the entire integration
  * surface: it writes `<folder>/.docnamer-plan.json` and touches nothing else.
  */
-import { loadConfig, type Config } from './config.ts'
+import { loadConfig, CONFIG_FILE, type Config } from './config.ts'
 import { plan, writePlan, apply, undo } from './commands.ts'
 import { review } from './review.ts'
 import { evalTestset, formatEvalReport } from './eval.ts'
 import { renderTable } from './table.ts'
 
 /**
- * The built-in config, used when the folder carries no docnamer.yaml. `other`
+ * The built-in config, used when the folder carries no docnamer.json. `other`
  * is always in the roster as the fallback of last resort (R2, R7).
  */
 const DEFAULT_CONFIG: Config = {
@@ -70,10 +70,14 @@ const DEFAULT_CONFIG: Config = {
   entities: {}
 }
 
-async function configFor(folder: string): Promise<Config> {
-  for (const name of ['docnamer.yaml', 'docnamer.yml', '.docnamer.yaml', '.docnamer.yml']) {
-    if (await Bun.file(`${folder}/${name}`).exists()) return loadConfig(`${folder}/${name}`)
-  }
+/**
+ * The folder's own config: one name, one location. A folder that does not carry
+ * it is planned by DEFAULT_CONFIG — a stale config under any other name is not
+ * a config location and is never read.
+ */
+export async function configFor(folder: string): Promise<Config> {
+  const path = `${folder}/${CONFIG_FILE}`
+  if (await Bun.file(path).exists()) return loadConfig(path)
   return DEFAULT_CONFIG
 }
 

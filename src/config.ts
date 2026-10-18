@@ -25,11 +25,18 @@ export type Config = {
   entities: Record<string, string[]>
 }
 
-/** Parse the docnamer YAML config; throws when the file is unreadable. */
+/**
+ * The one shipped config name, read from the folder being planned. One file,
+ * one location: a folder either carries this and is configured by it, or it
+ * carries nothing and DEFAULT_CONFIG applies. No other name is ever read.
+ */
+export const CONFIG_FILE = 'docnamer.json'
+
+/** Parse the docnamer JSON config; throws when the file is unreadable. */
 export function loadConfig(path: string): Config {
   const proc = Bun.spawnSync(['cat', path])
   if (proc.exitCode !== 0) {
     throw new Error(`loadConfig: cannot read config at ${path}: ${proc.stderr.toString().trim()}`)
   }
-  return Bun.YAML.parse(proc.stdout.toString()) as Config
+  return JSON.parse(proc.stdout.toString()) as Config
 }
