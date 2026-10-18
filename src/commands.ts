@@ -11,6 +11,7 @@ import { analyse, isFailed, type Analysis } from './analyse.ts'
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
 import { read, pageImages } from './read.ts'
+import { setFinderTag, setFinderComment, addOcrTextLayer } from './spotlight.ts'
 import { validate, type Checked } from './validate.ts'
 
 export type PlanRow = {
@@ -169,4 +170,159 @@ export async function plan(
 /** Persist the plan as plain JSON in the folder (R11). */
 export async function writePlan(folder: string, rows: PlanRow[]): Promise<void> {
   await Bun.write(`${folder}/${PLAN_FILE}`, JSON.stringify(rows, null, 2) + '\n')
+}
+
+// --- Stage 5: apply and undo (R2, R3, R7, I1, I2) ------------------------------
+
+export type UndoEntry = {
+  old: string
+  new: string
+  size: number
+  mtime: number
+  tag?: string
+  comment?: string
+  sidecar?: string
+}
+
+export type UndoRecord = { run: string; at: string; entries: UndoEntry[] }
+
+export type ApplyReport = {
+  renamed: number
+  skipped: { file: string; reason: string }[]
+  undoFile: string
+}
+
+export type UndoReport = {
+  restored: number
+  skipped: { file: string; reason: string }[]
+}
+
+/** Files-only rename; throws with context when the move fails. */
+function renameFile(from: string, to: string): void {
+  const proc = Bun.spawnSync(['mv', '-n', from, to])
+  if (proc.exitCode !== 0) {
+    throw new Error(`renameFile: could not rename ${from} to ${to}: ${proc.stderr.toString().trim()}`)
+  }
+}
+
+function removeFile(path: string): void {
+  const proc = Bun.spawnSync(['rm', '-f', path])
+  if (proc.exitCode !== 0) {
+    throw new Error(`removeFile: could not delete ${path}: ${proc.stderr.toString().trim()}`)
+  }
+}
+
+function undoStamp(d: Date): string {
+  return d.toISOString().replace(/[:.]/g, '-')
+}
+
+/**
+ * Apply the accepted rows of `<folder>/.docnamer-plan.json`: rename each in
+ * place, tag and comment it per the config, and record every change in a
+ * timestamped undo file before deleting the plan (R2, R3, I1). A row whose
+ * file changed size or mtime since planning — or whose new name is taken — is
+ * skipped and reported, never renamed (R7).
+ */
+export async function apply(folder: string, config: Config): Promise<ApplyReport> {
+  const planPath = `${folder}/${PLAN_FILE}`
+  if (!(await Bun.file(planPath).exists())) {
+    throw new Error(`apply: no plan file at ${planPath} — run docnamer plan first`)
+  }
+  const rows = JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
+
+  const entries: UndoEntry[] = []
+  const skipped: { file: string; reason: string }[] = []
+  for (const row of rows) {
+    if (row.status !== 'accepted') continue
+    const from = `${folder}/${row.old}`
+    const to = `${folder}/${row.new}`
+    const f = Bun.file(from)
+    if (!(await f.exists())) {
+      skipped.push({ file: row.old, reason: 'file no longer exists' })
+      continue
+    }
+    if (f.size !== row.size || f.lastModified !== row.mtime) {
+      skipped.push({ file: row.old, reason: 'file changed since planning (size or mtime differs)' })
+      continue
+    }
+    if (await Bun.file(to).exists()) {
+      skipped.push({ file: row.old, reason: `target ${row.new} already exists` })
+      continue
+    }
+    renameFile(from, to)
+
+    const entry: UndoEntry = { old: row.old, new: row.new, size: row.size, mtime: row.mtime }
+    if (config.defaults.finder_tags && row.type !== 'other') {
+      await setFinderTag(to, row.type)
+      entry.tag = row.type
+    }
+    if (config.defaults.finder_comment) {
+      await setFinderComment(to, row.summary)
+      entry.comment = row.summary
+    }
+    if (config.defaults.ocr_text_layer && row.method === 'ocr') {
+      entry.sidecar = (await addOcrTextLayer(to)).sidecar
+    }
+    entries.push(entry)
+  }
+
+  const now = new Date()
+  const stamp = undoStamp(now)
+  const undoFile = `.docnamer-undo-${stamp}.json`
+  const record: UndoRecord = { run: stamp, at: now.toISOString(), entries }
+  await Bun.write(`${folder}/${undoFile}`, JSON.stringify(record, null, 2) + '\n')
+  removeFile(planPath)
+  return { renamed: entries.length, skipped, undoFile }
+}
+
+/** The latest undo record file in the folder, or null. */
+async function latestUndoFile(folder: string): Promise<string | null> {
+  const found: string[] = []
+  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({ cwd: folder, onlyFiles: true })) {
+    found.push(rel)
+  }
+  found.sort()
+  return found.length ? (found[found.length - 1] ?? null) : null
+}
+
+/**
+ * Undo a run: rename every recorded entry back to its original name, in
+ * reverse order, never overwriting (R3, I2). `run` names the undo file;
+ * null takes the latest. The undo file is deleted once restored.
+ */
+export async function undo(
+  folder: string,
+  run: string | null,
+  config: Config
+): Promise<UndoReport> {
+  const name = run ?? (await latestUndoFile(folder))
+  if (name === null) {
+    throw new Error(`undo: no .docnamer-undo-*.json in ${folder} — nothing to undo`)
+  }
+  const path = `${folder}/${name}`
+  if (!(await Bun.file(path).exists())) {
+    throw new Error(`undo: undo record ${path} does not exist`)
+  }
+  const record = JSON.parse(await Bun.file(path).text()) as UndoRecord
+
+  const skipped: { file: string; reason: string }[] = []
+  let restored = 0
+  for (const entry of [...record.entries].reverse()) {
+    const from = `${folder}/${entry.new}`
+    const to = `${folder}/${entry.old}`
+    if (!(await Bun.file(from).exists())) {
+      skipped.push({ file: entry.new, reason: 'renamed file is missing' })
+      continue
+    }
+    if (await Bun.file(to).exists()) {
+      skipped.push({ file: entry.old, reason: 'original name is occupied' })
+      continue
+    }
+    renameFile(from, to)
+    if (entry.tag && config.defaults.finder_tags) await setFinderTag(to, entry.tag)
+    if (entry.sidecar) removeFile(`${folder}/${entry.sidecar}`)
+    restored++
+  }
+  removeFile(path)
+  return { restored, skipped }
 }
