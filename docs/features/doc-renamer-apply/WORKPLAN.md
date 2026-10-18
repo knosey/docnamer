@@ -25,11 +25,11 @@
 - done_when: `bun test tests/spotlight.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T1 -->
-**done** · run `ship-feature-36c929`
+**done** · run `ship-feature-fe16cd`
 - Commits: none recorded
-- Landed: nothing
+- Landed: src/spotlight.ts, tests/spotlight.test.ts
 - Gates: reference ✓
-- Summary: RE-RUN, RED STANDS: `bun test tests/spotlight.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/spotlight.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/spotlight.test.ts` passes as committed — the work shipped in an earlier run
 <!-- /record:T1 -->
 
 ## T2: Apply and undo with the backup record
@@ -44,11 +44,11 @@
 - done_when: `bun test tests/apply.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T2 -->
-**done** · run `ship-feature-36c929`
+**done** · run `ship-feature-fe16cd`
 - Commits: none recorded
-- Landed: nothing
+- Landed: src/commands.ts, tests/apply.test.ts
 - Gates: reference ✓
-- Summary: RE-RUN, RED STANDS: `bun test tests/apply.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/apply.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/apply.test.ts` passes as committed — the work shipped in an earlier run
 <!-- /record:T2 -->
 
 ## T3: Review TUI and its CLI wiring
@@ -64,11 +64,11 @@
 - done_when: `bun test tests/review.test.ts`
 - Reference: `bun --version`
 <!-- record:T3 -->
-**done** · run `ship-feature-36c929`
+**done** · run `ship-feature-fe16cd`
 - Commits: none recorded
-- Landed: nothing
+- Landed: src/cli.ts, src/review.ts, tests/review.test.ts
 - Gates: reference ✓
-- Summary: RE-RUN, RED STANDS: `bun test tests/review.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/review.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/review.test.ts` passes as committed — the work shipped in an earlier run
 <!-- /record:T3 -->
 
 ## T4: Eval command and the scored test set
@@ -85,11 +85,11 @@
 - done_when: `bun test tests/eval.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T4 -->
-**done** · run `ship-feature-36c929`
+**done** · run `ship-feature-fe16cd`
 - Commits: none recorded
-- Landed: nothing
+- Landed: src/eval.ts, tests/eval.test.ts
 - Gates: reference ✓
-- Summary: RE-RUN, RED STANDS: `bun test tests/eval.test.ts` fails as committed (exit 1) — the work is unbuilt: tests/eval.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/eval.test.ts` passes as committed — the work shipped in an earlier run
 <!-- /record:T4 -->
 
 ## T5: Compile to one standalone binary and install it
@@ -101,19 +101,19 @@
   - Test: [build.test.ts](../../../tests/build.test.ts)
 - Interfaces:
   - Consumes: `main(argv: string[]): Promise<number>`
-  - Produces: a `package.json` declaring `build` as `mkdir -p ~/bin && bun build --compile --outfile ~/bin/docnamer src/cli.ts` and `install` as `bun run build`; a `read.ts` whose `macOcrBinary()` keeps the `mac-ocr`-on-PATH check first and otherwise unpacks the copy embedded in the binary — `import macOcr from '../node_modules/mac-ocr/bin/mac-ocr' with { type: 'file' }` together with `import macOcrPkg from '../node_modules/mac-ocr/package.json'` — to `${Bun.env.TMPDIR}/docnamer-mac-ocr-${macOcrPkg.version}`, throwing when `TMPDIR` is unset (R2: never a fallback); a compiled binary's own asset path is Bun's virtual `/$bunfs/...`, which cannot be exec'd, so the unpack writes with `Bun.write(dest, Bun.file(macOcr))` and then runs `Bun.spawnSync(['chmod', '755', dest])` — Bun exposes no chmod API, and `Bun.write`'s `mode` option is silently IGNORED inside a compiled binary (verified on bun 1.4.2: `mode: 0o755` yields 0644 compiled against 0755 uncompiled), so the chmod is not optional — reusing the file when it already exists, the embedded bytes being byte-identical to `node_modules/mac-ocr/bin/mac-ocr` (sha256 `1817fff474a88706104167f8f47983ecea93a3b41cd10fa6b8585c026ffd7668`, and the unpacked copy runs `--version` → `1.2.1`); a `tests/build.test.ts` asserting (a) `bun run build` exits 0 and `~/bin/docnamer` exists and is executable, (b) `BUN_BE_BUN=1 ~/bin/docnamer --version` prints exactly what the Reference prints, and (c) that same binary plans a fresh temp folder holding `tests/fixtures/acme-statement-scan.pdf` and a copy of the repo's own `docnamer.json` — exit 0, exactly one row, `row.type !== "other"`, and no flag containing `mac-ocr`, because a compiled binary that cannot reach mac-ocr degrades every scan to `other` carrying that flag, which is the whole reason this assertion exists
+  - Produces: a `package.json` declaring `build` as `mkdir -p ~/bin && bun build --compile --outfile ~/bin/docnamer src/cli.ts` and `install` as `bun run build`; a `read.ts` whose `macOcrBinary()` resolves only the copy embedded in the binary — never `mac-ocr` on PATH, which under the R1 ~/bin install is the user's global install the BRIEF forbids — unpacking it — `import macOcr from '../node_modules/mac-ocr/bin/mac-ocr' with { type: 'file' }` together with `import macOcrPkg from '../node_modules/mac-ocr/package.json'` — to `${Bun.env.TMPDIR}/docnamer-mac-ocr-${macOcrPkg.version}`, throwing when `TMPDIR` is unset (R2: never a fallback); a compiled binary's own asset path is Bun's virtual `/$bunfs/...`, which cannot be exec'd, so the unpack writes with `Bun.write(dest, Bun.file(macOcr))` and then runs `Bun.spawnSync(['chmod', '755', dest])` — Bun exposes no chmod API, and `Bun.write`'s `mode` option is silently IGNORED inside a compiled binary (verified on bun 1.4.2: `mode: 0o755` yields 0644 compiled against 0755 uncompiled), so the chmod is not optional — reusing the file when it already exists only after it hashes to the pin — the embedded bytes are byte-identical to `node_modules/mac-ocr/bin/mac-ocr` (sha256 `1817fff474a88706104167f8f47983ecea93a3b41cd10fa6b8585c026ffd7668`, verified at unpack time and on every TMPDIR reuse, and the unpacked copy runs `--version` → `1.2.1`); a `tests/build.test.ts` asserting (a) `bun run build` exits 0 and `~/bin/docnamer` exists and is executable, (b) `BUN_BE_BUN=1 ~/bin/docnamer --version` prints exactly what the Reference prints, (c) no `node:` built-in is imported anywhere in `src/` — `bun build --compile` succeeds with them, so this scan is the only enforcement of the Global Constraint, and (d) that same binary plans a fresh temp folder holding `tests/fixtures/acme-statement-scan.pdf` and a copy of the repo's own `docnamer.json` — exit 0, exactly one row, `row.type !== "other"`, and no flag containing `mac-ocr`, because a compiled binary that cannot reach mac-ocr degrades every scan to `other` carrying that flag, which is the whole reason this assertion exists
 - done_when: `bun test tests/build.test.ts`
 - Reference: `bun --version`
 <!-- record:T5 -->
-**done** · run `ship-feature-36c929`
-- Commits: none — HEAD stayed at `2ea9892`
-- Landed: [tests/build.test.ts](../../../tests/build.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when_red ✓ · reference ✓
-- Summary: Wrote tests/build.test.ts for T5 (compile+install standalone binary), reaching the missing work only through runtime checks so the suite fails RED on the work being absent. `bun test tests/build.test.ts` exits 1 with 0 pass / 3 fail, each a reported assertion (build script missing, ~/bin/docnamer missing), not a crash.
+**done** · run `ship-feature-fe16cd`
+- Commits: none recorded
+- Landed: package.json, src/read.ts, tests/build.test.ts
+- Gates: reference ✓
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/build.test.ts` passes as committed — the work shipped in an earlier run
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-36c929`
+**failed** · run `ship-feature-fe16cd`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
-- Commits: none — HEAD stayed at `2ea9892`
-- Detail: verify: exit 1 — output tail: … [+9447 earlier chars] got: (no row) evidence: type: expected receipt, got (none); name: expected 2024-01-15 Receipt - Receipt.png, got (none); date: expected 2024-01-15, got (empty); vendor: expected Receipt, got (empty) statement-text.pdf expected: statement | 2024-01-31 Statement - Statement.pdf got: (no row) evidence: type: expected statement, got (none); name: e… [+3564 chars]
+- Commits: none recorded
+- Detail: visual-review: visual_clean — FAIL: "Enter-accept key hint in the review TUI prompt" is answered: a person cannot read or see it; "restored names in the undo run's terminal summary" is answered: a person cannot read or see it; "skipped-with-reason entries in the undo run's terminal summary" is answered: a person cannot read or see it; defect: i3-review-accept.png [keys line] wrong-state accept hin… [+728 chars]
 <!-- /record:run -->
