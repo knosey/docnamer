@@ -30,7 +30,7 @@ type ExpectedEntry = {
   name?: string
 }
 
-const EXPECTED_FILE = 'expected.yaml'
+export const EXPECTED_FILE = 'expected.yaml'
 
 const ratio = (hits: number, total: number): number => (total === 0 ? 0 : hits / total)
 
@@ -66,8 +66,8 @@ export async function evalTestset(testset: string, config: Config): Promise<Eval
 
     const typeOk = exp.type === undefined || gotType === exp.type
     const nameOk = exp.name === undefined || gotName === exp.name
-    if (exp.type !== undefined && gotType === exp.type) typeHits++
-    if (exp.name !== undefined && gotName === exp.name) nameHits++
+    if (exp.type !== undefined && typeOk) typeHits++
+    if (exp.name !== undefined && nameOk) nameHits++
 
     const wrongFields: string[] = []
     for (const [field, want] of Object.entries(exp.fields ?? {})) {
