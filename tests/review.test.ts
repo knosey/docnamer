@@ -137,7 +137,7 @@ describe('T3 review() and the CLI wiring', () => {
 
     const bun = Bun.which('bun') ?? 'bun'
     const p = Bun.spawn([bun, `${repo}/src/cli.ts`, 'review', dir], {
-      stdin: new Blob(['A\n']),
+      stdin: new Blob(['A']),
       stdout: 'pipe',
       stderr: 'pipe',
       env: { ...Bun.env }
@@ -151,6 +151,34 @@ describe('T3 review() and the CLI wiring', () => {
 
     const after = JSON.parse(await Bun.file(`${dir}/.docnamer-plan.json`).text()) as Row[]
     expect(after[0]?.status).toBe('accepted')
+    expect(after[1]?.status).toBe('pending')
+  })
+
+  // R4/I3: "Enter accept". A person reads the key list and presses Enter, so the
+  // prompt has to name Enter and Enter has to accept the row on screen.
+  test('the CLI accepts the row on Enter and the prompt names Enter as accept', async () => {
+    const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-review-${crypto.randomUUID()}`
+    Bun.spawnSync(['mkdir', '-p', dir])
+    const rows = [row(), row({ old: 'scan.pdf' })]
+    await Bun.write(`${dir}/.docnamer-plan.json`, JSON.stringify(rows, null, 2))
+
+    const bun = Bun.which('bun') ?? 'bun'
+    const p = Bun.spawn([bun, `${repo}/src/cli.ts`, 'review', dir], {
+      stdin: new Blob(['\r']),
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...Bun.env }
+    })
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(p.stdout).text(),
+      new Response(p.stderr).text(),
+      p.exited
+    ])
+    expect(code, `review must exit 0\n${stderr}${stdout}`).toBe(0)
+    expect(stdout, 'the key list must name Enter as the accept key').toContain('Enter accept')
+
+    const after = JSON.parse(await Bun.file(`${dir}/.docnamer-plan.json`).text()) as Row[]
+    expect(after[0]?.status, 'Enter must accept the row on screen').toBe('accepted')
     expect(after[1]?.status).toBe('pending')
   })
 

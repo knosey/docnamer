@@ -51,7 +51,7 @@ type ApplyReport = {
   skipped: { file: string; reason: string }[]
   undoFile: string
 }
-type UndoReport = { restored: number; skipped: { file: string; reason: string }[] }
+type UndoReport = { restored: string[]; skipped: { file: string; reason: string }[] }
 
 type CommandsModule = {
   apply(folder: string, config: Config): Promise<ApplyReport>
@@ -159,7 +159,10 @@ async function names(dir: string): Promise<string[]> {
 
 async function latestUndo(dir: string): Promise<string | null> {
   const found: string[] = []
-  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({ cwd: dir, onlyFiles: true })) {
+  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({
+    cwd: dir,
+    onlyFiles: true
+  })) {
     found.push(rel)
   }
   found.sort()
@@ -198,7 +201,9 @@ test('T2 undo restores the reference set and deletes the undo record', async () 
 
   const report = await c.undo(dir, null, CONFIG)
 
-  expect(report.restored).toBe(rows.length)
+  // The report names what came back, not only how many: the summary a person
+  // reads has to say which file is sitting at which name (I2).
+  expect([...report.restored].sort()).toEqual(rows.map(r => r.old).sort())
   // The truth: the folder holds exactly the fixture names the reference printed.
   expect(await names(dir)).toEqual(fixtures)
   expect(await latestUndo(dir)).toBeNull()

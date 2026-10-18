@@ -118,6 +118,8 @@ export class Session {
   plan: PlanRow[] = []
   /** Parsed undo record, once `load` has run. */
   undo: UndoRecord | null = null
+  /** The original name `restore` deliberately occupied, so undo has a skip to report. */
+  blocked: string | null = null
   /** Resolved CLI argv, or null when no `docnamer` is reachable. */
   cli: string[] | null = null
   /** Last CLI invocation. */
@@ -380,15 +382,24 @@ export async function load(s: Session): Promise<Session> {
   return s
 }
 
-/** restore: rename back in reverse order, no overwrites. */
+/** restore: rename back in reverse order, no overwrites. One entry's original
+ *  name is occupied first, so the run has a genuine skip to report (I2) — the
+ *  happy path alone never exercises that branch. */
 export async function restore(s: Session): Promise<Session> {
   await ensure(s)
   if (!s.undo) await load(s)
+  const blocked = s.undo?.entries.find(e => e.old !== e.new)
+  if (blocked) {
+    // The occupant is what makes undo skip: it must not be overwritten (I2).
+    await Bun.write(`${s.dir}/${blocked.old}`, 'occupant\n')
+    s.blocked = blocked.old
+  }
   const res = await runCli(s, ['undo', s.dir])
   if (res.code !== 0) {
     throw new Error(`docnamer undo exited ${res.code}\n${res.stderr}${res.stdout}`)
   }
   for (const e of s.undo?.entries ?? []) {
+    if (e.old === s.blocked) continue
     if (await Bun.file(`${s.dir}/${e.new}`).exists()) {
       throw new Error(`I2 restore: new name ${e.new} still exists after undo`)
     }
@@ -399,8 +410,10 @@ export async function restore(s: Session): Promise<Session> {
 // --- I3: Review and accept plan rows -------------------------------------------
 
 /** act: run a review action against the plan file. The TUI reads its keys from
- *  stdin; `A` accepts every unflagged row while flagged rows stay pending. */
-export async function act(s: Session, keys = 'A\n'): Promise<Session> {
+ *  stdin; `A` accepts every unflagged row while flagged rows stay pending. No
+ *  trailing newline: a bare Enter is itself the accept key (R4/I3), so `A\n`
+ *  would accept one row after the sweep. */
+export async function act(s: Session, keys = 'A'): Promise<Session> {
   await ensure(s)
   if (!s.cli) throw missingCli()
   const p = Bun.spawn([...s.cli, 'review', s.dir], {
@@ -459,7 +472,8 @@ export async function score(s: Session): Promise<Session> {
  * outcome: assert the terminal state of the flow `entry` started, and write the
  * flow's frame.
  *  apply  — files renamed; undo file saved; plan deleted.
- *  undo   — original names restored; undo file deleted.
+ *  undo   — original names restored; the summary names each restored file and
+ *           reports the skip with its reason; undo file deleted.
  *  review — row statuses updated in the plan file.
  *  eval   — accuracy metrics and side-by-side misses printed.
  */
@@ -492,6 +506,21 @@ export async function outcome(s: Session, name: string): Promise<Session> {
       }
     }
     if (await latestUndo(s.dir)) throw new Error('I2 outcome: the undo file was not deleted')
+    // I2: the summary names every file it put back and reports each entry it
+    // could not, with the reason. A count alone leaves a person unable to tell
+    // which file is where after an operation whose whole point is reversibility.
+    const out = s.last.stdout
+    for (const e of s.undo?.entries ?? []) {
+      if (e.old === s.blocked) continue
+      if (!out.includes(e.old)) {
+        throw new Error(`I2 outcome: the summary does not name the restored ${e.old}:\n${out}`)
+      }
+    }
+    if (s.blocked && !out.includes(`skipped ${s.blocked}: original name is occupied`)) {
+      throw new Error(
+        `I2 outcome: the summary does not report the skipped ${s.blocked} with its reason:\n${out}`
+      )
+    }
     await frame(s.last.stdout, name)
   } else if (flow === 'review') {
     if (!s.plan.length) throw new Error('I3 outcome: the plan file has no rows after review')

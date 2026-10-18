@@ -9,8 +9,10 @@
  *
  * entry boots the run, plans, accepts every row and applies — so the files are
  * renamed and a `.docnamer-undo-<timestamp>.json` exists. load reads that record,
- * restore runs `docnamer undo`, and outcome asserts the originals are back and
- * the undo file is gone.
+ * restore occupies one entry's original name and runs `docnamer undo` — so the
+ * run has a real skip to report — and outcome asserts the originals are back,
+ * that the summary names each restored file and the skip, and that the undo file
+ * is gone.
  */
 import { Session, entry, load, restore, outcome } from './doc-renamer-apply-harness.ts'
 
