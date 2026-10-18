@@ -1,3 +1,7 @@
+// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
+// verdict follows it: keep this constant as it is and assert against it.
+export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun --version`
+
 /**
  * T3 — Review TUI and its CLI wiring (R4, I3).
  *
@@ -43,6 +47,16 @@ const row = (over: Partial<Row> = {}): Row => ({
   status: 'pending',
   ...over
 })
+
+/** Run the reference command and return its trimmed stdout: the truth. */
+function referenceOutput(): string {
+  const argv = reference.split(/\s+/).filter(Boolean)
+  if (!argv.length) throw new Error('reference is empty')
+  const p = Bun.spawnSync(argv)
+  if (p.exitCode !== 0)
+    throw new Error(`reference exited ${p.exitCode}: ${p.stderr.toString().trim()}`)
+  return p.stdout.toString().trim()
+}
 
 async function importOrNull(path: string): Promise<Record<string, unknown> | null> {
   try {
@@ -150,5 +164,13 @@ describe('T3 review() and the CLI wiring', () => {
     await Bun.write(`${dir}/a.txt`, 'INVOICE\nAcme Ltd\nDate: 03/04/2026\n')
     expect(await main(['plan', dir])).toBe(0)
     expect(await main(['nonsense', dir])).toBe(1)
+  })
+
+  test('the CLI is driven by the runtime the reference names', () => {
+    const bun = Bun.which('bun')
+    if (bun === null) throw new Error('bun must be on PATH to drive the CLI (T3)')
+    const p = Bun.spawnSync([bun, '--version'])
+    if (p.exitCode !== 0) throw new Error(`bun --version exited ${p.exitCode}`)
+    expect(p.stdout.toString().trim()).toBe(referenceOutput())
   })
 })

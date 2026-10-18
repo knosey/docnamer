@@ -62,6 +62,7 @@
   - Consumes: `type PlanRow`; `type Config`; `buildName(checked: Checked, config: Config, file: { dir: string; ext: string }, planned: Set<string>): Promise<string>`; `writePlan(folder: string, rows: PlanRow[]): Promise<void>`; `main(argv: string[]): Promise<number>`
   - Produces: `review(folder: string, config: Config): Promise<void>`; `type ReviewAction = "accept" | "edit" | "retype" | "skip" | "accept-unflagged"`; `applyAction(rows: PlanRow[], index: number, action: ReviewAction, value: string | null, config: Config): Promise<PlanRow[]>`; a `cli.ts` dispatching `plan`, `apply`, `undo` and `review`
 - done_when: `bun test tests/review.test.ts`
+- Reference: `bun --version`
 <!-- record:T3 -->
 **done** · run `ship-feature-36c929`
 - Commits: none recorded
