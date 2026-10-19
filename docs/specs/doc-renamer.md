@@ -345,9 +345,9 @@ About 700 lines of TypeScript plus the JSON config, assuming your existing doc t
 | Eval command | 60 |
 | Total | \~700 |
 
-- [ ] Read ambiguous dates such as 03/04/2026 day-first or month-first?
-- [ ] Rename in place only, or also move into folders by type and year?
-- [ ] Local model, cloud model, or local first with cloud for flagged files?
-- [ ] Which of your TypeScript tools cover PDF text, page rendering and OCR?
-- [ ] Add an OCR text layer to scans (rewrites the file), or leave originals untouched?
-- [ ] Which 15 or so document types do you actually have?
+- [x] Read ambiguous dates such as 03/04/2026 day-first or month-first? — day-first, driven by `date_order` in `docnamer.json` (docs/features/doc-renamer-pipeline/BRIEF.md, R8)
+- [x] Rename in place only, or also move into folders by type and year? — rename in place by default; a type may name a `folder` and the move is then part of the plan (docs/features/doc-renamer-pipeline/WORKPLAN.md, the Config type)
+- [x] Local model, cloud model, or local first with cloud for flagged files? — cloud-first and vision-capable, one provider through pi-ai, with a cheap model id for text calls and a vision model id for calls carrying images (docs/features/doc-renamer-pipeline/BRIEF.md, R3)
+- [x] Which of your TypeScript tools cover PDF text, page rendering and OCR? — settled while the read ladder was designed, from the research answers in docs/features/doc-renamer-pipeline/BRIEF.md (R4 and A3)
+- [x] Add an OCR text layer to scans (rewrites the file), or leave originals untouched? — add it, via `mac-ocr searchable-pdf`, off by default and only under `ocr_text_layer` (docs/features/doc-renamer-apply/BRIEF.md, R5)
+- [x] Which 15 or so document types do you actually have? — the shipped roster in `docnamer.json`: 15 types plus `other` (docs/features/doc-renamer-pipeline/BRIEF.md, R2)
