@@ -146,7 +146,10 @@ async function shell(cmd: string[]): Promise<{ code: number; stdout: string; std
   return { code, stdout, stderr }
 }
 
-async function resolveCli(): Promise<string[] | null> {
+/** The one place that decides which artifact is under test. Exported because a
+ *  flow that never reaches a model (tests/cli-help.test.ts, the front door) must
+ *  still drive the same artifact this harness drives, not a second guess at it. */
+export async function resolveCli(): Promise<string[] | null> {
   const override = Bun.env.DOCNAMER_BIN
   if (override && override.trim()) return override.trim().split(/\s+/)
   const onPath = Bun.which('docnamer')
@@ -518,10 +521,14 @@ export async function outcome(s: Session, name: string): Promise<Session> {
     // says "misses: none" demonstrates none of that, so the flow scores a test set
     // built with a miss in it and the frame must carry the block.
     if (!/misses\s*\(/i.test(out)) {
-      throw new Error(`I4 outcome: the report shows no miss, so nothing demonstrates expected-vs-got:\n${out}`)
+      throw new Error(
+        `I4 outcome: the report shows no miss, so nothing demonstrates expected-vs-got:\n${out}`
+      )
     }
     if (!(/expected/i.test(out) && /got/i.test(out) && /evidence/i.test(out))) {
-      throw new Error(`I4 outcome: the miss is not shown expected-vs-got with its evidence:\n${out}`)
+      throw new Error(
+        `I4 outcome: the miss is not shown expected-vs-got with its evidence:\n${out}`
+      )
     }
     await frame(out, name)
     return s
