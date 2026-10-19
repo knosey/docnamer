@@ -125,7 +125,7 @@ export async function review(folder: string, config: Config): Promise<void> {
     let cursor = 0
     const show = () => {
       const item = order[cursor]
-      if (item) console.log(renderRow(rows[item.index] ?? item.row, item.index))
+      if (item) console.log(renderRow(item.row, item.index))
     }
     show()
     const decoder = new TextDecoder()

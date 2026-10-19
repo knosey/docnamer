@@ -112,7 +112,7 @@ export async function plan(
           return { rel, old, checked, failedReason, method }
         }
       } catch (e) {
-        failedReason = (e as Error)?.message ?? String(e)
+        failedReason = e instanceof Error ? e.message : String(e)
       }
       // A row nothing could analyse still gets a name: its own stem, which
       // Stage 4 renders unique against the names already on disk (I3).
@@ -283,7 +283,7 @@ async function latestUndoFile(folder: string): Promise<string | null> {
     found.push(rel)
   }
   found.sort()
-  return found.length ? (found[found.length - 1] ?? null) : null
+  return found.at(-1) ?? null
 }
 
 /**
@@ -296,7 +296,7 @@ export async function undo(
   run: string | null,
   config: Config
 ): Promise<UndoReport> {
-  const name = run ?? (await latestUndoFile(folder))
+  const name = run === null ? await latestUndoFile(folder) : run
   if (name === null) {
     throw new Error(`undo: no .docnamer-undo-*.json in ${folder} — nothing to undo`)
   }
