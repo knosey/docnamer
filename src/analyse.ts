@@ -26,8 +26,9 @@
  * — unknown model, no credential, two unusable replies — is a `Failed`, never a
  * throw and never a fabricated Analysis (R6).
  */
-import { getModel, getProviders, completeSimple } from '@earendil-works/pi-ai/compat'
+import { getModel, getProviders } from '@earendil-works/pi-ai/compat'
 import type { AssistantMessage, Message, Tool } from '@earendil-works/pi-ai/compat'
+import { docnamerModels } from './auth.ts'
 import type { Config, DocType } from './config.ts'
 import type { Content } from './read.ts'
 
@@ -327,7 +328,9 @@ export async function analyse(
   for (const attempt of ATTEMPTS) {
     let msg: AssistantMessage
     try {
-      msg = await completeSimple(model as never, { messages, tools } as never, { temperature: 0 })
+      msg = await docnamerModels().completeSimple(model as never, { messages, tools } as never, {
+        temperature: 0
+      })
     } catch (e) {
       return {
         failed: true,

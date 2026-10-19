@@ -29,7 +29,7 @@ import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
  * description. A help text that stops honouring that contract fails here.
  */
 
-const COMMANDS = ['plan', 'review', 'apply', 'undo', 'eval'] as const
+const COMMANDS = ['plan', 'review', 'apply', 'undo', 'eval', 'login', 'logout', 'auth'] as const
 
 /** Run the CLI as a real subprocess and collect its three observable outputs. */
 async function cli(...args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {

@@ -4,6 +4,15 @@
  */
 import pkg from '../package.json'
 import { loadConfig, CONFIG_FILE, BUILTIN_CONFIG, type Config } from './config.ts'
+import {
+  credentials,
+  docnamerModels,
+  login,
+  logout,
+  ownAuthPath,
+  requiredProviders,
+  tilde
+} from './auth.ts'
 import { plan, writePlan, apply, undo } from './commands.ts'
 import { review } from './review.ts'
 import { evalTestset, formatEvalReport } from './eval.ts'
@@ -49,7 +58,22 @@ const COMMANDS = [
   {
     name: 'eval',
     args: '<testset>',
-    summary: "Score the renamer against a test set's expected.yaml"
+    summary: "Score the renamer against a test set's expected.json"
+  },
+  {
+    name: 'login',
+    args: '<provider>',
+    summary: 'Sign in to a model provider and store the credential'
+  },
+  {
+    name: 'logout',
+    args: '<provider>',
+    summary: 'Remove the credential docnamer stored for a provider'
+  },
+  {
+    name: 'auth',
+    args: '',
+    summary: 'Report where each provider the configured models use gets its credential'
   }
 ] as const
 
@@ -95,9 +119,9 @@ function helpText(cmd?: (typeof COMMANDS)[number]): string {
           '  docnamer <command> [options] <folder>',
           '',
           'COMMANDS',
-          column(COMMANDS.map(c => [`${c.name} ${c.args}`, c.summary] as const))
+          column(COMMANDS.map(c => [`${c.name} ${c.args}`.trimEnd(), c.summary] as const))
         ]
-      : [`${cmd.summary}.`, '', 'USAGE', `  docnamer ${cmd.name} ${cmd.args}`]
+      : [`${cmd.summary}.`, '', 'USAGE', `  docnamer ${cmd.name} ${cmd.args}`.trimEnd()]
   return [...head, '', 'OPTIONS', column(OPTIONS)].join('\n')
 }
 
@@ -131,6 +155,56 @@ export async function main(argv: string[]): Promise<number> {
     console.log(helpText(command))
     return 0
   }
+  // The three commands that name no folder. They answer about credentials and
+  // touch no document, so they run before the folder is required (T8).
+  if (cmd === 'auth') {
+    const missing: string[] = []
+    const lines: string[] = []
+    const models = docnamerModels()
+    for (const providerId of requiredProviders(BUILTIN_CONFIG)) {
+      const resolved = await models.getAuth(providerId)
+      if (resolved === undefined) {
+        missing.push(providerId)
+        continue
+      }
+      // The file when a store answered — the label `source` gives names the
+      // mechanism (`FIREWORKS_API_KEY`), which is not the same question.
+      const origin = await credentials.origin(providerId)
+      const where = origin === null ? resolved.source : origin
+      if (where === undefined) {
+        throw new Error(
+          `auth: ${providerId} resolved with neither a stored credential nor a source`
+        )
+      }
+      lines.push(`${providerId}  ${tilde(where)}`)
+    }
+    if (missing.length > 0) {
+      console.error(`docnamer: no credential for ${missing.join(', ')}`)
+      console.error('run `docnamer login <provider>` to sign in')
+      return 1
+    }
+    for (const line of lines) console.log(line)
+    return 0
+  }
+  if (cmd === 'login' || cmd === 'logout') {
+    const [providerId, ...extra] = rest
+    if (providerId === undefined || extra.length > 0) {
+      console.error(`usage: docnamer ${cmd} <provider>`)
+      console.error(
+        `providers the shipped models use: ${requiredProviders(BUILTIN_CONFIG).join(', ')}`
+      )
+      return 1
+    }
+    if (cmd === 'logout') {
+      await logout(providerId)
+      console.log(`signed out of ${providerId}`)
+      return 0
+    }
+    await login(providerId, {})
+    console.log(`signed in to ${providerId} — stored in ${tilde(ownAuthPath())}`)
+    return 0
+  }
+
   let recursive = false
   let run: string | null = null
   let folder: string | null = null
@@ -160,7 +234,7 @@ export async function main(argv: string[]): Promise<number> {
   const config = await configFor(folder)
   if (cmd === 'eval') {
     // The argument is a test set, not a folder to touch: eval scores it against
-    // its expected.yaml and renames nothing (R8, I4).
+    // its expected.json and renames nothing (R8, I4).
     const report = await evalTestset(folder, config)
     console.log(formatEvalReport(report))
     return 0

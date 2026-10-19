@@ -1,0 +1,161 @@
+// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
+// verdict follows it: keep this constant as it is and assert against it.
+export const reference =
+  process.env.GRAPH_REFERENCE ?? String.raw`plutil -extract version raw package.json`
+
+import { expect, test } from 'bun:test'
+import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
+
+/**
+ * T8 — where docnamer's model credential comes from, with no environment variable.
+ *
+ * Until now the credential arrived as `FIREWORKS_API_KEY` and nothing else:
+ * `completeSimple` from `@earendil-works/pi-ai/compat` resolves a key from the
+ * environment (`dist/compat.js:149`), which is why the variable was
+ * load-bearing and why a person could not simply sign in. The chain this file
+ * pins is the one a person asked for — use the login pi already holds, and only
+ * when there is none, hold docnamer's own:
+ *
+ *   1. `~/.pi/agent/auth.json` — pi's own credential file, which is already a
+ *      `Record<providerId, Credential>` (`fireworks` is `{type, key}`, an OAuth
+ *      provider is `{type, access, refresh, expires, accountId}`).
+ *   2. `~/.config/docnamer/credentials.json` — docnamer's own store, written by
+ *      `docnamer login`.
+ *
+ * Every case runs the real CLI as a subprocess with a throwaway `HOME`, and
+ * `FIREWORKS_API_KEY` is DELETED from the environment before each one — so a
+ * pass cannot be the variable answering, which is the failure this file exists
+ * to make impossible. No model is called: `auth`, `login --help` and
+ * `logout --help` all answer before any folder is opened.
+ */
+
+/** pi's file as it really is on this machine: an api_key arm and an oauth arm. */
+const PI_STORE = {
+  fireworks: { type: 'api_key', key: 'pi-held-key' },
+  'openai-codex': { type: 'oauth', access: 'a', refresh: 'r', expires: 0, accountId: 'acct' }
+}
+
+/** docnamer's own store, the same shape, written by `docnamer login`. */
+const OWN_STORE = { fireworks: { type: 'api_key', key: 'docnamer-held-key' } }
+
+/** A throwaway HOME, optionally carrying either store. Bun.write makes the parents. */
+async function homeWith(pi?: unknown, own?: unknown): Promise<string> {
+  const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-auth-${crypto.randomUUID()}`
+  if (pi !== undefined) await Bun.write(`${dir}/.pi/agent/auth.json`, JSON.stringify(pi))
+  if (own !== undefined)
+    await Bun.write(`${dir}/.config/docnamer/credentials.json`, JSON.stringify(own))
+  return dir
+}
+
+/** Run the real CLI with a scrubbed environment: no key, and the given HOME. */
+async function cliAs(
+  home: string,
+  ...args: string[]
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  return cliAsTyping(home, undefined, ...args)
+}
+
+/**
+ * The same, with a line of input on stdin for a flow that asks a question. The
+ * environment is scrubbed the same way, so a pass can never be the variable
+ * answering.
+ */
+async function cliAsTyping(
+  home: string,
+  input: string | undefined,
+  ...args: string[]
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const argv = await resolveCli()
+  if (argv === null) {
+    throw new Error('no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`')
+  }
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
+  delete env.FIREWORKS_API_KEY
+  // Both stores resolve under HOME; an inherited XDG_CONFIG_HOME would point
+  // docnamer's own store at the real one and make this machine-dependent.
+  delete env.XDG_CONFIG_HOME
+  env.HOME = home
+  const p = Bun.spawn([...argv, ...args], {
+    stdin: input === undefined ? 'inherit' : 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    cwd: repo,
+    env
+  })
+  if (input !== undefined) {
+    await p.stdin.write(input)
+    await p.stdin.end()
+  }
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(p.stdout).text(),
+    new Response(p.stderr).text(),
+    p.exited
+  ])
+  return { code, stdout, stderr }
+}
+
+test('auth resolves a credential from pi when the environment carries no key', async () => {
+  const r = await cliAs(await homeWith(PI_STORE), 'auth')
+  expect(r.code, `auth exited ${r.code}: ${r.stderr}`).toBe(0)
+  expect(r.stdout, 'auth did not name the provider the config needs').toContain('fireworks')
+  expect(r.stdout, "auth did not say the credential came from pi's file").toContain(
+    '.pi/agent/auth.json'
+  )
+})
+
+test("pi's login wins over docnamer's own store when both are present", async () => {
+  const r = await cliAs(await homeWith(PI_STORE, OWN_STORE), 'auth')
+  expect(r.code, `auth exited ${r.code}: ${r.stderr}`).toBe(0)
+  expect(r.stdout, "the credential was taken from docnamer's store while pi held one").toContain(
+    '.pi/agent/auth.json'
+  )
+})
+
+test("docnamer's own store answers when pi holds no login", async () => {
+  const r = await cliAs(await homeWith(undefined, OWN_STORE), 'auth')
+  expect(r.code, `auth exited ${r.code}: ${r.stderr}`).toBe(0)
+  expect(r.stdout, 'auth did not name the provider the config needs').toContain('fireworks')
+  expect(r.stdout, "auth did not say the credential came from docnamer's own store").toContain(
+    'docnamer/credentials.json'
+  )
+})
+
+test('auth fails and points at login when neither store holds a credential', async () => {
+  const r = await cliAs(await homeWith(), 'auth')
+  expect(r.code, 'auth reported success with no credential anywhere').not.toBe(0)
+  expect(r.stdout, 'the failure belongs on stderr, not stdout').toBe('')
+  expect(r.stderr, 'the message must say how to get a credential').toContain('login')
+})
+
+test('login and logout are real commands with their own help', async () => {
+  for (const cmd of ['login', 'logout']) {
+    const r = await cliAs(await homeWith(), cmd, '--help')
+    expect(r.code, `${cmd} --help exited ${r.code}`).toBe(0)
+    expect(r.stdout.trim().length, `${cmd} --help printed nothing`).toBeGreaterThan(0)
+  }
+  const login = await cliAs(await homeWith(), 'login', '--help')
+  expect(login.stdout, 'login --help does not say what it takes').toContain('provider')
+})
+
+test('login stores the key it was given, owner-only, and auth then finds it', async () => {
+  const home = await homeWith()
+  const typed = await cliAsTyping(home, 'typed-in-key\n', 'login', 'fireworks')
+  expect(typed.code, `login exited ${typed.code}: ${typed.stderr}`).toBe(0)
+
+  const store = `${home}/.config/docnamer/credentials.json`
+  const written: { fireworks?: unknown } = await Bun.file(store).json()
+  expect(
+    written.fireworks,
+    'login stored nothing under the provider it was told to sign in to'
+  ).toMatchObject({ type: 'api_key', key: 'typed-in-key' })
+
+  const mode = (await Bun.file(store).stat()).mode & 0o777
+  expect(mode.toString(8), 'the stored key is readable by anyone else on the machine').toBe('600')
+
+  const after = await cliAs(home, 'auth')
+  expect(after.code, `auth after login exited ${after.code}: ${after.stderr}`).toBe(0)
+  expect(after.stdout, 'auth did not see the credential login had just written').toContain(
+    'docnamer/credentials.json'
+  )
+})

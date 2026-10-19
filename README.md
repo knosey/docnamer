@@ -30,7 +30,7 @@ docnamer review ~/Documents/unsorted
 docnamer apply ~/Documents/unsorted
 ```
 
-## The five commands
+## The eight commands
 
 | Command | What it does |
 | --- | --- |
@@ -38,7 +38,10 @@ docnamer apply ~/Documents/unsorted
 | `docnamer review <folder>` | Interactive per-row pass over the plan: accept, edit, retype, skip. |
 | `docnamer apply <folder>` | Performs the accepted renames and sets the Finder tag and comment. Writes an undo file. |
 | `docnamer undo [--run <file>] <folder>` | Restores the original names from the run record. |
-| `docnamer eval <testset>` | Scores a test set against its `expected.yaml`. **Renames nothing.** |
+| `docnamer eval <testset>` | Scores a test set against its `expected.json`. **Renames nothing.** |
+| `docnamer login <provider>` | Signs in to a provider and stores the credential. |
+| `docnamer logout <provider>` | Removes the credential docnamer stored. |
+| `docnamer auth` | Reports where each provider the configured models use gets its credential. |
 
 ## What a run looks like
 
@@ -139,7 +142,7 @@ bun test        # runs the suite — note: it makes paid model calls
 bun run build   # compiles src/cli.ts to ~/bin/docnamer
 ```
 
-`docnamer eval <testset>` scores a folder of real documents against its `expected.yaml` — type accuracy, per-field match, full-name match — and renames nothing.
+`docnamer eval <testset>` scores a folder of real documents against its `expected.json` — type accuracy, per-field match, full-name match — and renames nothing.
 
 ## License
 
