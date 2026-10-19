@@ -488,7 +488,7 @@ export async function run(s: Session, testset?: string): Promise<Session> {
   return s
 }
 
-/** score: compare against expected.yaml — accuracy metrics printed. */
+/** score: compare against expected.json — accuracy metrics printed. */
 export async function score(s: Session): Promise<Session> {
   const out = s.last.stdout
   for (const metric of ['type', 'field', 'full', 'vision', 'cost']) {

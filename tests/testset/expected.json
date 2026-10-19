@@ -1,0 +1,46 @@
+{
+  "acme-statement-scan.pdf": {
+    "type": "bank_statement",
+    "fields": { "date": "2024-03-12", "bank": "Acme Services" },
+    "name": "2024-03-12 Acme Services statement.pdf"
+  },
+  "dup-invoice-2.md": {
+    "type": "invoice",
+    "fields": { "date": "2024-02-04", "issuer": "Globex", "number": "GLX-0091" },
+    "name": "2024-02-04 Globex invoice GLX-0091 (2).md"
+  },
+  "dup-invoice.md": {
+    "type": "invoice",
+    "fields": { "date": "2024-02-04", "issuer": "Globex", "number": "GLX-0091" },
+    "name": "2024-02-04 Globex invoice GLX-0091.md"
+  },
+  "dup-invoice.txt": {
+    "type": "invoice",
+    "fields": { "date": "2024-02-04", "issuer": "Globex", "number": "GLX-0091" },
+    "name": "2024-02-04 Globex invoice GLX-0091.txt"
+  },
+  "letter.docx": {
+    "type": "letter",
+    "fields": {
+      "date": "2024-01-21",
+      "sender": "Initech",
+      "subject": "Letter of engagement"
+    },
+    "name": "2024-01-21 Initech letter Letter of engagement.docx"
+  },
+  "letter.txt": {
+    "type": "invoice",
+    "fields": { "date": "2024-03-12", "issuer": "Acme Services", "number": "INV-2024-0817" },
+    "name": "2024-03-12 Acme Services invoice INV-2024-0817.txt"
+  },
+  "receipt.png": {
+    "type": "receipt",
+    "fields": { "date": "2024-03-12", "vendor": "Acme Services" },
+    "name": "2024-03-12 Acme Services receipt.png"
+  },
+  "statement-text.pdf": {
+    "type": "bank_statement",
+    "fields": { "date": "2024-03-12", "bank": "Acme Services" },
+    "name": "2024-03-12 Acme Services statement (2).pdf"
+  }
+}

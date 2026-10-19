@@ -315,7 +315,7 @@ The code takes a day or two; getting names right on your documents is the real w
 ```
 testset/
   files/               40-60 of your real documents, every type, incl. worst scans
-  expected.yaml        per file: type, each field, full expected name
+  expected.json        per file: type, each field, full expected name
 
 command eval(testset):
   for each file: run Stages 1-4 (no rename)

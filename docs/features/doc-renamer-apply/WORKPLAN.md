@@ -3,7 +3,7 @@
 ## Global Constraints
 - Requires `doc-renamer-pipeline` to have shipped first: `src/config.ts`, `src/read.ts`, `src/analyse.ts`, `src/validate.ts`, `src/name.ts`, `src/commands.ts`, `src/cli.ts`, `docnamer.json` and `tests/fixtures/` must all exist and `docnamer plan <folder>` must work.
 - `src/commands.ts`, `src/cli.ts` and `package.json` already exist from that first feature. Where a task below Creates one of them it is rewriting that file in full, keeping every behaviour the pipeline feature already proved — `plan` must still work exactly as before after each rewrite.
-- Native Bun APIs only (`Bun.file`, `Bun.$`, `Bun.Glob`, `Bun.spawn`, `Bun.YAML`); no `node:` built-ins anywhere in `src/` — R1, D2.
+- Native Bun APIs only (`Bun.file`, `Bun.$`, `Bun.Glob`, `Bun.spawn`); no `node:` built-ins anywhere in `src/` — R1, D2.
 - All model calls go through `@earendil-works/pi-ai` version 1.3.0; no hand-rolled provider HTTP layer — D4.
 - `docnamer <command> <folder>` is the entire integration surface; no importable library API — D3.
 - Nothing is renamed, moved or rewritten without an accepted plan row; every mutation is recorded in an undo file — R2, R3, R7.
@@ -77,11 +77,11 @@
 - Files:
   - Modify: [cli.ts](../../../src/cli.ts)
   - Create: [eval.ts](../../../src/eval.ts)
-  - Create: [expected.yaml](../../../tests/testset/expected.yaml)
+  - Create: [expected.json](../../../tests/testset/expected.json)
   - Test: [eval.test.ts](../../../tests/eval.test.ts)
 - Interfaces:
   - Consumes: `plan(folder: string, opts: { recursive: boolean; applyUnflagged: boolean }, config: Config): Promise<PlanRow[]>`; `type PlanRow`; `type Config`; `main(argv: string[]): Promise<number>`
-  - Produces: `evalTestset(testset: string, config: Config): Promise<EvalReport>`; `type EvalReport = { files: number; typeAccuracy: number; fieldMatch: Record<string, number>; fullNameMatch: number; visionShare: number; secondsPerFile: number; costPerFile: number; misses: { file: string; expected: string; got: string; evidence: string }[] }`; `formatEvalReport(r: EvalReport): string`; a `tests/testset/` holding the graded files plus `expected.yaml`; a `cli.ts` dispatching `plan`, `apply`, `undo`, `review` and `eval`
+  - Produces: `evalTestset(testset: string, config: Config): Promise<EvalReport>`; `type EvalReport = { files: number; typeAccuracy: number; fieldMatch: Record<string, number>; fullNameMatch: number; visionShare: number; secondsPerFile: number; costPerFile: number; misses: { file: string; expected: string; got: string; evidence: string }[] }`; `formatEvalReport(r: EvalReport): string`; a `tests/testset/` holding the graded files plus `expected.json`; a `cli.ts` dispatching `plan`, `apply`, `undo`, `review` and `eval`
 - done_when: `bun test tests/eval.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T4 -->

@@ -23,7 +23,7 @@ produces a 62 MB Mach-O arm64 executable that runs standalone.
 ## D2. Runtime: native Bun, never node
 
 The application uses Bun's own APIs throughout: `Bun.file`, `Bun.$`,
-`Bun.Glob`, `Bun.spawn`, `Bun.YAML`, `bun:sqlite`. It uses no `node:`
+`Bun.Glob`, `Bun.spawn`, `bun:sqlite`. It uses no `node:`
 built-ins. Using Bun's own APIs is the point, not a portability compromise.
 
 Operator's words: "use native bun", "not node", "its what bun does"

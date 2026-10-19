@@ -54,7 +54,7 @@ digraph I3 {
 digraph I4 {
   entry [label="docnamer eval <testset>"];
   run [label="Stages 1-4 per file, no renames"];
-  score [label="compare against expected.yaml"];
+  score [label="compare against expected.json"];
   outcome [label="accuracy metrics and side-by-side misses printed"];
   entry -> run -> score -> outcome;
 }

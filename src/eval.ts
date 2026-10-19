@@ -3,7 +3,7 @@
  *
  * evalTestset() runs the same Stage 1-4 pipeline `plan` runs against every
  * graded file in a test set and scores the rows against the set's
- * expected.yaml: type accuracy, per-field exact match, full-name match, the
+ * expected.json: type accuracy, per-field exact match, full-name match, the
  * share of files that needed the vision model, and time per file. It renames,
  * moves and rewrites nothing — eval observes, it does not act — and it writes
  * no plan file: the rows live only inside the report.
@@ -30,16 +30,18 @@ type ExpectedEntry = {
   name?: string
 }
 
-export const EXPECTED_FILE = 'expected.yaml'
+export const EXPECTED_FILE = 'expected.json'
 
 const ratio = (hits: number, total: number): number => (total === 0 ? 0 : hits / total)
 
 export async function evalTestset(testset: string, config: Config): Promise<EvalReport> {
   const expectedPath = `${testset}/${EXPECTED_FILE}`
   if (!(await Bun.file(expectedPath).exists())) {
-    throw new Error(`evalTestset: no ${EXPECTED_FILE} in ${testset} — a test set without its truth cannot be scored`)
+    throw new Error(
+      `evalTestset: no ${EXPECTED_FILE} in ${testset} — a test set without its truth cannot be scored`
+    )
   }
-  const expected = Bun.YAML.parse(await Bun.file(expectedPath).text()) as Record<string, ExpectedEntry>
+  const expected = JSON.parse(await Bun.file(expectedPath).text()) as Record<string, ExpectedEntry>
   if (expected === null || typeof expected !== 'object') {
     throw new Error(`evalTestset: ${expectedPath} did not parse to a map of file -> expectation`)
   }
@@ -137,7 +139,9 @@ export function formatEvalReport(r: EvalReport): string {
   if (r.misses.length > 0) {
     lines.push(`misses (${r.misses.length}):`)
     for (const m of r.misses) {
-      lines.push(`  ${m.file}\n    expected: ${m.expected}\n    got:      ${m.got}\n    evidence: ${m.evidence}`)
+      lines.push(
+        `  ${m.file}\n    expected: ${m.expected}\n    got:      ${m.got}\n    evidence: ${m.evidence}`
+      )
     }
   } else {
     lines.push('misses: none')

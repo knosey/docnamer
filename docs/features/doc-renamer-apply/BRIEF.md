@@ -43,7 +43,7 @@ binding.
 - R7: Apply skips and reports any file whose size or mtime changed since the plan
   was written; it never renames without an accepted row.
 - R8: `docnamer eval <testset>` runs Stages 1–4 against a folder of files plus an
-  `expected.yaml`, renaming nothing, and prints type accuracy, per-field exact
+  `expected.json`, renaming nothing, and prints type accuracy, per-field exact
   match, full-name match, vision-fallback share, and time/cost per file, with each
   miss shown side by side with its evidence.
 
