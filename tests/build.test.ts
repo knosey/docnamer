@@ -6,7 +6,7 @@ import { expect, test } from 'bun:test'
 import { copyFileSync, existsSync, mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ensureProviderKey } from './preload.ts'
+import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
  * T5 — Compile to one standalone binary and install it (R1).
@@ -65,37 +65,44 @@ test('no node: built-ins are imported anywhere in src/ (R1, D2)', async () => {
   }
 })
 
-test('the compiled binary plans a scan PDF as itself, not degraded to other', async () => {
-  // A spawned child does NOT inherit `Bun.env` mutations made after startup.
-  // Verified on bun 1.4.2: `ensureProviderKey()` sets both `Bun.env` and
-  // `process.env`, and a child spawned with no `env` option still sees neither,
-  // because the default is a snapshot taken when the process started. So the key
-  // has to be handed over explicitly, and asking for it here is what makes
-  // `bun test tests/build.test.ts` on its own a real check.
-  await ensureProviderKey()
-  expect(existsSync(binPath), `${binPath} does not exist, so there is nothing to run`).toBe(true)
-  const dir = mkdtempSync(join(tmpdir(), 'docnamer-build-'))
-  copyFileSync(
-    join(repo, 'tests/fixtures/acme-statement-scan.pdf'),
-    join(dir, 'acme-statement-scan.pdf')
-  )
-  // No docnamer.json is copied in, on purpose: the binary must carry its own
-  // roster to a bare folder, which is the whole point of shipping one file.
+test(
+  'the compiled binary plans a scan PDF as itself, not degraded to other',
+  async () => {
+    // A spawned child does NOT inherit `Bun.env` mutations made after startup.
+    // Verified on bun 1.4.2: `ensureProviderKey()` sets both `Bun.env` and
+    // `process.env`, and a child spawned with no `env` option still sees neither,
+    // because the default is a snapshot taken when the process started. So the key
+    // has to be handed over explicitly, and asking for it here is what makes
+    // `bun test tests/build.test.ts` on its own a real check.
+    await ensureProviderKey()
+    expect(existsSync(binPath), `${binPath} does not exist, so there is nothing to run`).toBe(true)
+    const dir = mkdtempSync(join(tmpdir(), 'docnamer-build-'))
+    copyFileSync(
+      join(repo, 'tests/fixtures/acme-statement-scan.pdf'),
+      join(dir, 'acme-statement-scan.pdf')
+    )
+    // No docnamer.json is copied in, on purpose: the binary must carry its own
+    // roster to a bare folder, which is the whole point of shipping one file.
 
-  // cwd is the bare folder, not the repo: with cwd=repo the checkout's own
-  // docnamer.json is one relative path away, so a binary that read its config
-  // off disk would pass here without carrying one at all. From the bare folder
-  // there is nothing to read, and only an inlined roster can produce a type.
-  const proc = Bun.spawnSync([binPath, 'plan', dir], { cwd: dir, env: { ...Bun.env } })
-  expect(proc.exitCode, `plan failed:\n${proc.stderr.toString()}`).toBe(0)
+    // cwd is the bare folder, not the repo: with cwd=repo the checkout's own
+    // docnamer.json is one relative path away, so a binary that read its config
+    // off disk would pass here without carrying one at all. From the bare folder
+    // there is nothing to read, and only an inlined roster can produce a type.
+    const proc = Bun.spawnSync([binPath, 'plan', dir], { cwd: dir, env: { ...Bun.env } })
+    expect(proc.exitCode, `plan failed:\n${proc.stderr.toString()}`).toBe(0)
 
-  const planPath = join(dir, '.docnamer-plan.json')
-  expect(existsSync(planPath), `${planPath} was not written`).toBe(true)
-  const parsed = JSON.parse(await Bun.file(planPath).text())
-  const rows = Array.isArray(parsed) ? parsed : parsed.rows
-  expect(rows.length, 'the folder holds exactly one document').toBe(1)
-  expect(rows[0].type, 'a scan must not degrade to other').not.toBe('other')
-  const macOcrFlags = rows[0].flags.filter((f: string) => f.includes('mac-ocr'))
-  expect(macOcrFlags, 'a compiled binary must reach the embedded mac-ocr').toEqual([])
-  Bun.spawnSync(['rm', '-rf', dir])
-})
+    const planPath = join(dir, '.docnamer-plan.json')
+    expect(existsSync(planPath), `${planPath} was not written`).toBe(true)
+    const parsed = JSON.parse(await Bun.file(planPath).text())
+    const rows = Array.isArray(parsed) ? parsed : parsed.rows
+    expect(rows.length, 'the folder holds exactly one document').toBe(1)
+    expect(rows[0].type, 'a scan must not degrade to other').not.toBe('other')
+    const macOcrFlags = rows[0].flags.filter((f: string) => f.includes('mac-ocr'))
+    expect(macOcrFlags, 'a compiled binary must reach the embedded mac-ocr').toEqual([])
+    Bun.spawnSync(['rm', '-rf', dir])
+  },
+  // `plan` on a scan PDF makes a real model call, and the default 5s budget sits
+  // below the call it waits on — measured at 2.9s idle, past 5s under the load of
+  // the rest of the suite.
+  MODEL_CALL_MS
+)

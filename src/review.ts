@@ -17,8 +17,10 @@
  */
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
+import { nextStdinChunk } from './prompt.ts'
 import { extOf, PLAN_FILE, writePlan, type PlanRow } from './commands.ts'
 import type { Checked } from './validate.ts'
+import type { Ui } from './ui.ts'
 
 export type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
 
@@ -83,16 +85,21 @@ export async function applyAction(
   return out
 }
 
-/** One row rendered for the person deciding on it (I3). */
-function renderRow(row: PlanRow, index: number): string {
+/** One row rendered for the person deciding on it (I3). The flags are the
+ *  reason the row needs a person at all, so they carry the warning colour. */
+function renderRow(row: PlanRow, index: number, u: Ui): string {
   const lines = [
-    `[${index + 1}] ${row.old}`,
-    `    new: ${row.new}`,
-    `    type: ${row.type}${row.flags.length ? `  flags: ${row.flags.join(', ')}` : ''}`,
-    `    summary: ${row.summary}`
+    `${u.dim(`[${index + 1}]`)} ${u.bold(row.old)}`,
+    u.row('    ', [u.dim('new:'), row.new]),
+    u.row('    ', [
+      u.dim('type:'),
+      row.type,
+      row.flags.length > 0 ? u.warn(row.flags.join(', ')) : ''
+    ]),
+    u.row('    ', [u.dim('summary:'), row.summary])
   ]
   for (const [k, v] of Object.entries(row.evidence)) {
-    if (v) lines.push(`    evidence ${k}: ${v}`)
+    if (v) lines.push(u.row('    ', [u.dim(`evidence ${k}:`), v]))
   }
   return lines.join('\n')
 }
@@ -103,7 +110,7 @@ function renderRow(row: PlanRow, index: number): string {
  * are consumed as they arrive; `e` and `t` take the rest of the line as their
  * value. EOF ends the review.
  */
-export async function review(folder: string, config: Config): Promise<void> {
+export async function review(folder: string, config: Config, u: Ui): Promise<void> {
   const planPath = `${folder}/${PLAN_FILE}`
   if (!(await Bun.file(planPath).exists())) {
     throw new Error(`review: no plan file at ${planPath} — run docnamer plan first`)
@@ -115,23 +122,26 @@ export async function review(folder: string, config: Config): Promise<void> {
     .filter(({ row }) => row.status === 'pending')
     .sort((a, b) => Number(b.row.flags.length > 0) - Number(a.row.flags.length > 0))
 
-  console.log(`reviewing ${order.length} pending row(s) in ${planPath}`)
-  console.log(
-    'keys: Enter accept · s skip · e edit name · t retype · A accept all unflagged · q quit'
+  u.log(u.head(`Reviewing ${order.length} pending row(s)`, planPath))
+  u.log(
+    u.dim('keys: Enter accept · s skip · e edit name · t retype · A accept all unflagged · q quit')
   )
 
   const stdin = process.stdin
   if (stdin.isTTY && typeof stdin.setRawMode === 'function') stdin.setRawMode(true)
-  const stream = Bun.stdin.stream()
   try {
     let cursor = 0
     const show = () => {
       const item = order[cursor]
-      if (item) console.log(renderRow(item.row, item.index))
+      if (item) u.log(renderRow(item.row, item.index, u))
     }
     show()
     const decoder = new TextDecoder()
-    for await (const chunk of stream) {
+    // The same reader the picker and the prompts use: a second consumer of
+    // Bun's stdin stream takes the lock the first one holds and throws.
+    for (;;) {
+      const chunk = await nextStdinChunk()
+      if (chunk === null) break
       const text = decoder.decode(chunk)
       let stop = false
       for (let i = 0; i < text.length && !stop; i++) {
@@ -183,5 +193,5 @@ export async function review(folder: string, config: Config): Promise<void> {
   const accepted = rows.filter(r => r.status === 'accepted').length
   const skipped = rows.filter(r => r.status === 'skipped').length
   const pending = rows.filter(r => r.status === 'pending').length
-  console.log(`review done: ${accepted} accepted, ${skipped} skipped, ${pending} pending`)
+  u.log(u.ok(`review done: ${accepted} accepted, ${skipped} skipped, ${pending} pending`))
 }
