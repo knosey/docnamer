@@ -29,6 +29,9 @@ function extOf(file: string): string {
 }
 
 function tmpPath(name: string): string {
+  // `Bun.env.TMPDIR` is the sanctioned spelling here: src/ may not import a
+  // node: built-in (R1, D2), so the platform temp dir is read from the
+  // environment with /tmp as the only fallback.
   return `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-${name}`
 }
 
@@ -237,7 +240,14 @@ async function officeText(file: string, ext: string): Promise<string> {
       .split('\n')
       .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
       .sort()
-    const texts = slides.flatMap(s => xmlTexts(zipEntry(file, s) ?? '', 'a:t'))
+    const texts: string[] = []
+    for (const s of slides) {
+      const xml = zipEntry(file, s)
+      if (xml === null) {
+        throw new Error(`read: ${file} lists ${s} but unzip cannot extract it`)
+      }
+      texts.push(...xmlTexts(xml, 'a:t'))
+    }
     return texts.join(' ')
   }
   // .pages: the document body is protobuf; the readable text is the QuickLook

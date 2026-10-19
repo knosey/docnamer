@@ -13,13 +13,29 @@ const dir = `${Bun.env.TMPDIR ?? '/tmp'}/read-formats-${crypto.randomUUID()}`
 const fixtures = {
   xlsx: `${dir}/budget.xlsx`,
   pptx: `${dir}/deck.pptx`,
+  pptxBad: `${dir}/deck-bad-crc.pptx`,
   pages: `${dir}/minutes.pages`
 }
+
+// The slide both pptx fixtures carry, so the corrupt copy below differs from the
+// good one by exactly the one byte that is flipped.
+const SLIDE_XML =
+  `<?xml version="1.0"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+  `<p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Quarterly forecast review</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`
 
 // Build each fixture with `zip` run from the staging root so the archive
 // paths (xl/sharedStrings.xml, ppt/slides/…) survive into the zip.
 const zipTree = (out: string, files: string[]) => {
   const p = Bun.spawnSync(['zip', '-q', out, ...files], { cwd: `${dir}/stage` })
+  if (p.exitCode !== 0) throw new Error(`fixture zip failed: ${p.stderr.toString()}`)
+  for (const f of files) Bun.spawnSync(['rm', '-f', `${dir}/stage/${f}`])
+}
+
+// The same tree, stored uncompressed, so its entry bytes can be corrupted in
+// place. The central directory is left alone: `unzip -Z1` keeps listing the
+// entry while `unzip -p` refuses it (exit 2, "bad CRC").
+const zipTreeStored = (out: string, files: string[]) => {
+  const p = Bun.spawnSync(['zip', '-q', '-0', out, ...files], { cwd: `${dir}/stage` })
   if (p.exitCode !== 0) throw new Error(`fixture zip failed: ${p.stderr.toString()}`)
   for (const f of files) Bun.spawnSync(['rm', '-f', `${dir}/stage/${f}`])
 }
@@ -42,12 +58,18 @@ beforeAll(async () => {
   zipTree(fixtures.xlsx, ['xl/sharedStrings.xml'])
 
   // Minimal pptx: slide text lives in <a:t> tags under ppt/slides/.
-  await stageFile(
-    'ppt/slides/slide1.xml',
-    `<?xml version="1.0"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
-      `<p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Quarterly forecast review</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`
-  )
+  await stageFile('ppt/slides/slide1.xml', SLIDE_XML)
   zipTree(fixtures.pptx, ['ppt/slides/slide1.xml'])
+
+  // The same slide, stored uncompressed and then corrupted by one byte: the
+  // archive still lists ppt/slides/slide1.xml and can no longer extract it.
+  await stageFile('ppt/slides/slide1.xml', SLIDE_XML)
+  zipTreeStored(fixtures.pptxBad, ['ppt/slides/slide1.xml'])
+  const bad = new Uint8Array(await Bun.file(fixtures.pptxBad).arrayBuffer())
+  const at = bad.indexOf(0x51) // 'Q' of "Quarterly", inside the stored entry data
+  if (at < 0) throw new Error('fixture: slide text missing from the stored archive')
+  bad[at] = 0x71
+  await Bun.write(fixtures.pptxBad, bad)
 
   // .pages carries no plain-text stream; readers go through the embedded
   // QuickLook preview PDF. The Stage 1 text-layer parser reads literal strings
@@ -77,6 +99,12 @@ test('read() extracts slide text from pptx', async () => {
   if (c === null) throw new Error('read() skipped pptx: null means Stage 1 silently drops it from the plan')
   expect(c.method).toBe('text')
   expect(c.text).toContain('Quarterly forecast review')
+})
+
+// A slide the archive lists but cannot extract is not an empty slide: returning
+// '' for it dropped a whole deck's text into a silent, unflagged "other".
+test('read() throws naming the slide a pptx lists but cannot extract', async () => {
+  await expect(read(fixtures.pptxBad)).rejects.toThrow(/ppt\/slides\/slide1\.xml/)
 })
 
 test('read() extracts text from a pages document via its QuickLook preview', async () => {
