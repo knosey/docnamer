@@ -19,6 +19,14 @@
  * The judge reads every .png under .audit/screenshots/ (the graph's capture node
  * clears and counts that directory), so the frame lands there and nowhere else.
  * Test-only: it shells out to sips and is never imported by src/.
+ *
+ * MEASURED, because a vision judge read the frames as ligating `--` into one
+ * em-dash glyph: sips does not. Four bare dash runs through this exact pipeline
+ * and back out of the BMP as ink columns give `--` 2 runs (6px + 7px, 14px
+ * span), `-` 1 run of 6px, `---` 3 runs, and U+2014 1 run of 8px. Two adjacent
+ * hyphens at 13px simply read as one long dash to a vision model, and the
+ * ASCII in the SVG is what the parser sees. Re-measure before changing the
+ * font stack: rasterise `['--', '\u2014', '-', '---']` and count the runs.
  */
 const FRAMES_DIR = '.audit/screenshots'
 
