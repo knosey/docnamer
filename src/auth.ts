@@ -40,6 +40,8 @@
 import type { CreateModelsOptions, MutableModels } from '@earendil-works/pi-ai/models'
 import { builtinModels } from '@earendil-works/pi-ai/providers/all'
 import type { Config } from './config.ts'
+import { stdinLine } from './prompt.ts'
+import type { Ui } from './ui.ts'
 
 /** The credential-store contract `builtinModels` accepts. */
 export type CredentialStore = NonNullable<CreateModelsOptions['credentials']>
@@ -196,35 +198,15 @@ export function requiredProviders(config: Config): string[] {
   return out
 }
 
-/**
- * A line-buffered reader over stdin, for a login flow's prompts. One prompt is
- * answered by one line, and the reader is shared across a flow so a flow that
- * asks twice does not lose the second answer in the first read's buffer.
- */
-function lineReader(): () => Promise<string> {
-  const reader = Bun.stdin.stream().getReader()
-  const decoder = new TextDecoder()
-  let buffered = ''
-  const queued: string[] = []
-  return async () => {
-    for (;;) {
-      const next = queued.shift()
-      if (next !== undefined) return next
-      const { done, value } = await reader.read()
-      if (done) {
-        const rest = buffered.trim()
-        buffered = ''
-        if (rest === '') {
-          throw new Error('login: the input ended before the prompt was answered')
-        }
-        return rest
-      }
-      buffered += decoder.decode(value, { stream: true })
-      const lines = buffered.split('\n')
-      buffered = lines.pop() as string
-      for (const line of lines) queued.push(line.trim())
-    }
-  }
+/** Only what docnamer's OWN store holds. `logout` can remove nothing else, so
+ *  the list it offers a person must not contain a credential that is pi's —
+ *  offering one would be a choice the command cannot carry out. */
+export async function ownCredentials(): Promise<{ providerId: string; type: string }[]> {
+  const own = await readStore(ownAuthPath())
+  return Object.entries(own).map(([providerId, credential]) => ({
+    providerId,
+    type: credential.type
+  }))
 }
 
 /**
@@ -233,28 +215,29 @@ function lineReader(): () => Promise<string> {
  * import, and the whole step is skipped when stdin is not a terminal — a pipe
  * has no echo to suppress, which is also how the tests drive this path.
  */
-async function withoutEcho<T>(read: () => Promise<T>): Promise<T> {
+async function withoutEcho<T>(read: () => Promise<T>, u: Ui): Promise<T> {
   if (process.stdin.isTTY !== true) return read()
   await Bun.spawn(['stty', '-echo'], { stdin: 'inherit' }).exited
   try {
     return await read()
   } finally {
     await Bun.spawn(['stty', 'echo'], { stdin: 'inherit' }).exited
-    console.log('')
+    u.log('')
   }
 }
 
 /** One question, printed, with the answer read from stdin. A `select` is
  *  numbered so a person can answer with a digit or with the option's id. */
-function prompter(next: () => Promise<string>): (prompt: AuthPrompt) => Promise<string> {
+function prompter(next: () => Promise<string>, u: Ui): (prompt: AuthPrompt) => Promise<string> {
   return async prompt => {
     if (prompt.type === 'select') {
-      console.log(prompt.message)
+      u.log(`? ${u.bold(prompt.message)}`)
+      const width = prompt.options.reduce((w, o) => Math.max(w, o.label.length), 0)
       for (const [i, option] of prompt.options.entries()) {
-        const about = option.description === undefined ? '' : ` — ${option.description}`
-        console.log(`  ${i + 1}. ${option.label}${about}`)
+        const about = option.description === undefined ? '' : u.dim(option.description)
+        u.log(u.row(`  ${i + 1}) `, [option.label, about], [width, 0]))
       }
-      const answer = await next()
+      const answer = (await next()).trim()
       const index = Number.parseInt(answer, 10)
       if (Number.isInteger(index) && index >= 1 && index <= prompt.options.length) {
         return prompt.options[index - 1].id
@@ -265,9 +248,9 @@ function prompter(next: () => Promise<string>): (prompt: AuthPrompt) => Promise<
       }
       return chosen.id
     }
-    console.log(prompt.message)
-    if (prompt.placeholder !== undefined) console.log(`  (${prompt.placeholder})`)
-    return prompt.type === 'secret' ? withoutEcho(next) : next()
+    u.log(`? ${u.bold(prompt.message)}`)
+    if (prompt.placeholder !== undefined) u.log(u.note(prompt.placeholder))
+    return prompt.type === 'secret' ? withoutEcho(next, u) : next()
   }
 }
 
@@ -282,6 +265,7 @@ function prompter(next: () => Promise<string>): (prompt: AuthPrompt) => Promise<
  */
 export async function login(
   providerId: string,
+  u: Ui,
   options: { type?: 'api_key' | 'oauth' } & LoginOptions
 ): Promise<Credential> {
   const models = docnamerModels()
@@ -301,18 +285,18 @@ export async function login(
       `login: provider "${providerId}" reads its key from the environment only, so there is nothing to store — set the variable its docs name instead`
     )
   }
-  const next = lineReader()
+  const next = stdinLine
   const interaction: AuthInteraction = {
-    prompt: prompter(next),
+    prompt: prompter(next, u),
     notify: event => {
       if (event.type === 'auth_url') {
-        console.log(`open: ${event.url}`)
-        if (event.instructions !== undefined) console.log(event.instructions)
+        u.log(`open: ${event.url}`)
+        if (event.instructions !== undefined) u.log(u.note(event.instructions))
       } else if (event.type === 'device_code') {
-        console.log(`open: ${event.verificationUri}`)
-        console.log(`code: ${event.userCode}`)
+        u.log(`open: ${event.verificationUri}`)
+        u.log(`code: ${event.userCode}`)
       } else {
-        console.log(event.message)
+        u.log(event.message)
       }
     }
   }
@@ -323,9 +307,26 @@ export async function login(
   return credential
 }
 
-/** Remove docnamer's own credential for a provider. A credential pi holds is
- *  pi's to remove, and `docnamer logout` says so rather than pretending. */
+/**
+ * Remove docnamer's own credential for a provider.
+ *
+ * A credential pi holds is pi's to remove, and this says so rather than
+ * reporting a success it did not perform: `delete` only ever touches docnamer's
+ * file, so a logout that reached here with pi's credential in hand would print
+ * "signed out" and change nothing. The refusal names the file that holds it.
+ */
 export async function logout(providerId: string): Promise<void> {
+  const origin = await credentials.origin(providerId)
+  if (origin === piAuthPath()) {
+    throw new Error(
+      `logout: docnamer did not store the credential for "${providerId}" — it is pi's, in ${tilde(piAuthPath())}, and \`pi\` is what removes it`
+    )
+  }
+  if (origin === null) {
+    throw new Error(
+      `logout: docnamer holds no credential for "${providerId}", so there is nothing to remove`
+    )
+  }
   await credentials.delete(providerId)
   await docnamerModels().logout(providerId)
 }

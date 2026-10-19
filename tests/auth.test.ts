@@ -159,3 +159,76 @@ test('login stores the key it was given, owner-only, and auth then finds it', as
     'docnamer/credentials.json'
   )
 })
+
+/*
+ * The picker. `docnamer login` with no provider used to be a usage error, which
+ * is not a sign-in flow at all: the list of providers a person may sign in to is
+ * the catalog, and choosing one is the first step of the flow rather than a
+ * mistake to be corrected. The same goes for `logout`, which can only ever
+ * remove docnamer's OWN credential and must say so instead of reporting a
+ * success it did not perform.
+ */
+
+test('a bare `login` offers the catalog instead of a usage error', async () => {
+  const r = await cliAsTyping(await homeWith(PI_STORE), 'q\n', 'login')
+  expect(r.code, `login exited ${r.code}: ${r.stderr}`).toBe(0)
+  expect(r.stdout, 'a bare login is still a usage error').not.toContain('usage:')
+  // The shipped config needs one provider; the list a person picks from is the
+  // whole catalog, so a list built from the config alone is the wrong list.
+  for (const id of ['fireworks', 'anthropic', 'openai', 'google', 'deepseek']) {
+    expect(r.stdout, `the offered list does not include ${id}`).toContain(id)
+  }
+})
+
+test('the offered list says which providers are already signed in, and where from', async () => {
+  const r = await cliAsTyping(await homeWith(PI_STORE), 'q\n', 'login')
+  const line = (text: string, id: string): string | undefined =>
+    text.split('\n').find(l => l.toLowerCase().includes(id))
+  const signedIn = line(r.stdout, 'fireworks')
+  expect(signedIn, 'no line for fireworks').toBeDefined()
+  expect(signedIn, 'the fireworks line does not say which file its credential is in').toContain(
+    '.pi/agent/auth.json'
+  )
+  const unsigned = line(r.stdout, 'anthropic')
+  expect(unsigned, 'anthropic is missing from the offered list').toBeDefined()
+  expect(unsigned, 'a provider with no credential is offered as already signed in').not.toContain(
+    'signed in'
+  )
+})
+
+test('a bare `login` takes a provider typed by name and runs its flow', async () => {
+  const home = await homeWith()
+  const r = await cliAsTyping(home, 'fireworks\ntyped-in-key\n', 'login')
+  expect(r.code, `login exited ${r.code}: ${r.stderr}`).toBe(0)
+  const written: { fireworks?: unknown } = await Bun.file(
+    `${home}/.config/docnamer/credentials.json`
+  ).json()
+  expect(written.fireworks, 'the picked provider stored no credential').toMatchObject({
+    type: 'api_key',
+    key: 'typed-in-key'
+  })
+})
+
+test('a bare `login` refuses a choice that is not in the list, and names it', async () => {
+  const r = await cliAsTyping(await homeWith(), 'not-a-provider\n', 'login')
+  expect(r.code, 'an unknown choice was accepted').not.toBe(0)
+  expect(r.stderr, 'the refusal must name what was typed').toContain('not-a-provider')
+})
+
+test('a bare `logout` lists only the credential docnamer itself holds', async () => {
+  const r = await cliAsTyping(await homeWith(PI_STORE, OWN_STORE), 'q\n', 'logout')
+  expect(r.code, `logout exited ${r.code}: ${r.stderr}`).toBe(0)
+  expect(r.stdout, 'logout does not list the credential docnamer holds').toContain('fireworks')
+  expect(
+    r.stdout,
+    "logout offers a credential that is pi's and that docnamer cannot remove"
+  ).not.toContain('openai-codex')
+})
+
+test('`logout <provider>` refuses a credential that is pi to remove, and says whose', async () => {
+  const r = await cliAs(await homeWith(PI_STORE), 'logout', 'fireworks')
+  expect(r.code, 'logout reported a success it did not perform').not.toBe(0)
+  expect(r.stderr, 'the refusal does not name the file that holds it').toContain(
+    '.pi/agent/auth.json'
+  )
+})
