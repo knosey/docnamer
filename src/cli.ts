@@ -158,6 +158,16 @@ const BARE_USAGE =
   'usage: docnamer <command> [options] <folder>\nrun `docnamer --help` for the commands this program has'
 
 /**
+ * The code for an invocation this program REFUSED: a command it does not have,
+ * an argument it cannot accept, a folder it was never given. It is not the same
+ * as 1, which is an invocation it accepted and then failed at — no credential,
+ * an unreadable folder, a model that errored. A script can only act on that
+ * difference if the code carries it, so every refusal returns this one and no
+ * refusal invents its own.
+ */
+const USAGE_EXIT = 2
+
+/**
  * One aligned name column, never narrower than the longest name plus two
  * spaces. The help text is built to a contract `tests/cli-help.test.ts` parses
  * with plain string work: a section heading sits alone on its line, and every
@@ -330,19 +340,19 @@ export async function main(argv: string[]): Promise<number> {
   }
   if (cmd === undefined) {
     u.err(BARE_USAGE)
-    return 1
+    return USAGE_EXIT
   }
   const command = COMMANDS.find(c => c.name === cmd)
   if (command === undefined) {
-    // 1, not 0: the invocation was refused, and naming the token is what makes
-    // the typo visible.
+    // Naming the token is what makes the typo visible; the code says the
+    // invocation was refused rather than that a run failed.
     u.err(
       u.fail(
         `unknown command \`${cmd}\``,
         'run `docnamer --help` for the commands this program has'
       )
     )
-    return 1
+    return USAGE_EXIT
   }
 
   // A question about one command, answered before it touches a folder.
@@ -355,7 +365,7 @@ export async function main(argv: string[]): Promise<number> {
     const [providerId, ...extra] = rest
     if (extra.length > 0) {
       u.err(u.fail(`\`${cmd}\` takes at most one provider`, `run \`docnamer ${cmd} --help\``))
-      return 1
+      return USAGE_EXIT
     }
     return credentialCommand(cmd, providerId, u, style)
   }
@@ -372,18 +382,18 @@ export async function main(argv: string[]): Promise<number> {
       const value = rest[++i]
       if (value === undefined) {
         u.err(BARE_USAGE)
-        return 1
+        return USAGE_EXIT
       }
       run = value
     } else if (folder === null) folder = a
     else {
       u.err(BARE_USAGE)
-      return 1
+      return USAGE_EXIT
     }
   }
   if (folder === null) {
     u.err(BARE_USAGE)
-    return 1
+    return USAGE_EXIT
   }
 
   const config = await configFor(folder)

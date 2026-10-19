@@ -123,7 +123,10 @@ test("docnamer's own store answers when pi holds no login", async () => {
 
 test('auth fails and points at login when neither store holds a credential', async () => {
   const r = await cliAs(await homeWith(), 'auth')
-  expect(r.code, 'auth reported success with no credential anywhere').not.toBe(0)
+  // 1, not 2: the invocation was accepted and the run failed. 2 is for an
+  // invocation docnamer refused, which this one is not — the two codes are only
+  // worth having if something pins each side.
+  expect(r.code, 'a run that failed must exit 1, not the refusal code 2').toBe(1)
   expect(r.stdout, 'the failure belongs on stderr, not stdout').toBe('')
   expect(r.stderr, 'the message must say how to get a credential').toContain('login')
 })

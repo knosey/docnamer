@@ -105,7 +105,10 @@ test('cli: help advertises no command that is not really there', async () => {
 
 test('cli: an unknown command fails, names the token, and points at --help', async () => {
   const r = await cli('frobnicate')
-  expect(r.code, 'an unknown command must not report success').not.toBe(0)
+  // 2, not 1: a script must be able to tell a refused invocation from a run
+  // that started and failed, and only the code can carry that. 1 stays for
+  // everything that got as far as doing something.
+  expect(r.code, 'an unknown command must exit 2, the code for a refused invocation').toBe(2)
   expect(r.stdout, 'an error belongs on stderr, not stdout').toBe('')
   expect(r.stderr, 'the message must name what was not understood').toContain('frobnicate')
   expect(r.stderr, 'the message must say how to find the real commands').toContain('--help')
@@ -113,9 +116,18 @@ test('cli: an unknown command fails, names the token, and points at --help', asy
 
 test('cli: a bare invocation is a usage error, and says so on stderr', async () => {
   const r = await cli()
-  expect(r.code, 'a bare invocation must not report success').not.toBe(0)
+  // 2, the same refusal code as an unknown command: nothing ran, so nothing
+  // failed. 1 is reserved for an invocation that was accepted and then broke.
+  expect(r.code, 'a bare invocation must exit 2, the code for a refused invocation').toBe(2)
   expect(r.stdout, 'usage on no arguments belongs on stderr').toBe('')
   expect(r.stderr, 'a bare invocation must print usage').toContain('usage')
+})
+
+test('cli: a command named without its folder is refused the same way', async () => {
+  const r = await cli('plan')
+  expect(r.code, 'a missing folder must exit 2, not 1').toBe(2)
+  expect(r.stdout, 'usage on a missing argument belongs on stderr').toBe('')
+  expect(r.stderr, 'the refusal must print usage').toContain('usage')
 })
 
 test('cli: --version prints the manifest version and exits 0', async () => {
