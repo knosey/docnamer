@@ -86,10 +86,12 @@ export async function applyAction(
 }
 
 /** One row rendered for the person deciding on it (I3). The flags are the
- *  reason the row needs a person at all, so they carry the warning colour. */
-function renderRow(row: PlanRow, index: number, u: Ui): string {
+ *  reason the row needs a person at all, so they carry the warning colour.
+ *  `at`/`of` are the row's place in the review, not its index in the plan: a
+ *  plan index tells the person nothing about how much is left. */
+function renderRow(row: PlanRow, at: number, of: number, u: Ui): string {
   const lines = [
-    `${u.dim(`[${index + 1}]`)} ${u.bold(row.old)}`,
+    `${u.dim(`[${at}/${of}]`)} ${u.bold(row.old)}`,
     u.row('    ', [u.dim('new:'), row.new]),
     u.row('    ', [
       u.dim('type:'),
@@ -133,7 +135,7 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
     let cursor = 0
     const show = () => {
       const item = order[cursor]
-      if (item) u.log(renderRow(item.row, item.index, u))
+      if (item) u.log(renderRow(item.row, cursor + 1, order.length, u))
     }
     show()
     const decoder = new TextDecoder()
