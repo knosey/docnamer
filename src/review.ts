@@ -55,6 +55,8 @@ export async function applyAction(
       row.type = value
       // Re-render the name from the new type's template; the other rows'
       // names occupy the namespace so the render cannot collide with them.
+      // SAFE: the plan format writes "no evidence" as an empty string, so a row
+      // read back from it legitimately has none; only `value` reaches the template.
       const checked: Checked = {
         type: value,
         type_confidence: 1,
@@ -133,11 +135,15 @@ export async function review(folder: string, config: Config): Promise<void> {
       const text = decoder.decode(chunk)
       let stop = false
       for (let i = 0; i < text.length && !stop; i++) {
-        const ch = text[i] ?? ''
+        // charAt returns '' past the end, which the loop bound already excludes.
+        const ch = text.charAt(i)
         const item = order[cursor]
         if (ch === 'q') {
           stop = true
         } else if (ch === 'A') {
+          // SAFE: 'accept-unflagged' sweeps every pending unflagged row and never
+          // reads the index; the cursor's row is passed only because applyAction
+          // takes one, and past the last row there is none, so 0 stands in.
           rows = await applyAction(rows, item?.index ?? 0, 'accept-unflagged', null, config)
         } else if (item) {
           // Enter accepts the row on screen (R4/I3). A raw-mode terminal sends

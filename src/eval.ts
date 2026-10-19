@@ -59,6 +59,10 @@ export async function evalTestset(testset: string, config: Config): Promise<Eval
   const misses: EvalMiss[] = []
 
   for (const [file, exp] of Object.entries(expected)) {
+    // SAFE: eval scores the plan against the expectation file, so "the plan has
+    // no row for this file" is a measurement, not an error — it is recorded as a
+    // miss below, with `(none)` in the message. An expectation may also omit
+    // `type`, `name` or `fields`, which means that part is not being scored.
     const row = byOld.get(file)
     const gotType = row?.type ?? ''
     const gotName = row?.new ?? ''
@@ -72,6 +76,7 @@ export async function evalTestset(testset: string, config: Config): Promise<Eval
     const wrongFields: string[] = []
     for (const [field, want] of Object.entries(exp.fields ?? {})) {
       const got = row?.fields[field] ?? ''
+      // SAFE: a Map accumulator — the first sighting of a field starts at zero.
       const t = fieldTotals.get(field) ?? { hits: 0, total: 0 }
       t.total++
       if (got === want) t.hits++

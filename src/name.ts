@@ -13,6 +13,9 @@ import type { Checked } from './validate.ts'
 
 /** Substitute {field} placeholders; unknown or null fields become empty. */
 export function renderTemplate(t: string, fields: Record<string, string>): string {
+  // SAFE: a template may name a field the type never declared, or one the model
+  // did not extract; an empty substitution is exactly what the template asked
+  // for, and validate() flags a missing required field separately.
   return t.replace(/\{(\w+)\}/g, (_m, name: string) => fields[name] ?? '')
 }
 
@@ -36,12 +39,13 @@ export async function buildName(
   file: { dir: string; ext: string },
   planned: Set<string>
 ): Promise<string> {
-  const type = config.types[checked.type] ?? config.types['other']
-  if (!type)
-    throw new Error(`buildName: config has no type "${checked.type}" and no "other" fallback`)
+  const type = config.types[checked.type]
+  if (!type) throw new Error(`buildName: config has no type "${checked.type}"`)
 
   const fields: Record<string, string> = {}
   for (const [k, v] of Object.entries(checked.fields)) {
+    // SAFE: a field the model could not read is null and validate() has already
+    // flagged it; the template drops it rather than aborting the whole rename.
     fields[k] = v.value ?? ''
   }
 

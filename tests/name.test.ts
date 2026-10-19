@@ -176,3 +176,10 @@ test('T5 buildName treats a name differing only in case as taken (macOS is case-
   expect(second).not.toBe(first)
   expect(second).toMatch(/ \(\d+\)\.pdf$/)
 })
+
+test('T5 buildName refuses a type the config does not have, rather than naming it with other', async () => {
+  const n = await loadName()
+  await expect(
+    n.buildName({ ...CHECKED, type: 'not_a_type' }, CONFIG, { dir: '/tmp', ext: '.pdf' }, new Set())
+  ).rejects.toThrow(/not_a_type/)
+})

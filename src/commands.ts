@@ -128,6 +128,10 @@ export async function plan(
     const fields: Record<string, string> = {}
     const evidence: Record<string, string> = {}
     for (const [k, v] of Object.entries(checked.fields)) {
+      // SAFE: the plan file presents what was read, and a field the model could
+      // not read is null by contract — validate() has already flagged it and the
+      // flags travel with the row. Writing it as empty is the plan format's own
+      // spelling of "nothing", not a value invented here.
       fields[k] = v.value ?? ''
       evidence[k] = v.evidence ?? ''
     }
@@ -283,6 +287,9 @@ async function latestUndoFile(folder: string): Promise<string | null> {
     found.push(rel)
   }
   found.sort()
+  // SAFE: a folder with no undo record is a legitimate state the caller reports,
+  // so `?? null` only normalises `at(-1)`'s undefined into this function's
+  // declared null; it does not stand in for data that should have been there.
   return found.at(-1) ?? null
 }
 

@@ -301,6 +301,8 @@ export async function analyse(
 ): Promise<Analysis | Failed> {
   // A call carrying page images goes to the vision model; text-only stays cheap,
   // and the caller names a seat when it wants a specific one (spec Stage 2).
+  // SAFE: `seat` is optional by signature — undefined means "choose for me", which
+  // is the documented default, not a missing value.
   const key = seat ?? (content.images.length > 0 ? 'vision' : 'cheap')
   const ref = config.models[key]
   const model = resolveModel(ref)
