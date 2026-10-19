@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="260" viewBox="0 0 1000 260" role="img" aria-label="docnamer plan output: old name, new name, type">
+  <defs>
+    <linearGradient id="titlebar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d333b"/>
+      <stop offset="1" stop-color="#22272e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- window -->
+  <rect x="0" y="0" width="1000" height="260" rx="10" fill="#0d1117"/>
+  <rect x="0" y="0" width="1000" height="260" rx="10" fill="none" stroke="#30363d" stroke-width="1"/>
+
+  <!-- title bar -->
+  <path d="M0 10 a10 10 0 0 1 10 -10 h980 a10 10 0 0 1 10 10 v28 h-1000 z" fill="url(#titlebar)"/>
+  <circle cx="24" cy="19" r="6" fill="#ff5f57"/>
+  <circle cx="46" cy="19" r="6" fill="#febc2e"/>
+  <circle cx="68" cy="19" r="6" fill="#28c840"/>
+  <text x="500" y="24" text-anchor="middle" font-family="ui-monospace, SF Mono, Menlo, Consolas, monospace" font-size="12" fill="#8b949e">docnamer plan ~/Documents/unsorted</text>
+
+  <!-- session -->
+  <g font-family="ui-monospace, SF Mono, Menlo, Consolas, monospace" font-size="14">
+    <text x="24" y="66" fill="#7ee787">$ docnamer plan ~/Documents/unsorted</text>
+
+    <!-- column headers -->
+    <text x="24" y="98" font-weight="700" fill="#58a6ff">OLD</text>
+    <text x="260" y="98" font-weight="700" fill="#58a6ff">NEW</text>
+    <text x="760" y="98" font-weight="700" fill="#58a6ff">TYPE</text>
+    <path d="M24 106 h952" stroke="#21262d" stroke-width="1"/>
+
+    <!-- row 1 -->
+    <text x="24" y="132" fill="#c9d1d9">letter.txt</text>
+    <text x="260" y="132" fill="#c9d1d9">2024-03-12 Acme Services invoice INV-2024-0817.txt</text>
+    <text x="760" y="132" fill="#d2a8ff">invoice</text>
+
+    <!-- row 2 -->
+    <text x="24" y="160" fill="#c9d1d9">statement-text.pdf</text>
+    <text x="260" y="160" fill="#c9d1d9">2024-03-12 statement.pdf</text>
+    <text x="760" y="160" fill="#d2a8ff">bank_statement</text>
+
+    <!-- summary -->
+    <text x="24" y="204" fill="#8b949e">planned 2 document(s)</text>
+
+    <!-- cursor -->
+    <rect x="24" y="222" width="9" height="17" fill="#7ee787"/>
+  </g>
+</svg>

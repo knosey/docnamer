@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="docnamer — point it at a folder, get back named documents">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0f17"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="0.5" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#e879f9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="300" fill="url(#bg)"/>
+
+  <!-- faint grid -->
+  <g stroke="#1f2937" stroke-width="1" opacity="0.5">
+    <path d="M0 75 H1200 M0 150 H1200 M0 225 H1200"/>
+    <path d="M200 0 V300 M400 0 V300 M600 0 V300 M800 0 V300 M1000 0 V300"/>
+  </g>
+
+  <!-- gradient accent line -->
+  <rect x="80" y="236" width="430" height="4" rx="2" fill="url(#accent)"/>
+
+  <!-- wordmark -->
+  <text x="80" y="150" font-family="ui-monospace, SF Mono, Menlo, Consolas, monospace" font-size="72" font-weight="700" fill="#f9fafb" letter-spacing="-2">docnamer</text>
+
+  <!-- tagline -->
+  <text x="80" y="200" font-family="ui-monospace, SF Mono, Menlo, Consolas, monospace" font-size="20" fill="#9ca3af">Point it at a folder. Get back named, tagged documents.</text>
+
+  <!-- motif: unnamed file -> named file -->
+  <g transform="translate(800,88)">
+    <!-- unnamed file -->
+    <g>
+      <path d="M0 0 h64 l16 16 v84 a8 8 0 0 1 -8 8 h-64 a8 8 0 0 1 -8 -8 v-92 a8 8 0 0 1 8 -8 z" fill="#1f2937" stroke="#4b5563" stroke-width="2"/>
+      <path d="M64 0 v16 h16" fill="none" stroke="#4b5563" stroke-width="2"/>
+      <text x="4" y="128" font-family="ui-monospace, SF Mono, Menlo, Consolas, monospace" font-size="15" fill="#6b7280">scan_0047.pdf</text>
+    </g>
+    <!-- arrow -->
+    <g transform="translate(118,46)">
+      <path d="M0 0 H66 M52 -12 L68 0 L52 12" fill="none" stroke="url(#accent)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <!-- named file -->
+    <g transform="translate(216,0)">
+      <path d="M0 0 h64 l16 16 v84 a8 8 0 0 1 -8 8 h-64 a8 8 0 0 1 -8 -8 v-92 a8 8 0 0 1 8 -8 z" fill="#17202e" stroke="url(#accent)" stroke-width="2"/>
+      <path d="M64 0 v16 h16" fill="none" stroke="#818cf8" stroke-width="2"/>
+      <path d="M14 40 h52 M14 56 h52 M14 72 h34" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+      <text x="44" y="128" text-anchor="middle" font-family="ui-monospace, SF Mono, Menlo, Consolas, monospace" font-size="12" fill="#e5e7eb">2024-03-12 Acme invoice.pdf</text>
+    </g>
+  </g>
+</svg>
