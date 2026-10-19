@@ -112,6 +112,8 @@ async function withLock<T>(providerId: string, fn: () => Promise<T>): Promise<T>
   const run = prior.then(fn, fn)
   locks.set(
     providerId,
+    // The lock tail swallows the failure so the NEXT caller chains onto a settled
+    // promise; this caller still sees it through the `run` returned below.
     run.catch(() => undefined)
   )
   return run
