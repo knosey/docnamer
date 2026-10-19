@@ -1,6 +1,10 @@
 /**
  * docnamer CLI entry (D3). `docnamer plan <folder>` is the entire integration
  * surface: it writes `<folder>/.docnamer-plan.json` and touches nothing else.
+ *
+ * Nothing here writes a byte itself. Every line goes through `ui`, which owns
+ * the glyph set, the colour and the ASCII fallback, so a command cannot print
+ * something the rest of the program would not.
  */
 import pkg from '../package.json'
 import { loadConfig, CONFIG_FILE, BUILTIN_CONFIG, type Config } from './config.ts'
@@ -10,13 +14,16 @@ import {
   login,
   logout,
   ownAuthPath,
+  ownCredentials,
   requiredProviders,
   tilde
 } from './auth.ts'
-import { plan, writePlan, apply, undo } from './commands.ts'
+import { plan, writePlan, apply, undo, PLAN_FILE } from './commands.ts'
 import { review } from './review.ts'
 import { evalTestset, formatEvalReport } from './eval.ts'
 import { renderTable } from './table.ts'
+import { pick, releaseStdin, type Option } from './prompt.ts'
+import { styleFrom, ui, type Style, type Ui } from './ui.ts'
 
 /**
  * The folder's own config: one name, one location. A folder that does not carry
@@ -30,68 +37,122 @@ export async function configFor(folder: string): Promise<Config> {
 }
 
 /**
+ * Every flag the parser accepts, in one place so a command's help cannot
+ * advertise one the parser would not understand.
+ */
+const OPTIONS = {
+  recursive: ['--recursive, -r', 'Include documents in subfolders'],
+  run: ['--run <file>', 'Undo a specific run file instead of the most recent'],
+  help: ['--help, -h', 'Print help and exit'],
+  version: ['--version, -v', 'Print the version and exit']
+} as const
+
+type FlagName = keyof typeof OPTIONS
+
+/** An invocation and what it does — the pair the EXAMPLES section renders. */
+type Example = readonly [string, string]
+
+type Command = {
+  readonly name: string
+  readonly args: string
+  readonly summary: string
+  /** The OPTIONS keys this command accepts. `--help` is added to all of them. */
+  readonly flags: readonly FlagName[]
+  readonly examples: readonly Example[]
+}
+
+/**
  * The roster, and the only place a command is named: the help text is rendered
  * from it, so a command that is dispatched but never documented cannot be
  * written down. `tests/cli-help.test.ts` drives every advertised name for real.
  */
-const COMMANDS = [
+const COMMANDS: readonly Command[] = [
   {
     name: 'plan',
     args: '[--recursive] <folder>',
-    summary: 'Show what each document would be renamed to, changing nothing'
+    summary: 'Show what each document would be renamed to, changing nothing',
+    flags: ['recursive'],
+    examples: [
+      ['docnamer plan ~/Scans', 'the names it would give, nothing touched'],
+      ['docnamer plan --recursive ~/Scans', 'include the subfolders too']
+    ]
   },
   {
     name: 'review',
     args: '<folder>',
-    summary: 'Review a planned run with the model before it is applied'
+    summary: 'Review a planned run with the model before it is applied',
+    flags: [],
+    examples: [['docnamer review ~/Scans', 'decide each row, flagged ones first']]
   },
   {
     name: 'apply',
     args: '<folder>',
-    summary: 'Rename the documents a plan describes, writing an undo file'
+    summary: 'Rename the documents a plan describes, writing an undo file',
+    flags: [],
+    examples: [['docnamer apply ~/Scans', 'rename them, and record how to put it back']]
   },
   {
     name: 'undo',
     args: '[--run <file>] <folder>',
-    summary: 'Restore the names an applied run changed'
+    summary: 'Restore the names an applied run changed',
+    flags: ['run'],
+    examples: [
+      ['docnamer undo ~/Scans', 'put the most recent run back'],
+      ['docnamer undo --run .docnamer-undo-1.json ~/Scans', 'put that run back']
+    ]
   },
   {
     name: 'eval',
     args: '<testset>',
-    summary: "Score the renamer against a test set's expected.json"
+    summary: "Score the renamer against a test set's expected.json",
+    flags: [],
+    examples: [['docnamer eval tests/testset', 'score it; nothing is renamed']]
   },
   {
     name: 'login',
-    args: '<provider>',
-    summary: 'Sign in to a model provider and store the credential'
+    args: '[provider]',
+    summary: 'Sign in to a model provider and store the credential',
+    flags: [],
+    examples: [
+      ['docnamer login', 'pick a provider from the catalog'],
+      ['docnamer login fireworks', 'sign in to one you already know the name of']
+    ]
   },
   {
     name: 'logout',
-    args: '<provider>',
-    summary: 'Remove the credential docnamer stored for a provider'
+    args: '[provider]',
+    summary: 'Remove the credential docnamer stored for a provider',
+    flags: [],
+    examples: [
+      ['docnamer logout', 'pick a credential of docnamer\u2019s own to remove'],
+      ['docnamer logout fireworks', 'remove one you already know the name of']
+    ]
   },
   {
     name: 'auth',
     args: '',
-    summary: 'Report where each provider the configured models use gets its credential'
+    summary: 'Report where each provider the configured models use gets its credential',
+    flags: [],
+    examples: [['docnamer auth', 'say which file each credential came from']]
   }
-] as const
+]
 
-/** Every flag the parser accepts, documented once because all five commands share it. */
-const OPTIONS = [
-  ['--recursive, -r', 'Include documents in subfolders'],
-  ['--run <file>', 'Undo a specific run file instead of the most recent'],
-  ['--help, -h', 'Print help and exit'],
-  ['--version, -v', 'Print the version and exit']
-] as const
+/** What a person types when they do not yet know what to type. */
+const PROGRAM_EXAMPLES: readonly Example[] = [
+  ['docnamer plan ~/Scans', 'the names it would give, nothing touched'],
+  ['docnamer review ~/Scans', 'decide each row, flagged ones first'],
+  ['docnamer apply ~/Scans', 'rename them, and record how to put it back'],
+  ['docnamer undo ~/Scans', 'put the most recent run back'],
+  ['docnamer login', 'pick a provider from the catalog']
+]
 
 /** Read from the manifest, never typed here, so the two cannot drift apart. */
 const VERSION: string = pkg.version
 
 /**
  * Printed when an invocation is incomplete — the command was named but the
- * folder was not — never when it is unknown, which is a different failure with
- * a different exit code. Lower-case on purpose: it is a usage error, not help.
+ * folder was not — never when it is unknown, which is a different failure.
+ * Lower-case on purpose: it is a usage error, not help.
  */
 const BARE_USAGE =
   'usage: docnamer <command> [options] <folder>\nrun `docnamer --help` for the commands this program has'
@@ -103,14 +164,14 @@ const BARE_USAGE =
  * line beneath it begins with two spaces, a name, then at least two spaces
  * before its description.
  */
-function column(rows: readonly (readonly [string, string])[]): string {
+function column(rows: readonly Example[]): string {
   const width = Math.max(...rows.map(([name]) => name.length)) + 2
   return rows.map(([name, text]) => `  ${name.padEnd(width)}${text}`).join('\n')
 }
 
 /** The help for the program, or for one command when `cmd` names one. */
-function helpText(cmd?: (typeof COMMANDS)[number]): string {
-  const head =
+function helpText(cmd?: Command): string {
+  const sections =
     cmd === undefined
       ? [
           'Rename document scans by what they contain.',
@@ -119,90 +180,184 @@ function helpText(cmd?: (typeof COMMANDS)[number]): string {
           '  docnamer <command> [options] <folder>',
           '',
           'COMMANDS',
-          column(COMMANDS.map(c => [`${c.name} ${c.args}`.trimEnd(), c.summary] as const))
+          column(COMMANDS.map(c => [`${c.name} ${c.args}`.trimEnd(), c.summary] as const)),
+          '',
+          'OPTIONS',
+          column([OPTIONS.recursive, OPTIONS.run, OPTIONS.help, OPTIONS.version]),
+          '',
+          'EXAMPLES',
+          column(PROGRAM_EXAMPLES)
         ]
-      : [`${cmd.summary}.`, '', 'USAGE', `  docnamer ${cmd.name} ${cmd.args}`.trimEnd()]
-  return [...head, '', 'OPTIONS', column(OPTIONS)].join('\n')
+      : [
+          `${cmd.summary}.`,
+          '',
+          'USAGE',
+          `  docnamer ${cmd.name} ${cmd.args}`.trimEnd(),
+          '',
+          'OPTIONS',
+          column([...cmd.flags.map(f => OPTIONS[f]), OPTIONS.help]),
+          '',
+          'EXAMPLES',
+          column(cmd.examples)
+        ]
+  return sections.join('\n')
 }
 
-export async function main(argv: string[]): Promise<number> {
-  const [cmd, ...rest] = argv
+/**
+ * The catalog as a list to choose from. The list a person picks a sign-in from
+ * is the whole catalog, not the providers the shipped config happens to use —
+ * and each row says where a credential it already holds lives, because the file
+ * is the thing `docnamer auth` and `logout` answer about.
+ */
+async function catalogOptions(): Promise<Option[]> {
+  const models = docnamerModels()
+  const held = new Set((await credentials.list()).map(c => c.providerId))
+  const options = await Promise.all(
+    models.getProviders().map(async (provider): Promise<Option> => {
+      const kinds: string[] = []
+      if (provider.auth.oauth !== undefined) kinds.push('oauth')
+      if (provider.auth.apiKey !== undefined) kinds.push('api key')
+      const option: Option = {
+        id: provider.id,
+        label: provider.name,
+        detail: `${provider.id} \u00b7 ${kinds.join(' or ')}`
+      }
+      if (!held.has(provider.id)) return option
+      const origin = await credentials.origin(provider.id)
+      if (origin === null) {
+        throw new Error(`login: ${provider.id} is listed as held but no store answers for it`)
+      }
+      return { ...option, status: `signed in \u00b7 ${tilde(origin)}` }
+    })
+  )
+  return options.sort((a, b) => a.label.localeCompare(b.label))
+}
 
-  // The front door, answered before any command runs or any folder is read.
-  if (cmd === '--help' || cmd === '-h') {
-    console.log(helpText())
-    return 0
-  }
-  if (cmd === '--version' || cmd === '-v') {
-    console.log(`docnamer ${VERSION}`)
-    return 0
-  }
-  if (cmd === undefined) {
-    console.error(BARE_USAGE)
-    return 1
-  }
-  const command = COMMANDS.find(c => c.name === cmd)
-  if (command === undefined) {
-    // 2, not 1: the invocation was understood and refused, and naming the token
-    // is what makes the typo visible.
-    console.error(`docnamer: unknown command \`${cmd}\``)
-    console.error('run `docnamer --help` for the commands this program has')
-    return 2
-  }
+/**
+ * The credential list for `logout`. Only docnamer's OWN store can be written,
+ * so a credential that is pi's is never offered — a choice the command cannot
+ * carry out is not a choice.
+ */
+function ownedOptions(owned: readonly { providerId: string; type: string }[]): Option[] {
+  return owned
+    .map(entry => ({
+      id: entry.providerId,
+      label: entry.providerId,
+      detail: entry.type,
+      status: `signed in \u00b7 ${tilde(ownAuthPath())}`
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
 
-  // A question about one command, answered before it touches a folder.
-  if (rest.includes('--help') || rest.includes('-h')) {
-    console.log(helpText(command))
-    return 0
-  }
-  // The three commands that name no folder. They answer about credentials and
-  // touch no document, so they run before the folder is required (T8).
+/** The three commands that answer about credentials and touch no document. */
+async function credentialCommand(
+  cmd: string,
+  providerId: string | undefined,
+  u: Ui,
+  style: Style
+): Promise<number> {
   if (cmd === 'auth') {
     const missing: string[] = []
-    const lines: string[] = []
+    const rows: string[][] = []
     const models = docnamerModels()
-    for (const providerId of requiredProviders(BUILTIN_CONFIG)) {
-      const resolved = await models.getAuth(providerId)
+    for (const id of requiredProviders(BUILTIN_CONFIG)) {
+      const resolved = await models.getAuth(id)
       if (resolved === undefined) {
-        missing.push(providerId)
+        missing.push(id)
         continue
       }
       // The file when a store answered — the label `source` gives names the
       // mechanism (`FIREWORKS_API_KEY`), which is not the same question.
-      const origin = await credentials.origin(providerId)
+      const origin = await credentials.origin(id)
       const where = origin === null ? resolved.source : origin
       if (where === undefined) {
-        throw new Error(
-          `auth: ${providerId} resolved with neither a stored credential nor a source`
-        )
+        throw new Error(`auth: ${id} resolved with neither a stored credential nor a source`)
       }
-      lines.push(`${providerId}  ${tilde(where)}`)
+      rows.push([id, tilde(where)])
     }
     if (missing.length > 0) {
-      console.error(`docnamer: no credential for ${missing.join(', ')}`)
-      console.error('run `docnamer login <provider>` to sign in')
-      return 1
-    }
-    for (const line of lines) console.log(line)
-    return 0
-  }
-  if (cmd === 'login' || cmd === 'logout') {
-    const [providerId, ...extra] = rest
-    if (providerId === undefined || extra.length > 0) {
-      console.error(`usage: docnamer ${cmd} <provider>`)
-      console.error(
-        `providers the shipped models use: ${requiredProviders(BUILTIN_CONFIG).join(', ')}`
+      u.err(
+        u.fail(
+          `no credential for ${missing.join(', ')}`,
+          'run `docnamer login` to pick a provider and sign in'
+        )
       )
       return 1
     }
-    if (cmd === 'logout') {
+    u.log(u.head('Credentials'))
+    u.log(u.table(['PROVIDER', 'FROM'], rows))
+    return 0
+  }
+
+  if (cmd === 'logout') {
+    if (providerId !== undefined) {
       await logout(providerId)
-      console.log(`signed out of ${providerId}`)
+      u.log(u.ok(`signed out of ${providerId}`))
       return 0
     }
-    await login(providerId, {})
-    console.log(`signed in to ${providerId} — stored in ${tilde(ownAuthPath())}`)
+    const owned = await ownCredentials()
+    if (owned.length === 0) {
+      u.log(u.note('no credential of docnamer\u2019s own to sign out of'))
+      return 0
+    }
+    const id = await pick('Sign out of a provider', ownedOptions(owned), style)
+    if (id === null) return 0
+    await logout(id)
+    u.log(u.ok(`signed out of ${id}`))
     return 0
+  }
+
+  const id = providerId ?? (await pick('Sign in to a provider', await catalogOptions(), style))
+  if (id === null) return 0
+  await login(id, u, {})
+  u.log(u.ok(`signed in to ${id} ${u.dim('\u2014')} stored in ${tilde(ownAuthPath())}`))
+  return 0
+}
+
+export async function main(argv: string[]): Promise<number> {
+  const style = styleFrom(process.env, process.stdout.isTTY === true)
+  const u = ui(style)
+  const [cmd, ...rest] = argv
+
+  // The front door, answered before any command runs or any folder is read.
+  if (cmd === '--help' || cmd === '-h') {
+    u.log(helpText())
+    return 0
+  }
+  if (cmd === '--version' || cmd === '-v') {
+    u.log(`docnamer ${VERSION}`)
+    return 0
+  }
+  if (cmd === undefined) {
+    u.err(BARE_USAGE)
+    return 1
+  }
+  const command = COMMANDS.find(c => c.name === cmd)
+  if (command === undefined) {
+    // 1, not 0: the invocation was refused, and naming the token is what makes
+    // the typo visible.
+    u.err(
+      u.fail(
+        `unknown command \`${cmd}\``,
+        'run `docnamer --help` for the commands this program has'
+      )
+    )
+    return 1
+  }
+
+  // A question about one command, answered before it touches a folder.
+  if (rest.includes('--help') || rest.includes('-h')) {
+    u.log(helpText(command))
+    return 0
+  }
+
+  if (cmd === 'auth' || cmd === 'login' || cmd === 'logout') {
+    const [providerId, ...extra] = rest
+    if (extra.length > 0) {
+      u.err(u.fail(`\`${cmd}\` takes at most one provider`, `run \`docnamer ${cmd} --help\``))
+      return 1
+    }
+    return credentialCommand(cmd, providerId, u, style)
   }
 
   let recursive = false
@@ -216,18 +371,18 @@ export async function main(argv: string[]): Promise<number> {
       // undoing the latest run is a destructive action nobody asked for.
       const value = rest[++i]
       if (value === undefined) {
-        console.error(BARE_USAGE)
+        u.err(BARE_USAGE)
         return 1
       }
       run = value
     } else if (folder === null) folder = a
     else {
-      console.error(BARE_USAGE)
+      u.err(BARE_USAGE)
       return 1
     }
   }
   if (folder === null) {
-    console.error(BARE_USAGE)
+    u.err(BARE_USAGE)
     return 1
   }
 
@@ -235,38 +390,62 @@ export async function main(argv: string[]): Promise<number> {
   if (cmd === 'eval') {
     // The argument is a test set, not a folder to touch: eval scores it against
     // its expected.json and renames nothing (R8, I4).
+    const spinner = u.spinner(`scoring ${folder} against its expected.json`)
     const report = await evalTestset(folder, config)
-    console.log(formatEvalReport(report))
+    spinner.stop(`scored ${report.files} file(s)`)
+    u.log(formatEvalReport(report))
     return 0
   }
   if (cmd === 'plan') {
+    const spinner = u.spinner(`reading ${folder} and asking the model`)
     const rows = await plan(folder, { recursive, applyUnflagged: false }, config)
     await writePlan(folder, rows)
+    spinner.stop(`planned ${rows.length} document(s)`)
     // The table is what a person reads before anything is renamed (I1): the
     // count alone never showed which name a file would get.
-    console.log(renderTable(rows))
-    console.log(`planned ${rows.length} document(s) -> ${folder}/.docnamer-plan.json`)
+    u.log(renderTable(rows, style))
+    u.log(u.note(`plan written to ${folder}/${PLAN_FILE} \u2014 run \`docnamer review\``))
     return 0
   }
   if (cmd === 'review') {
-    await review(folder, config)
+    await review(folder, config, u)
     return 0
   }
   if (cmd === 'apply') {
-    const report = await apply(folder, config)
-    console.log(`renamed ${report.renamed} file(s) -> ${report.undoFile}`)
-    for (const s of report.skipped) console.log(`skipped ${s.file}: ${s.reason}`)
+    const spinner = u.spinner(`renaming the documents in ${folder}`)
+    const report = await apply(folder, config, (done, total, file) => {
+      spinner.update(`${done} of ${total} \u2014 ${file}`)
+    })
+    spinner.stop(`renamed ${report.renamed} file(s)`)
+    for (const s of report.skipped) u.log(u.warn(`skipped ${s.file}: ${s.reason}`))
+    u.log(u.note(`undo file ${report.undoFile} \u2014 \`docnamer undo\` puts it back`))
     return 0
   }
-  const report = await undo(folder, run, config)
+  const spinner = u.spinner(`restoring the names in ${folder}`)
+  const report = await undo(folder, run, config, (done, total, file) => {
+    spinner.update(`${done} of ${total} \u2014 ${file}`)
+  })
+  spinner.stop(`restored ${report.restored.length} file(s)`)
   // The names, not a count (I2): after an operation whose whole point is
   // reversibility, a person has to see which file is sitting at which name.
-  console.log(`restored ${report.restored.length} file(s)`)
-  for (const name of report.restored) console.log(`restored ${name}`)
-  for (const s of report.skipped) console.log(`skipped ${s.file}: ${s.reason}`)
+  for (const name of report.restored) u.log(u.ok(`restored ${name}`))
+  for (const s of report.skipped) u.log(u.warn(`skipped ${s.file}: ${s.reason}`))
   return 0
 }
 
 if (import.meta.main) {
-  process.exitCode = await main(Bun.argv.slice(2))
+  try {
+    process.exitCode = await main(Bun.argv.slice(2))
+  } catch (e) {
+    // A failure is never a stack trace: the message carries what broke and how
+    // to fix it, and the exit code says it failed.
+    const u = ui(styleFrom(process.env, process.stdout.isTTY === true))
+    u.err(u.fail(e instanceof Error ? e.message : String(e)))
+    process.exitCode = 1
+  } finally {
+    // Hand stdin back before the process is allowed to end. A reader left on
+    // Bun's stdin stream holds the event loop open, so a command that prompted
+    // would print its result and then never return the prompt.
+    await releaseStdin()
+  }
 }

@@ -192,6 +192,13 @@ export type UndoReport = {
   skipped: { file: string; reason: string }[]
 }
 
+/**
+ * Called once per file a long rename is about to touch, so a terminal can show
+ * which one it is on. A pipe never sees it: the caller's spinner swallows the
+ * updates when there is no line to redraw (see `ui.spinner`).
+ */
+export type Progress = (done: number, total: number, file: string) => void
+
 /** Files-only rename; throws with context when the move fails. */
 function renameFile(from: string, to: string): void {
   const proc = Bun.spawnSync(['mv', '-n', from, to])
@@ -220,18 +227,23 @@ function undoStamp(d: Date): string {
  * file changed size or mtime since planning — or whose new name is taken — is
  * skipped and reported, never renamed (R7).
  */
-export async function apply(folder: string, config: Config): Promise<ApplyReport> {
+export async function apply(
+  folder: string,
+  config: Config,
+  progress?: Progress
+): Promise<ApplyReport> {
   const planPath = `${folder}/${PLAN_FILE}`
   if (!(await Bun.file(planPath).exists())) {
     throw new Error(`apply: no plan file at ${planPath} — run docnamer plan first`)
   }
   const rows = JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
+  const accepted = rows.filter(r => r.status === 'accepted')
 
   const entries: UndoEntry[] = []
   const skipped: { file: string; reason: string }[] = []
   const comments: { file: string; comment: string }[] = []
-  for (const row of rows) {
-    if (row.status !== 'accepted') continue
+  for (const [i, row] of accepted.entries()) {
+    progress?.(i + 1, accepted.length, row.old)
     const from = `${folder}/${row.old}`
     const to = `${folder}/${row.new}`
     const f = Bun.file(from)
@@ -301,7 +313,8 @@ async function latestUndoFile(folder: string): Promise<string | null> {
 export async function undo(
   folder: string,
   run: string | null,
-  config: Config
+  config: Config,
+  progress?: Progress
 ): Promise<UndoReport> {
   const name = run === null ? await latestUndoFile(folder) : run
   if (name === null) {
@@ -315,7 +328,9 @@ export async function undo(
 
   const skipped: { file: string; reason: string }[] = []
   const restored: string[] = []
-  for (const entry of [...record.entries].reverse()) {
+  const back = [...record.entries].reverse()
+  for (const [i, entry] of back.entries()) {
+    progress?.(i + 1, back.length, entry.new)
     const from = `${folder}/${entry.new}`
     const to = `${folder}/${entry.old}`
     if (!(await Bun.file(from).exists())) {
