@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
+import { repo, resolveCli, closedFolder, reopen } from './doc-renamer-apply-harness.ts'
 
 /**
  * T9 — `docnamer login` on a REAL terminal.
@@ -21,6 +21,10 @@ import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
 
 /** How long the child gets to exit on its own before it counts as a hang. */
 const EXIT_MS = 4000
+
+/** The escape sequences a terminal interprets, so a captured frame can be read
+ *  as the text a person actually sees on it. */
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g')
 
 const hasPty = typeof Bun.Terminal === 'function'
 
@@ -143,6 +147,49 @@ test.skipIf(!hasPty)(
       await Bun.file(`${home}/.config/docnamer/credentials.json`).exists(),
       'nothing may be stored by a cancelled picker'
     ).toBe(false)
+  },
+  20000
+)
+
+/**
+ * The frame a failure used to be glued to.
+ *
+ * `stop` clears the spinner's line with a carriage return and an erase, and it
+ * ran only when the work returned — so a command that threw left its last frame
+ * on the line and the error was written straight onto the end of it:
+ *
+ *   ⠋ reading . and asking the modeldocnamer: EPERM: operation not permitted, open '.'
+ *
+ * A pipe cannot show this: with no line to return to the spinner writes the
+ * label once and the error follows on its own line, which is why the assertion
+ * lives here, on a real terminal, where the reader met it.
+ */
+test.skipIf(!hasPty)(
+  'a failure under a spinner lands on its own line, not on the frame',
+  async () => {
+    const cli = await resolveCli()
+    if (cli === null) {
+      throw new Error('pty: no docnamer CLI to drive — build it or set DOCNAMER_BIN')
+    }
+    const home = await freshHome()
+    const closed = await closedFolder()
+
+    try {
+      const run = await drive([...cli, 'plan', closed], [], home)
+
+      expect(run.exited, 'a refused folder must still return the prompt').toBe(true)
+      expect(run.code, 'a refused folder is a failed run').toBe(1)
+      // The frame is redrawn in place, so a line that BEGINS with the program's
+      // name is the failure standing alone; glued, the frame's label runs into
+      // it and no line starts there.
+      const lines = run.output.replace(ANSI, '').split(/[\r\n]/)
+      expect(
+        lines.some(line => line.startsWith('docnamer:')),
+        'the error was glued to the spinner frame: no line begins with docnamer:'
+      ).toBe(true)
+    } finally {
+      await reopen(closed)
+    }
   },
   20000
 )

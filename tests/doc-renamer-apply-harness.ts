@@ -24,7 +24,7 @@
  *
  * Native Bun APIs only; no `node:` built-ins (D2).
  */
-import { mkdir } from 'node:fs/promises'
+import { chmod, mkdir, rm } from 'node:fs/promises'
 import { CONFIG_FILE } from '../src/config.ts'
 import { EXPECTED_FILE } from '../src/eval.ts'
 import { frame } from './frame.ts'
@@ -133,7 +133,9 @@ export class Session {
   booted = false
 }
 
-async function shell(cmd: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+export async function shell(
+  cmd: string[]
+): Promise<{ code: number; stdout: string; stderr: string }> {
   // The child must carry the provider key: pi-ai resolves Fireworks auth from its
   // own environment, and ensureProviderKey() sets it on THIS process. Handing the
   // environment over explicitly is what makes that reach the child.
@@ -157,6 +159,26 @@ export async function resolveCli(): Promise<string[] | null> {
   const src = `${repo}/src/cli.ts`
   if (await Bun.file(src).exists()) return [Bun.which('bun') ?? 'bun', src]
   return null
+}
+
+/**
+ * A folder this process is not allowed to read, for the failure path. `chmod
+ * 000` refuses the listing with EACCES and needs no privilege, so the test
+ * needs no privacy prompt: a folder under `~/Downloads` is refused the same
+ * way by macOS, only with EPERM. The mode goes back on the way out so the
+ * directory can be removed.
+ */
+export async function closedFolder(): Promise<string> {
+  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-closed-${crypto.randomUUID()}`
+  await mkdir(dir, { recursive: true })
+  await chmod(dir, 0o000)
+  return dir
+}
+
+/** Puts a `closedFolder` back to something removable. */
+export async function reopen(dir: string): Promise<void> {
+  await chmod(dir, 0o700)
+  await rm(dir, { recursive: true, force: true })
 }
 
 async function listFiles(dir: string): Promise<string[]> {
