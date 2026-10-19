@@ -66,10 +66,22 @@ beforeAll(async () => {
   await stageFile('ppt/slides/slide1.xml', SLIDE_XML)
   zipTreeStored(fixtures.pptxBad, ['ppt/slides/slide1.xml'])
   const bad = new Uint8Array(await Bun.file(fixtures.pptxBad).arrayBuffer())
-  const at = bad.indexOf(0x51) // 'Q' of "Quarterly", inside the stored entry data
+  // Anchor on the whole word, never on a single byte. 0x51 also occurs in the
+  // local file header, whose mod-time bytes come from the staged file's mtime and
+  // therefore differ on every run; flipping one of those corrupts nothing unzip
+  // checks, so the entry still extracts and this suite fails for a reason that has
+  // nothing to do with read(). "Quarterly" occurs once in the archive, inside the
+  // stored entry data. latin1 is one byte per char, so the index is a byte offset.
+  const at = new TextDecoder('latin1').decode(bad).indexOf('Quarterly')
   if (at < 0) throw new Error('fixture: slide text missing from the stored archive')
   bad[at] = 0x71
   await Bun.write(fixtures.pptxBad, bad)
+  // The flip must land in the entry data or the fixture is not corrupt at all;
+  // prove it here so a bad offset fails as a fixture fault rather than as a read()
+  // bug in the case below.
+  const check = Bun.spawnSync(['unzip', '-p', fixtures.pptxBad, 'ppt/slides/slide1.xml'])
+  if (check.exitCode === 0)
+    throw new Error('fixture: the byte flip missed the entry data — unzip still extracts it')
 
   // .pages carries no plain-text stream; readers go through the embedded
   // QuickLook preview PDF. The Stage 1 text-layer parser reads literal strings
