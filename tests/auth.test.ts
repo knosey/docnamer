@@ -232,3 +232,24 @@ test('`logout <provider>` refuses a credential that is pi to remove, and says wh
     '.pi/agent/auth.json'
   )
 })
+
+/*
+ * The other half of the same branch, and the one that must NOT refuse: when the
+ * credential is docnamer's own, `logout <provider>` removes it and says so. The
+ * refusal above is written against pi's file, and a refusal that also fired here
+ * would leave a person unable to sign out of a key they themselves had stored —
+ * the flow would be a one-way door.
+ */
+test("`logout <provider>` removes docnamer's own credential and says so", async () => {
+  const home = await homeWith(undefined, OWN_STORE)
+  const r = await cliAs(home, 'logout', 'fireworks')
+  expect(r.code, `logout exited ${r.code}: ${r.stderr}`).toBe(0)
+  expect(r.stdout, 'logout did not name the provider it signed out of').toContain('fireworks')
+
+  const store = `${home}/.config/docnamer/credentials.json`
+  const written: { fireworks?: unknown } = await Bun.file(store).json()
+  expect(written.fireworks, 'logout left the credential it reported removing').toBeUndefined()
+
+  const after = await cliAs(home, 'auth')
+  expect(after.code, 'auth still found a credential logout had removed').not.toBe(0)
+})
