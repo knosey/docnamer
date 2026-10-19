@@ -8,48 +8,32 @@
  * the reader's eye lands on what needs them, not on the rows that are already
  * fine.
  *
- * Plain text, no escapes: the output is piped and diffed, and a column width is
- * computed from the content so nothing is ever truncated. The frame the visual
- * review reads is this exact string (tests/frame.ts).
+ * This is a column layout, not a second layout engine: every line is built by
+ * `ui.row`, so the widths, the gap and the trailing-space rule live in one
+ * place. The `!` is that row's MARGIN, emitted before any styling, which is why
+ * `line.startsWith('!')` holds on a colour terminal too.
  */
 import type { PlanRow } from './commands.ts'
+import { ui, type Style } from './ui.ts'
 
-function width(values: string[], min: number): number {
-  let w = min
-  for (const v of values) if (v.length > w) w = v.length
-  return w
-}
-
-function pad(s: string, n: number): string {
-  return s + ' '.repeat(n > s.length ? n - s.length : 0)
-}
-
-export function renderTable(rows: PlanRow[]): string {
-  const flagged = rows.filter(r => r.flags.length > 0)
-  const clean = rows.filter(r => r.flags.length === 0)
-  const ordered = [...flagged, ...clean]
-
-  const oldW = width(
-    ordered.map(r => r.old),
-    3
-  )
-  const newW = width(
-    ordered.map(r => r.new),
-    3
-  )
-  const typeW = width(
-    ordered.map(r => r.type),
-    4
-  )
-
-  const out = [
-    `  ${pad('OLD', oldW)}  ${pad('NEW', newW)}  ${pad('TYPE', typeW)}  FLAGS`,
-    `  ${'-'.repeat(oldW)}  ${'-'.repeat(newW)}  ${'-'.repeat(typeW)}  -----`
+export function renderTable(rows: PlanRow[], style: Style): string {
+  const u = ui(style)
+  const ordered = [
+    ...rows.filter(r => r.flags.length > 0),
+    ...rows.filter(r => r.flags.length === 0)
   ]
-  for (const r of ordered) {
-    const mark = r.flags.length > 0 ? '!' : ' '
-    const line = `${mark} ${pad(r.old, oldW)}  ${pad(r.new, newW)}  ${pad(r.type, typeW)}  ${r.flags.join('; ')}`
-    out.push(line.trimEnd())
-  }
-  return out.join('\n')
+  const headers = ['OLD', 'NEW', 'TYPE', 'FLAGS']
+  const cells = ordered.map(r => [r.old, r.new, r.type, r.flags.join('; ')])
+  const widths = headers.map((h, i) =>
+    cells.reduce((w, c) => Math.max(w, (c[i] as string).length), h.length)
+  )
+  return [
+    u.row('  ', headers, widths),
+    u.row(
+      '  ',
+      widths.map(w => u.glyphs.rule.repeat(w)),
+      widths
+    ),
+    ...cells.map((c, i) => u.row((ordered[i] as PlanRow).flags.length > 0 ? '! ' : '  ', c, widths))
+  ].join('\n')
 }
