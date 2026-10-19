@@ -34,7 +34,16 @@ export async function main(argv: string[]): Promise<number> {
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i] as string
     if (a === '--recursive' || a === '-r') recursive = true
-    else if (a === '--run') run = rest[++i] ?? null
+    else if (a === '--run') {
+      // A truncated flag is a malformed command, never a default: silently
+      // undoing the latest run is a destructive action nobody asked for.
+      const value = rest[++i]
+      if (value === undefined) {
+        console.error(USAGE)
+        return 1
+      }
+      run = value
+    }
     else if (folder === null) folder = a
     else {
       console.error(USAGE)

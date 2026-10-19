@@ -198,6 +198,23 @@ test('T5 writePlan writes .docnamer-plan.json in the folder', async () => {
   expect(readFileSync(p, 'utf8')).toContain('invoice-acme.txt')
 })
 
+// `--run` with no value is a truncated command, not "undo the latest": the
+// parser's fallback turned it into a destructive undo of a run nobody named.
+test('T5 CLI main refuses `undo --run` with no value', async () => {
+  const cli = await loadCli()
+  const dir = mkdtempSync(join(tmpdir(), 'docnamer-run-'))
+  const renamed = '2026-04-03 Acme - Invoice.txt'
+  writeFileSync(join(dir, renamed), 'INVOICE\nAcme Ltd\n')
+  writeFileSync(
+    join(dir, '.docnamer-undo-1.json'),
+    JSON.stringify({ entries: [{ old: 'invoice-acme.txt', new: renamed }] })
+  )
+  const code = await cli.main(['undo', dir, '--run'])
+  expect(code).toBe(1)
+  expect(existsSync(join(dir, renamed))).toBe(true)
+  expect(existsSync(join(dir, 'invoice-acme.txt'))).toBe(false)
+})
+
 // `plan` makes one real paid model call, so it waits past bun's 5s default.
 test('T5 CLI main plans a folder end to end', async () => {
   const cli = await loadCli()
