@@ -22,61 +22,71 @@ Steps 1 to 4 run for every file and only write a plan; step 5 is the only one th
 
 ## Config: types, fields and templates
 
-One YAML file holds the whole behaviour: about 15 document types, each with a plain-English description, its fields and its own name template. The descriptions are the prompt, so tuning the tool mostly means editing this file.
+One JSON file, `docnamer.json`, holds the whole behaviour: about 15 document types, each with a plain-English description, its fields and its own name template. The descriptions are the prompt, so tuning the tool mostly means editing this file.
 
-```yaml
-# docnamer.yaml
-defaults:
-  date_format: "YYYY-MM-DD"
-  date_order: day-first        # how to read 03/04/2026 (see open questions)
-  max_name_length: 150
-
-types:
-  invoice:
-    describe: "A bill asking for payment for goods or services"
-    fields:
-      date:   { describe: "Invoice date printed on the document", kind: date, required: true }
-      vendor: { describe: "Company that issued the invoice", kind: entity, required: true }
-      number: { describe: "Invoice number, often starting INV or #" }
-    template: "{date} {vendor} - Invoice - {number}"
-    tag: Invoice
-    folder: null                # optional, e.g. "{year}/Invoices"; off = rename in place
-
-  bank_statement:
-    describe: "Periodic statement for a bank or card account"
-    fields:
-      date:    { describe: "Statement period END date", kind: date, required: true }
-      bank:    { describe: "Bank or card issuer", kind: entity, required: true }
-      account: { describe: "Last 4 digits of the account number", kind: last4 }
-    template: "{date} {bank} - Statement - {account}"
-    tag: Bank
-
-  letter:
-    describe: "Correspondence addressed to me"
-    fields:
-      date:    { describe: "Date printed on the letter", kind: date, required: true }
-      sender:  { describe: "Organisation or person who sent it", kind: entity, required: true }
-      subject: { describe: "What it is about, 3 to 6 words" }
-    template: "{date} {sender} - Letter - {subject}"
-    tag: Correspondence
-
-  # receipt, tax_form, payslip, contract, insurance_policy, utility_bill,
-  # medical, warranty, id_document, certificate, manual ...
-
-  other:                        # always present; used when nothing fits
-    describe: "Anything that fits no type above"
-    fields:
-      date:    { describe: "Main date printed on it", kind: date }
-      sender:  { describe: "Who produced it, if clear", kind: entity }
-      subject: { describe: "What it is, 3 to 6 words", required: true }
-    template: "{date} {sender} - {subject}"
-
-entities:                       # canonical spellings, so one name per organisation
-  Barclays: ["Barclays Bank UK PLC", "Barclays Bank", "BARCLAYS"]
-  HMRC:     ["HM Revenue & Customs", "HM Revenue and Customs"]
+```json
+{
+  "defaults": {
+    "date_format": "YYYY-MM-DD",
+    "date_order": "day-first",
+    "max_name_length": 150,
+    "ocr_text_layer": true,
+    "finder_tags": true,
+    "finder_comment": true
+  },
+  "models": { "cheap": "...", "vision": "...", "strong": "..." },
+  "types": {
+    "invoice": {
+      "describe": "A bill asking for payment for goods or services",
+      "fields": {
+        "date":   { "prompt": "Invoice date printed on the document", "kind": "date", "required": true },
+        "vendor": { "prompt": "Company that issued the invoice", "kind": "entity", "required": true },
+        "number": { "prompt": "Invoice number, often starting INV or #" }
+      },
+      "template": "{date} {vendor} - Invoice - {number}",
+      "tag": "Invoice",
+      "folder": null
+    },
+    "bank_statement": {
+      "describe": "Periodic statement for a bank or card account",
+      "fields": {
+        "date":    { "prompt": "Statement period END date", "kind": "date", "required": true },
+        "bank":    { "prompt": "Bank or card issuer", "kind": "entity", "required": true },
+        "account": { "prompt": "Last 4 digits of the account number", "kind": "last4" }
+      },
+      "template": "{date} {bank} - Statement - {account}",
+      "tag": "Bank"
+    },
+    "letter": {
+      "describe": "Correspondence addressed to me",
+      "fields": {
+        "date":    { "prompt": "Date printed on the letter", "kind": "date", "required": true },
+        "sender":  { "prompt": "Organisation or person who sent it", "kind": "entity", "required": true },
+        "subject": { "prompt": "What it is about, 3 to 6 words" }
+      },
+      "template": "{date} {sender} - Letter - {subject}",
+      "tag": "Correspondence"
+    },
+    "other": {
+      "describe": "Anything that fits no type above",
+      "fields": {
+        "date":    { "prompt": "Main date printed on it", "kind": "date" },
+        "sender":  { "prompt": "Who produced it, if clear", "kind": "entity" },
+        "subject": { "prompt": "What it is, 3 to 6 words", "required": true }
+      },
+      "template": "{date} {sender} - {subject}"
+    }
+  },
+  "entities": {
+    "Barclays": ["Barclays Bank UK PLC", "Barclays Bank", "BARCLAYS"],
+    "HMRC": ["HM Revenue & Customs", "HM Revenue and Customs"]
+  }
+}
 ```
 
-Field kinds are `text` (default), `date`, `entity` and `last4`; each kind has its own normaliser in Stage 3. A field's `describe` doubles as its extraction instruction, which is the NameQuick idea.
+The shipped roster is the same shape with the full 15 types, `receipt`, `tax_form`, `payslip`, `contract`, `insurance_policy`, `utility_bill`, `medical`, `warranty`, `id_document`, `certificate` and `manual` among them. `other` is always present and is used when nothing fits. A type's optional `folder` moves the file instead of renaming it in place (for example `"{year}/Invoices"`); `null` means rename in place. `date_order` decides how `03/04/2026` is read.
+
+Field kinds are `text` (default), `date`, `entity` and `last4`; each kind has its own normaliser in Stage 3. A field's `prompt` doubles as its extraction instruction, which is the NameQuick idea.
 
 ## Stage 1: Read, cheapest method first
 
@@ -291,7 +301,7 @@ tool docnamer_undo(folder)
 - Use docnamer_plan when asked to tidy, rename or sort documents in a folder.
 - Always show the plan, flagged rows first, before calling docnamer_apply.
 - Never apply rows the person has not accepted.
-- To change how a type is named, edit docnamer.yaml, then re-plan.
+- To change how a type is named, edit docnamer.json, then re-plan.
 ```
 
 - Model calls go through the same provider layer your pi setup already uses, so local models and API keys are shared.
@@ -321,7 +331,7 @@ command eval(testset):
 
 ## Size and open questions
 
-About 700 lines of TypeScript plus the YAML config, assuming your existing doc tools already handle PDF text, page rendering and OCR. That is more than my earlier 450 to 550 estimate because it now includes the review screen, validation and the eval command.
+About 700 lines of TypeScript plus the JSON config, assuming your existing doc tools already handle PDF text, page rendering and OCR. That is more than my earlier 450 to 550 estimate because it now includes the review screen, validation and the eval command.
 
 | Part | Approx. lines |
 | --- | --- |

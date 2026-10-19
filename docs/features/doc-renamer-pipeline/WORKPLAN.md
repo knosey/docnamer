@@ -20,13 +20,13 @@
 - Depends on: none
 - Files:
   - Create: [package.json](../../../package.json)
-  - Create: [docnamer.yaml](../../../docnamer.yaml)
+  - Create: [docnamer.json](../../../docnamer.json)
   - Create: [config.ts](../../../src/config.ts)
   - Test: [config.test.ts](../../../tests/config.test.ts)
   - Test: [manifest.test.ts](../../../tests/manifest.test.ts)
 - Interfaces:
   - Consumes: none
-  - Produces: `loadConfig(path: string): Config`; `type FieldSpec = { kind: "text" | "date" | "money" | "entity" | "last4"; required: boolean; prompt?: string }`; `type DocType = { describe: string; fields: Record<string, FieldSpec>; template: string; folder?: string | null }`; `type Config = { defaults: { date_format: string; date_order: "day-first" | "month-first"; max_name_length: number; ocr_text_layer: boolean; finder_tags: boolean; finder_comment: boolean }; models: { cheap: string; vision: string }; types: Record<string, DocType>; entities: Record<string, string[]> }`; a `package.json` declaring `@earendil-works/pi-ai` pinned at exactly `1.3.0` and `"type": "module"`; a `docnamer.yaml` carrying the full shipped roster of 15 types including `other`
+  - Produces: `loadConfig(path: string): Config`; `type FieldSpec = { kind: "text" | "date" | "money" | "entity" | "last4"; required: boolean; prompt?: string }`; `type DocType = { describe: string; fields: Record<string, FieldSpec>; template: string; folder?: string | null }`; `type Config = { defaults: { date_format: string; date_order: "day-first" | "month-first"; max_name_length: number; ocr_text_layer: boolean; finder_tags: boolean; finder_comment: boolean }; models: { cheap: string; vision: string }; types: Record<string, DocType>; entities: Record<string, string[]> }`; a `package.json` declaring `@earendil-works/pi-ai` pinned at exactly `1.3.0` and `"type": "module"`; a `docnamer.json` carrying the full shipped roster of 15 types including `other`
 - done_when: `bun test tests/config.test.ts tests/manifest.test.ts`
 - Reference: `bun test --path-ignore-patterns='**/*.red.spec.ts'`
 <!-- record:T1 -->

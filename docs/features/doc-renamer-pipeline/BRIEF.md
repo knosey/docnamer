@@ -1,7 +1,7 @@
 # BRIEF: doc-renamer-pipeline
 
 The first half of `docnamer`: a standalone Bun-compiled CLI that reads each document
-in one folder, classifies it against a YAML-defined set of document types, extracts
+in one folder, classifies it against a JSON-defined set of document types, extracts
 that type's fields, validates them in code, and writes a plan file of old→new names —
 touching no original file.
 
@@ -17,14 +17,14 @@ subprocess as the only integration surface; all model calls through
 
 ## Requirements
 
-- R1: One YAML config file holds all behaviour: document types with plain-English
+- R1: One JSON config file, `docnamer.json`, holds all behaviour: document types with plain-English
   `describe`, per-type fields with kinds (`text`, `date`, `money`, `entity`,
   `last4`) and a `required` flag, per-type name templates, defaults (`date_format`,
   `date_order`, `max_name_length`, `ocr_text_layer`, `finder_tags`,
   `finder_comment`), an entity alias map, and the model split (a cheap model id for
   text-only calls and a vision model id for calls carrying images).
 - R2: Ship a compiled list of the most common document types for a home and work
-  computer in the YAML — a superset of the spec's 14 (invoice, bank_statement,
+  computer in the config — a superset of the spec's 14 (invoice, bank_statement,
   letter, receipt, tax_form, payslip, contract, insurance_policy, utility_bill,
   medical, warranty, id_document, certificate, manual) plus `other`, which is
   always present as the fallback.
