@@ -443,6 +443,27 @@ export async function main(argv: string[]): Promise<number> {
   return 0
 }
 
+/**
+ * The report for a refusal the OS made, or null when the error is not one.
+ *
+ * A bare `EACCES: permission denied, open '…'` names the errno and no way
+ * forward — and the folders a person points docnamer at first, Downloads,
+ * Desktop and Documents, are exactly the ones macOS protects, so this is the
+ * one place that knows what the reader can do about it. Bun's glob error
+ * carries `code` and `path` (verified against a chmod 000 folder), so the
+ * folder is read off the error rather than parsed out of its message.
+ */
+function refusal(e: unknown): { what: string; help: string } | null {
+  if (typeof e !== 'object' || e === null) return null
+  const { code, path } = e as { code?: unknown; path?: unknown }
+  if (code !== 'EACCES' && code !== 'EPERM') return null
+  if (typeof path !== 'string') return null
+  return {
+    what: `cannot read ${path} \u2014 permission denied`,
+    help: 'macOS protects Downloads, Desktop and Documents: System Settings \u203a Privacy & Security \u203a Files and Folders, and switch your terminal on; anywhere else, check the folder\u2019s permissions'
+  }
+}
+
 if (import.meta.main) {
   try {
     process.exitCode = await main(Bun.argv.slice(2))
@@ -450,7 +471,12 @@ if (import.meta.main) {
     // A failure is never a stack trace: the message carries what broke and how
     // to fix it, and the exit code says it failed.
     const u = ui(styleFrom(process.env, process.stdout.isTTY === true))
-    u.err(u.fail(e instanceof Error ? e.message : String(e)))
+    const refused = refusal(e)
+    u.err(
+      refused === null
+        ? u.fail(e instanceof Error ? e.message : String(e))
+        : u.fail(refused.what, refused.help)
+    )
     process.exitCode = 1
   } finally {
     // Hand stdin back before the process is allowed to end. A reader left on

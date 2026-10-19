@@ -114,7 +114,12 @@ function pad(text: string, width: number): string {
 export type Row = readonly string[]
 export type Spinner = {
   update(text: string): void
-  stop(text: string): void
+  /**
+   * Ends the frame. `text` is the result line to leave behind, and is left out
+   * when there is no result: a command that threw has none, and the frame it
+   * drew still has to come off the line.
+   */
+  stop(text?: string): void
 }
 
 export type Ui = {
@@ -135,6 +140,17 @@ export type Ui = {
   log(line: string): void
   err(line: string): void
 }
+
+/**
+ * The frame sitting on the terminal's line, if one is.
+ *
+ * There is one terminal and one line, so this belongs to the module and not to
+ * a `Ui`: cli.ts builds a second `Ui` to report a failure with, and it is that
+ * instance which has to take the frame off — while `stop` runs on the success
+ * path only, so a command that threw would otherwise leave its last frame for
+ * the error to land on.
+ */
+let drawn: Spinner | null = null
 
 export function ui(style: Style): Ui {
   const glyphs = style.unicode ? UNICODE : ASCII
@@ -217,6 +233,8 @@ export function ui(style: Style): Ui {
     warn: (text: string): string => `${INDENT}${yellow(glyphs.warn)} ${text}`,
 
     fail(what: string, help?: string): string {
+      // The failure is written where the frame is, so the frame comes off first.
+      drawn?.stop()
       const first = `${red(bold('docnamer:'))} ${what}`
       return help === undefined ? first : `${first}\n${INDENT}${yellow('help:')} ${help}`
     },
@@ -226,12 +244,16 @@ export function ui(style: Style): Ui {
       // return to, so a carriage return would only corrupt the log.
       if (!style.tty) {
         write(`${INDENT}${label}\n`)
-        return {
+        const piped: Spinner = {
           update: (): void => {},
-          stop: (text: string): void => {
-            write(`${INDENT}${green(glyphs.ok)} ${text}\n`)
+          // Nothing to erase: the label went out as a log line and stays one.
+          stop: (text?: string): void => {
+            drawn = null
+            if (text !== undefined) write(`${INDENT}${green(glyphs.ok)} ${text}\n`)
           }
         }
+        drawn = piped
+        return piped
       }
       let text = label
       let frame = 0
@@ -242,16 +264,19 @@ export function ui(style: Style): Ui {
       paint()
       const timer = setInterval(paint, 80)
       timer.unref()
-      return {
+      const live: Spinner = {
         update: (next: string): void => {
           text = next
         },
-        stop: (final: string): void => {
+        stop: (final?: string): void => {
           clearInterval(timer)
+          drawn = null
           write(`\r${ERASE}`)
-          write(`${INDENT}${green(glyphs.ok)} ${final}\n`)
+          if (final !== undefined) write(`${INDENT}${green(glyphs.ok)} ${final}\n`)
         }
       }
+      drawn = live
+      return live
     },
 
     raw(text: string): void {
