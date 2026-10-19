@@ -25,7 +25,9 @@
 - done_when: `bun test tests/spotlight.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T1 -->
-**done**
+**done** · run `ship-feature-14767a`
+- Commits: none recorded
+- Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/spotlight.test.ts` passes as committed — the work shipped in an earlier run: tests/spotlight.test.ts
 <!-- /record:T1 -->
@@ -42,7 +44,9 @@
 - done_when: `bun test tests/apply.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T2 -->
-**done**
+**done** · run `ship-feature-14767a`
+- Commits: none recorded
+- Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/apply.test.ts` passes as committed — the work shipped in an earlier run: tests/apply.test.ts
 <!-- /record:T2 -->
@@ -60,7 +64,9 @@
 - done_when: `bun test tests/review.test.ts`
 - Reference: `bun --version`
 <!-- record:T3 -->
-**done**
+**done** · run `ship-feature-14767a`
+- Commits: none recorded
+- Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/review.test.ts` passes as committed — the work shipped in an earlier run: tests/review.test.ts
 <!-- /record:T3 -->
@@ -79,7 +85,9 @@
 - done_when: `bun test tests/eval.test.ts`
 - Reference: `ls tests/fixtures`
 <!-- record:T4 -->
-**done**
+**done** · run `ship-feature-14767a`
+- Commits: none recorded
+- Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/eval.test.ts` passes as committed — the work shipped in an earlier run: tests/eval.test.ts
 <!-- /record:T4 -->
@@ -97,13 +105,15 @@
 - done_when: `bun test tests/build.test.ts`
 - Reference: `bun --version`
 <!-- record:T5 -->
-**done**
+**done** · run `ship-feature-14767a`
+- Commits: none recorded
+- Landed: nothing
 - Gates: reference ✓
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/build.test.ts` passes as committed — the work shipped in an earlier run: tests/build.test.ts
 <!-- /record:T5 -->
 <!-- record:run -->
-**failed** · run `ship-feature-145c25`
+**success** · run `ship-feature-14767a`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done
 - Commits: none recorded
-- Detail: visual-review: visual_clean — FAIL: "eval output: miss shown as expected vs got" is answered: a person cannot read or see it; "eval output: evidence alongside each miss" is answered: a person cannot read or see it; defect: i4-eval-score.png [bottom] missing captured run printed "misses: none", so the miss block formatEvalReport renders as "<file> / expected: / got: / evidence:" (src/eval.ts:132-13… [+272 chars]
+- Detail: every node succeeded
 <!-- /record:run -->
