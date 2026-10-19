@@ -17,17 +17,10 @@
  */
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
-import { writePlan, type PlanRow } from './commands.ts'
+import { extOf, PLAN_FILE, writePlan, type PlanRow } from './commands.ts'
 import type { Checked } from './validate.ts'
 
 export type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
-
-const PLAN_FILE = '.docnamer-plan.json'
-
-function extOf(name: string): string {
-  const m = /\.[^./]+$/.exec(name)
-  return m ? m[0] : ''
-}
 
 /**
  * Apply one review decision to the rows and return the updated array. Pure

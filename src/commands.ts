@@ -33,14 +33,14 @@ export type PlanRow = {
   status: 'pending' | 'accepted' | 'skipped'
 }
 
-const PLAN_FILE = '.docnamer-plan.json'
+export const PLAN_FILE = '.docnamer-plan.json'
 
 function base(p: string): string {
   const i = p.lastIndexOf('/')
   return i < 0 ? p : p.slice(i + 1)
 }
 
-function extOf(p: string): string {
+export function extOf(p: string): string {
   const m = /\.[^./]+$/.exec(base(p))
   return m ? m[0] : ''
 }
@@ -171,7 +171,6 @@ export type UndoEntry = {
   size: number
   mtime: number
   tag?: string
-  comment?: string
   sidecar?: string
 }
 
@@ -259,7 +258,6 @@ export async function apply(folder: string, config: Config): Promise<ApplyReport
     if (config.defaults.finder_comment) {
       // Comments are batched into one osascript after the loop.
       comments.push({ file: to, comment: row.summary })
-      entry.comment = row.summary
     }
     if (ocrLayer) entry.sidecar = (await ocrLayer).sidecar
     entries.push(entry)
