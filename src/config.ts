@@ -4,9 +4,10 @@ export type FieldSpec = {
   kind: 'text' | 'date' | 'entity' | 'last4'
   required: boolean
   prompt?: string
-  /** An entity on the other side of the document from the person's own
-   *  companies (`self`): never one of them. */
-  counterparty?: boolean
+  /** The field that names the document instead when this one is one of the
+   *  person's own companies (`self`): an invoice's issuer gives way to its
+   *  customer, so one Knosey issued is named after the company it bills. */
+  counterparty?: string
 }
 
 export type DocType = {

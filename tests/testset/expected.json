@@ -6,17 +6,17 @@
   },
   "dup-invoice-2.md": {
     "type": "invoice",
-    "fields": { "date": "2024-02-04", "party": "Globex", "number": "GLX-0091" },
+    "fields": { "date": "2024-02-04", "issuer": "Globex", "number": "GLX-0091" },
     "name": "2024-02-04 Globex invoice GLX-0091 (2).md"
   },
   "dup-invoice.md": {
     "type": "invoice",
-    "fields": { "date": "2024-02-04", "party": "Globex", "number": "GLX-0091" },
+    "fields": { "date": "2024-02-04", "issuer": "Globex", "number": "GLX-0091" },
     "name": "2024-02-04 Globex invoice GLX-0091.md"
   },
   "dup-invoice.txt": {
     "type": "invoice",
-    "fields": { "date": "2024-02-04", "party": "Globex", "number": "GLX-0091" },
+    "fields": { "date": "2024-02-04", "issuer": "Globex", "number": "GLX-0091" },
     "name": "2024-02-04 Globex invoice GLX-0091.txt"
   },
   "letter.docx": {
@@ -30,7 +30,7 @@
   },
   "letter.txt": {
     "type": "invoice",
-    "fields": { "date": "2024-03-12", "party": "Acme Services", "number": "INV-2024-0817" },
+    "fields": { "date": "2024-03-12", "issuer": "Acme Services", "number": "INV-2024-0817" },
     "name": "2024-03-12 Acme Services invoice INV-2024-0817.txt"
   },
   "receipt.png": {

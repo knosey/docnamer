@@ -9,7 +9,7 @@
  * part on its own.
  */
 import type { Analysis } from './analyse.ts'
-import type { Config, FieldSpec } from './config.ts'
+import type { Config, DocType, FieldSpec } from './config.ts'
 import type { Content } from './read.ts'
 
 export type Checked = Analysis & { flags: string[] }
@@ -119,21 +119,6 @@ function dateValue(name: string, value: string, config: Config, flags: string[])
   return parsed
 }
 
-/** An entity as its canonical name; a counterparty that is one of the
- *  person's own companies is flagged. */
-function entityValue(
-  name: string,
-  value: string,
-  spec: FieldSpec,
-  config: Config,
-  flags: string[]
-): string {
-  const entity = canonicalEntity(value, config.entities)
-  const own = spec.counterparty === true ? ownCompany(entity, config) : null
-  if (own !== null) flags.push(`field ${name}: names your own company ${own}`)
-  return entity
-}
-
 /** One field's value normalised by its kind, with the flags that raises. */
 function normalise(
   name: string,
@@ -143,8 +128,46 @@ function normalise(
   flags: string[]
 ): string | null {
   if (spec?.kind === 'date') return dateValue(name, value, config, flags)
-  if (spec?.kind === 'entity') return entityValue(name, value, spec, config, flags)
+  if (spec?.kind === 'entity') return canonicalEntity(value, config.entities)
   return spec?.kind === 'last4' ? reduceLast4(value) : value
+}
+
+/**
+ * A field naming one of the person's own companies gives way to the field its
+ * spec names: an invoice Knosey issued is named after the customer it bills.
+ * This is decided here and not by the model: told about the own companies, the
+ * model named Once as the issuer of an invoice Initech sent to Once (3 of 3
+ * runs). With nothing to give way to, the row is flagged for a person.
+ */
+function preferCounterparty(
+  fields: Analysis['fields'],
+  spec: DocType | undefined,
+  config: Config,
+  flags: string[]
+): void {
+  for (const [name, field] of Object.entries(spec?.fields ?? {})) {
+    if (field.counterparty === undefined) continue
+    const flag = giveWay(fields, name, field.counterparty, config)
+    if (flag !== null) flags.push(flag)
+  }
+}
+
+/** Put `other`'s value in `name` when `name` is an own company and `other` is
+ *  not; the flag when `name` is one and nothing can take its place. */
+function giveWay(
+  fields: Analysis['fields'],
+  name: string,
+  other: string,
+  config: Config
+): string | null {
+  const own = ownCompany(fields[name]?.value ?? '', config)
+  if (own === null) return null
+  const instead = fields[other]
+  if (instead?.value && ownCompany(instead.value, config) === null) {
+    fields[name] = instead
+    return null
+  }
+  return `field ${name}: names your own company ${own}`
 }
 
 /** Normalise every field by kind, cross-check evidence against the document
@@ -178,5 +201,6 @@ export function validate(a: Analysis, content: Content, config: Config): Checked
     fields[name] = { value, evidence: field.evidence }
   }
 
+  preferCounterparty(fields, spec, config, flags)
   return { ...a, fields, flags }
 }

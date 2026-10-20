@@ -1,11 +1,12 @@
 /**
- * The person's own companies are never the company a document is named after
- * when the field names the other side of it. An invoice Knosey issued is named
- * after the customer it bills; one sent to Knosey after its issuer. A payslip
- * from Knosey still names Knosey: `employer` is not a counterparty field.
+ * An invoice is named after its issuer, except that the person's own companies
+ * are never the name: an invoice Knosey issued is named after the customer it
+ * bills. The model only reads both parties off the page; which one names the
+ * file is decided in validate, because a model told about the own companies
+ * named Once as the issuer of an invoice Initech sent to Once, and named a
+ * private person as the issuer of a quote a garden designer sent them.
  */
 import { expect, test } from 'bun:test'
-import { buildSchema, selfRule } from '../src/analyse.ts'
 import { BUILTIN_CONFIG, type Config } from '../src/config.ts'
 import type { Content } from '../src/read.ts'
 import { validate } from '../src/validate.ts'
@@ -19,35 +20,55 @@ const config: Config = {
   entities: { ...BUILTIN_CONFIG.entities, Knosey: ['Knosey Ltd', 'Knosey Limited'] }
 }
 
-test('the shipped invoice is named after its counterparty, and the own companies are listed', () => {
-  const invoice = BUILTIN_CONFIG.types.invoice
-  expect(invoice?.template).toBe('{date} {party} invoice {number}')
-  expect(invoice?.fields.party).toEqual(
-    expect.objectContaining({ kind: 'entity', counterparty: true })
-  )
-  expect(BUILTIN_CONFIG.self).toEqual(['Knosey', 'Once'])
-})
-
-test('a counterparty field naming an own company is flagged, under any alias', () => {
-  const checked = validate(
+/** An invoice read with `issuer` and `customer` as given, every value in the text. */
+function invoice(issuer: string, customer: string | null) {
+  const text = `Date: 2026-05-01\n${issuer}\n${customer ?? ''}\nINV-7`
+  return validate(
     {
       type: 'invoice',
       type_confidence: 0.9,
       fields: {
         date: { value: '2026-05-01', evidence: 'Date: 2026-05-01' },
-        party: { value: 'KNOSEY LIMITED', evidence: 'KNOSEY LIMITED' },
+        issuer: { value: issuer, evidence: issuer },
+        customer: { value: customer, evidence: customer },
         number: { value: 'INV-7', evidence: 'INV-7' }
       },
       summary: 'An invoice.'
     },
-    content('Date: 2026-05-01\nKNOSEY LIMITED\nINV-7'),
+    content(text),
     config
   )
-  expect(checked.fields.party?.value).toBe('Knosey')
-  expect(checked.flags).toContain('field party: names your own company Knosey')
+}
+
+test('the shipped invoice names its issuer and gives way to its customer', () => {
+  const invoiceType = BUILTIN_CONFIG.types.invoice
+  expect(invoiceType?.template).toBe('{date} {issuer} invoice {number}')
+  expect(invoiceType?.fields.issuer).toEqual(
+    expect.objectContaining({ kind: 'entity', counterparty: 'customer' })
+  )
+  expect(invoiceType?.fields.customer).toEqual(expect.objectContaining({ kind: 'entity' }))
+  expect(BUILTIN_CONFIG.self).toEqual(['Knosey', 'Once'])
 })
 
-test('an own company in a field that is not a counterparty is not flagged', () => {
+test('an invoice an own company issued is named after its customer, under any alias', () => {
+  const checked = invoice('KNOSEY LIMITED', 'Globex Corporation')
+  expect(checked.fields.issuer?.value).toBe('Globex Corporation')
+  expect(checked.flags).toEqual([])
+})
+
+test('an invoice sent to an own company keeps its issuer', () => {
+  const checked = invoice('Initech Software Ltd', 'Once Ltd')
+  expect(checked.fields.issuer?.value).toBe('Initech Software')
+  expect(checked.flags).toEqual([])
+})
+
+test('an own company with no customer to give way to is flagged, not kept silently', () => {
+  const checked = invoice('Knosey Ltd', null)
+  expect(checked.fields.issuer?.value).toBe('Knosey')
+  expect(checked.flags).toContain('field issuer: names your own company Knosey')
+})
+
+test('an own company in a field that gives way to nothing is not touched', () => {
   const checked = validate(
     {
       type: 'payslip',
@@ -61,23 +82,6 @@ test('an own company in a field that is not a counterparty is not flagged', () =
     content('Date: 2026-05-01\nOnce'),
     config
   )
-  expect(checked.flags.filter(f => f.includes('own company'))).toEqual([])
-})
-
-test('the model is told which companies are the person own and which fields avoid them', () => {
-  const rule = selfRule(config)
-  expect(rule).toContain('Knosey, Once')
-  expect(rule).toContain('party (invoice, contract)')
-  expect(selfRule({ ...config, self: [] }), 'no own companies, no rule').toBe('')
-})
-
-test('the rule rides on the counterparty field itself, and only there', () => {
-  type Field = { properties: { value: { description: string } } }
-  const fields = (
-    buildSchema(config.types, config.self) as {
-      properties: { fields: { properties: Record<string, Field> } }
-    }
-  ).properties.fields.properties
-  expect(fields.party?.properties.value.description).toContain('Never one of the person')
-  expect(fields.employer?.properties.value.description).not.toContain('Knosey')
+  expect(checked.fields.employer?.value).toBe('Once')
+  expect(checked.flags).toEqual([])
 })

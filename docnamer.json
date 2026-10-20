@@ -16,10 +16,11 @@
   "types": {
     "invoice": {
       "describe": "A bill requesting payment for goods or services.",
-      "template": "{date} {party} invoice {number}",
+      "template": "{date} {issuer} invoice {number}",
       "fields": {
         "date": { "kind": "date", "required": true },
-        "party": { "kind": "entity", "required": true, "counterparty": true },
+        "issuer": { "kind": "entity", "required": true, "counterparty": "customer" },
+        "customer": { "kind": "entity", "required": false },
         "number": { "kind": "text", "required": true }
       }
     },
@@ -78,7 +79,7 @@
       "template": "{date} contract {party}",
       "fields": {
         "date": { "kind": "date", "required": true },
-        "party": { "kind": "entity", "required": true, "counterparty": true }
+        "party": { "kind": "entity", "required": true }
       }
     },
     "letter": {
