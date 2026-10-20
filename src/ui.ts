@@ -7,6 +7,7 @@
  * stdout into the frame the visual review reads, so a stray ANSI code corrupts
  * the evidence rather than the appearance.
  */
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import { deviceReader, deviceWriter } from './device.ts'
 
 export type Style = {
@@ -92,13 +93,24 @@ const ERASE = `${ESC}[K`
 type Device = {
   readonly writer: { write(chunk: string): unknown; end(): unknown }
   readonly stream: ReadableStream<Uint8Array>
+  readonly cols: number | null
 }
 
 let active: Device | null = null
 
-/** Register the device path as this process's terminal. */
-export function setDevice(path: string): void {
-  active = { writer: deviceWriter(path), stream: deviceReader(path) }
+/** Register the device path as this process's terminal, with the width the
+ *  wrapper measured: the launched process's own stdout is not a terminal, so
+ *  it cannot answer the question itself. */
+export function setDevice(path: string, cols: number | null): void {
+  active = { writer: deviceWriter(path), stream: deviceReader(path), cols }
+}
+
+/** The width the drawing code must fit, in cells. */
+export function terminalWidth(): number {
+  if (active !== null && active.cols !== null) return active.cols
+  const cols = process.stdout.columns
+  // A pipe answers undefined; 80 is the width every terminal can be assumed to have.
+  return typeof cols === 'number' && cols > 0 ? cols : 80
 }
 
 /** Whether a device is the terminal — prompt reads it instead of stdin. */
@@ -130,7 +142,10 @@ function writeErr(text: string): void {
 }
 
 function pad(text: string, width: number): string {
-  return text.length >= width ? text : text + ' '.repeat(width - text.length)
+  // Cells, not code units: a styled cell carries escape sequences, and padding
+  // to its string length would push every later column right by the escapes.
+  const w = visibleWidth(text)
+  return w >= width ? text : text + ' '.repeat(width - w)
 }
 
 export type Row = readonly string[]

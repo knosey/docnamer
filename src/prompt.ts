@@ -1,9 +1,9 @@
 /**
  * The interactive layer: the provider picker a bare `docnamer login` opens.
  *
- * No TUI dependency here on purpose: a picker is a list, a cursor and four keys,
- * and the difficulty is entirely in reading the keys, which a framework would not
- * have hidden —
+ * The picker itself is hand-built — a list, a cursor and four keys — because
+ * the difficulty is entirely in reading the keys, which a framework would not
+ * have hidden:
  *
  *  - a sequence arrives SPLIT: a lone ESC in one read and `[A` in the next must
  *    still be one Up, so the decoder holds a trailing partial sequence;
@@ -13,6 +13,11 @@
  *  - the mirror of that: `ESC [ A ESC [ B` may arrive as ONE read, so a chunk is
  *    a queue of keys and never a single key.
  *
+ * The width ruler is NOT hand-built: `visibleWidth` and `truncateToWidth` come
+ * from pi-tui, which already counts graphemes and ANSI sequences correctly.
+ * Every drawn line is clipped to the terminal's width, so one line is always
+ * one physical row and the redraw's line count is the terminal's row count.
+ *
  * `keyDecoder`, `filter`, `nextCursor` and `pickerFrame` are pure and take bytes
  * or plain values, so the traps are asserted directly rather than through a
  * terminal — a pty gives a byte stream, not a screen.
@@ -21,7 +26,8 @@
  * same byte stream, and a second `getReader()` over `Bun.stdin.stream()` throws
  * on the lock the first one holds.
  */
-import { deviceStream, hasDevice, ui, type Style } from './ui.ts'
+import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { deviceStream, hasDevice, terminalWidth, ui, type Style } from './ui.ts'
 
 const ESC = String.fromCharCode(27)
 const ERASE = `${ESC}[J`
@@ -33,6 +39,9 @@ export type Option = {
   readonly id: string
   readonly label: string
   readonly detail?: string
+  /** What is shown after the detail. A `\u00b7` separates the essential word
+   *  (`signed in`) from extra context (the store path): a terminal too narrow
+   *  for the whole cell keeps only the essential part. */
   readonly status?: string
 }
 
@@ -138,6 +147,8 @@ export type Frame = {
   readonly cursor: number
   readonly query: string
   readonly style: Style
+  /** The terminal's width in cells. No line the frame returns is wider. */
+  readonly cols: number
 }
 
 /**
@@ -145,6 +156,21 @@ export type Frame = {
  * on screen, so a stale cursor can never leave the list without a pointer — a
  * frame with no marker reads as a hung program.
  */
+/**
+ * The status cell that fits what the other cells left: the full text, else its
+ * essential word (the part before the `\u00b7`), else nothing at all — a cell
+ * drawn half-price reads as a rendering bug, not as a budget.
+ */
+function statusCell(ok: string, status: string | undefined, budget: number): string {
+  if (status === undefined) return ''
+  const full = `${ok} ${status}`
+  if (visibleWidth(full) <= budget) return full
+  const cut = status.indexOf('\u00b7')
+  const essential = (cut === -1 ? status : status.slice(0, cut)).trimEnd()
+  const short = `${ok} ${essential}`
+  return visibleWidth(short) <= budget ? short : ''
+}
+
 export function pickerFrame(o: Frame): string[] {
   const u = ui(o.style)
   const g = u.glyphs
@@ -152,10 +178,17 @@ export function pickerFrame(o: Frame): string[] {
   const hint = `${g.up}/${g.down} move \u00b7 type to filter \u00b7 enter pick \u00b7 esc cancel`
   const filtered = o.query === '' ? '' : `  ${u.dim(`filter: ${o.query}`)}`
   const lines = [`? ${u.bold(o.title)}  ${u.dim(hint)}${filtered}`, '']
+  // The backstop: whatever budget math below misses, no drawn line is ever
+  // wider than the terminal, so one line is one physical row and the redraw's
+  // line count IS the terminal's row count. truncateToWidth emits a reset
+  // around the ellipsis, which is why clipping lives here and not on the
+  // piped path, where zero escapes may be written.
+  const ellipsis = o.style.unicode ? '\u2026' : '...'
+  const clip = (line: string): string => truncateToWidth(line, o.cols, ellipsis)
 
   if (shown.length === 0) {
     lines.push(`  ${u.dim(`no provider matches "${o.query}"`)}`)
-    return lines
+    return lines.map(clip)
   }
 
   const at = Math.min(o.cursor, shown.length - 1)
@@ -169,18 +202,21 @@ export function pickerFrame(o: Frame): string[] {
     (w, x) => Math.max(w, x.detail === undefined ? 0 : x.detail.length),
     0
   )
+  // The status cell gets what the other cells leave: pointer 2, label, two
+  // 2-cell gaps, detail. What does not fit whole is shortened, then dropped.
+  const statusBudget = o.cols - 2 - labelW - 2 - detailW - 2
 
   if (start > 0) lines.push(`  ${u.dim(`${g.up} ${start} more above`)}`)
   for (let i = start; i < end; i += 1) {
     const opt = shown[i] as Option
     const detail = opt.detail === undefined ? '' : opt.detail
-    const status = opt.status === undefined ? '' : `${g.ok} ${opt.status}`
+    const status = statusCell(g.ok, opt.status, statusBudget)
     lines.push(
       u.row(i === at ? `${g.pointer} ` : '  ', [opt.label, detail, status], [labelW, detailW, 0])
     )
   }
   if (end < shown.length) lines.push(`  ${u.dim(`${g.down} ${shown.length - end} more below`)}`)
-  return lines
+  return lines.map(clip)
 }
 
 /**
@@ -318,8 +354,9 @@ async function pickInteractive(
   let cursor = 0
   let query = ''
   let drawn = 0
+  const cols = terminalWidth()
   const paint = (): void => {
-    const frame = pickerFrame({ title, options, cursor, query, style })
+    const frame = pickerFrame({ title, options, cursor, query, style, cols })
     io.out(`${drawn > 0 ? `${ESC}[${drawn}A` : ''}${ERASE}${frame.join('\n')}\n`)
     drawn = frame.length
   }

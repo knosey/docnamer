@@ -137,6 +137,112 @@ test.skipIf(!hasPty)(
 )
 
 /**
+ * Every paint the picker wrote, in order: the up-count it issued before drawing
+ * and the lines it drew, as the text a person sees. A paint is the frame between
+ * one erase and the next, and the up-count of the paint that follows it is glued
+ * to the end of the frame before it.
+ */
+function paints(output: string): { up: number; lines: string[] }[] {
+  const esc = String.fromCharCode(27)
+  const held = new RegExp(`${esc}\\[([0-9]+)A$`)
+  const bodies = output.split(`${esc}[J`).slice(1)
+  const counted = bodies.map(body => {
+    const found = body.match(held)
+    return found === null ? null : Number(found[1])
+  })
+  return bodies.map((body, i) => {
+    const up = counted[i]
+    const text = up === null ? body : body.slice(0, body.length - `${esc}[${up}A`.length)
+    return {
+      up: i === 0 ? 0 : (counted[i - 1] as number),
+      lines: text
+        .replace(ANSI, '')
+        .split(/\r\n|\n|\r/)
+        .slice(0, -1)
+    }
+  })
+}
+
+/** How many rows the terminal used for `lines`: a line wider than the terminal
+ *  is the terminal's to wrap, and a wrapped line costs a second row. */
+function rows(lines: readonly string[], cols: number): number {
+  return lines.reduce((n, line) => n + Math.max(1, Math.ceil(line.length / cols)), 0)
+}
+
+/**
+ * The frame must fit the terminal it is drawn on.
+ *
+ * On an 80-column terminal the picker drew a 104-column row — the signed-in
+ * provider's status column, appended with no width budget — so the terminal
+ * wrapped it, so the frame occupied 16 rows while the redraw moved up 15. Every
+ * repaint after the first then left the screen one row out, which is a screen
+ * that stays ragged until the program exits.
+ *
+ * Both assertions are about what the program DID: no drawn line is wider than
+ * the terminal, and the redraw moves up by the ROWS the previous paint occupied
+ * rather than by the lines it drew. The second is the one a wrapped line cannot
+ * survive, and it is why the row count is computed from the drawn text instead of
+ * from the array's length.
+ */
+test.skipIf(!hasPty)(
+  'the picker fits the terminal it is drawn on and its redraw counts the rows the terminal used',
+  async () => {
+    const cli = await cliOrThrow()
+    const home = await freshHome()
+    // One provider already signed in, because the status column is what pushed a
+    // row past the terminal's width: with nothing signed in there is no status
+    // cell to overflow and this test would pass without proving anything.
+    await Bun.write(
+      `${home}/.config/docnamer/credentials.json`,
+      JSON.stringify({ fireworks: { type: 'api_key', key: 'seeded' } })
+    )
+    const t = makeTerminal(80, 40)
+    try {
+      const run = await drive(
+        t,
+        [...cli, 'login'],
+        [
+          ['Sign in to a provider', '\x1b[B'],
+          ['\u276f Ant Ling', '\x1b']
+        ],
+        { cwd: repo, env: cleanEnv(home) }
+      )
+      expect(run.exited, 'a cancelled picker must return the prompt').toBe(true)
+      const seen = paints(run.output)
+      expect(
+        seen.length,
+        'the Down must have forced a second paint, or nothing here redraws'
+      ).toBeGreaterThanOrEqual(2)
+      expect(
+        seen[0]?.lines.join('\n'),
+        'the seeded provider must show where its key is, or no row in this frame can overflow'
+      ).toContain('signed in')
+
+      const over = seen.flatMap((paint, i) =>
+        paint.lines
+          .filter(line => line.length > 80)
+          .map(line => `paint ${i + 1}: ${line.length} > 80: ${line}`)
+      )
+      const used = rows(seen[0]?.lines ?? [], 80)
+      const moved = seen[1]?.up
+      const problems = [...over]
+      if (moved !== used) {
+        problems.push(
+          `redraw moved up ${String(moved)} rows where the terminal used ${used} for ${String(seen[0]?.lines.length)} drawn lines`
+        )
+      }
+      expect(
+        problems,
+        'the frame is drawn without a width budget: a line wider than the terminal wraps, and the redraw then counts the lines drawn where the terminal counted rows'
+      ).toEqual([])
+    } finally {
+      t.terminal.close()
+    }
+  },
+  20000
+)
+
+/**
  * The frame a failure must not be glued to.
  *
  * `stop` clears the spinner's line with a carriage return and an erase, so a command that throws must

@@ -42,6 +42,8 @@ const OPTIONS: Option[] = [
 ]
 
 /** A frame as lines, with the runs a person reads made greppable. */
+// 200 cells: wide enough that nothing here is clipped — clipping to a real
+// terminal's width is what the pty suite drives the actual binary for.
 const lines = (o: Partial<Parameters<typeof pickerFrame>[0]> = {}): string[] =>
   pickerFrame({
     title: 'Sign in to a model provider',
@@ -49,6 +51,7 @@ const lines = (o: Partial<Parameters<typeof pickerFrame>[0]> = {}): string[] =>
     cursor: 0,
     query: '',
     style: PLAIN,
+    cols: 200,
     ...o
   })
 

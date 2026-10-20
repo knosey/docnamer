@@ -339,7 +339,7 @@ export async function main(argv: string[]): Promise<number> {
   // The wrapper's device flags name the terminal this process was launched
   // away from; when they are present the device is the only way in and out.
   const device = parseDeviceArgs(argv)
-  if (device.tty !== null) setDevice(device.tty)
+  if (device.tty !== null) setDevice(device.tty, device.cols)
   // A device is always a tty of the size the wrapper measured, whatever the
   // process's own fds are.
   const style = styleFrom(process.env, hasDevice() || process.stdout.isTTY === true)
