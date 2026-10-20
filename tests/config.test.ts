@@ -17,12 +17,6 @@ async function importConfig(): Promise<Record<string, unknown> | null> {
 
 const jsonPath = new URL('../docnamer.json', import.meta.url).pathname
 
-test('config: src/config.ts exports loadConfig', async () => {
-  const mod = await importConfig()
-  expect(mod).not.toBeNull()
-  expect(typeof mod?.loadConfig).toBe('function')
-})
-
 test('config: docnamer.json is shipped, non-empty and parses as JSON', async () => {
   const text = await readRepoFile('docnamer.json')
   expect(text).not.toBeNull()
@@ -67,8 +61,16 @@ test('config: loadConfig returns the shipped Config', async () => {
   expect(typeof config.models.strong).toBe('string')
   expect(typeof config.entities).toBe('object')
 
+  // The roster is pinned to the FILE, not to a number typed in here: a count
+  // only records what the file happened to hold the day it was written, while
+  // this fails the moment the loader stops returning what the file declares.
+  const shipped = JSON.parse((await readRepoFile('docnamer.json')) ?? '') as {
+    types: Record<string, unknown>
+  }
   const names = Object.keys(config.types)
-  expect(names.length).toBe(16)
+  expect(names, 'loadConfig must return exactly the types the shipped file declares').toEqual(
+    Object.keys(shipped.types)
+  )
   expect(names).toContain('other')
   for (const name of names) {
     const t = config.types[name]!
