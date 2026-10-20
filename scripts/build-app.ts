@@ -69,19 +69,21 @@ run(
 
 // 4. The wrapper: `open -n -W` always exits 0, so the tty is set raw by the
 //    shell, restored after, and the app's real exit code comes back through
-//    the exit file (default 1 when the app never wrote one).
+//    the exit file (default 1 when the app never wrote one). stty runs on
+//    stdin, which `tty` has already resolved to the device the app is handed:
+//    /dev/tty needs a controlling terminal and the wrapper has none.
 await Bun.write(
   wrapper,
   `#!/bin/sh
 APP="${app}"
 TTY=$(tty) || exit 1
 EXIT_FILE=$(mktemp /tmp/docnamer-exit.XXXXXX)
-SAVED=$(stty -g </dev/tty)
-stty raw -echo </dev/tty
+SAVED=$(stty -g)
+stty raw -echo
 COLS=$(tput cols); ROWS=$(tput lines)
 /usr/bin/open -n -W "$APP" --args --tty "$TTY" --cols "$COLS" --rows "$ROWS" --exit-file "$EXIT_FILE" "$@"
 OPEN_CODE=$?
-stty "$SAVED" </dev/tty
+stty "$SAVED"
 if [ $OPEN_CODE -ne 0 ]; then rm -f "$EXIT_FILE"; exit $OPEN_CODE; fi
 CODE=$(cat "$EXIT_FILE" 2>/dev/null)
 rm -f "$EXIT_FILE"

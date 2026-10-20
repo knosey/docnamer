@@ -191,7 +191,12 @@ test.skipIf(!hasPty)(
           [0.5, 'x']
         ]
       )
-      expect(login.exited, 'a cancelled login must return, not hold the terminal open').toBe(true)
+      expect(
+        login.exited,
+        `a cancelled login must return, not hold the terminal open — the terminal showed head=${JSON.stringify(
+          login.output.replace(ANSI, '').slice(0, 400)
+        )} tail=${JSON.stringify(login.output.replace(ANSI, '').slice(-400))}`
+      ).toBe(true)
       expect(login.code, 'a cancelled picker exits 0').toBe(0)
       expect(
         login.output.replace(ANSI, ''),
