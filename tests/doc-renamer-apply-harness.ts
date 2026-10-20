@@ -129,6 +129,8 @@ export class Session {
   applied: { code: number; stdout: string; stderr: string } = { code: -1, stdout: '', stderr: '' }
   /** Seeded files' size and mtime, captured before `plan` runs. */
   originals = new Map<string, { size: number; mtime: number }>()
+  /** The test set `run` scored, so `score` can check the report against its truth. */
+  testset = ''
   booted = false
 }
 
@@ -429,6 +431,13 @@ export async function restore(s: Session): Promise<Session> {
       throw new Error(`I2 restore: new name ${e.new} still exists after undo`)
     }
   }
+  // The blocked entry was never renamed back, so the loop above skips it — which
+  // left nothing asserting it kept its new name. An undo that deleted it, or moved
+  // it somewhere third, passed.
+  const kept = s.undo?.entries.find(e => e.old === s.blocked)
+  if (kept && !(await Bun.file(`${s.dir}/${kept.new}`).exists())) {
+    throw new Error(`I2 restore: the blocked entry's new name ${kept.new} did not survive undo`)
+  }
   return s
 }
 
@@ -479,12 +488,16 @@ export async function missTestset(): Promise<string> {
     await Bun.write(`${dir}/${rel}`, Bun.file(`${from}/${rel}`))
   }
   const truth = `${dir}/${EXPECTED_FILE}`
-  const before = await Bun.file(truth).text()
-  const after = before.replace('type: letter', 'type: receipt')
-  if (after === before) {
-    throw new Error(`missTestset: ${truth} states no "type: letter" to mis-state`)
+  // The truth file is JSON, so the mis-statement is made on the parsed object. The
+  // YAML-shaped `type: letter` this used to search for appears nowhere in the file,
+  // so the string replace matched nothing and threw before any model ran.
+  const expected = JSON.parse(await Bun.file(truth).text()) as Record<string, { type?: string }>
+  const letter = Object.keys(expected).find(f => expected[f]?.type === 'letter')
+  if (!letter) {
+    throw new Error(`missTestset: ${truth} states no file of type "letter" to mis-state`)
   }
-  await Bun.write(truth, after)
+  expected[letter]!.type = 'receipt'
+  await Bun.write(truth, `${JSON.stringify(expected, null, 2)}\n`)
   return dir
 }
 
@@ -492,6 +505,7 @@ export async function missTestset(): Promise<string> {
 export async function run(s: Session, testset?: string): Promise<Session> {
   await boot(s)
   const target = testset ?? `${repo}/tests/testset`
+  s.testset = target
   const res = await runCli(s, ['eval', target])
   if (res.code !== 0)
     throw new Error(`docnamer eval exited ${res.code}\n${res.stderr}${res.stdout}`)
@@ -505,13 +519,73 @@ export async function run(s: Session, testset?: string): Promise<Session> {
   return s
 }
 
-/** score: compare against expected.json — accuracy metrics printed. */
+/** One metric's value, read off its own line, or a throw naming the line that is
+ *  missing. A report that merely mentions the word does not answer this. */
+function metric(out: string, label: string, pattern: RegExp): number {
+  const m = new RegExp(`^${label}\\s*${pattern.source}`, 'm').exec(out)
+  if (!m) throw new Error(`I4 score: the report carries no "${label}" line:\n${out}`)
+  return Number(m[1])
+}
+
+/** score: read every metric off the report and check it against the truth it was
+ *  scored against. The accuracy the report prints must be the same arithmetic as
+ *  the misses it prints beside it — counted here, not taken from the product. */
 export async function score(s: Session): Promise<Session> {
   const out = s.last.stdout
-  for (const metric of ['type', 'field', 'full', 'vision', 'cost']) {
-    if (!out.toLowerCase().includes(metric)) {
-      throw new Error(`I4 score: the report carries no ${metric} metric:\n${out}`)
+  const files = metric(out, 'eval report:', /(\d+) file/)
+  const type = metric(out, 'type accuracy:', /([\d.]+)%/)
+  const full = metric(out, 'full name match:', /([\d.]+)%/)
+  const vision = metric(out, 'vision share:', /([\d.]+)%/)
+  const seconds = metric(out, 'time per file:', /([\d.]+)s/)
+  const cost = metric(out, 'cost per file:', /\$([\d.]+)/)
+
+  const expected = JSON.parse(await Bun.file(`${s.testset}/${EXPECTED_FILE}`).text()) as Record<
+    string,
+    { type?: string }
+  >
+  const graded = Object.keys(expected).length
+  if (files !== graded) {
+    throw new Error(
+      `I4 score: the report scored ${files} file(s); ${s.testset} grades ${graded}:\n${out}`
+    )
+  }
+
+  // A wrong type is the one miss the report spells `type: expected ...`, and the
+  // product divides its type hits by every graded file — so the accuracy it printed
+  // is (typed - wrongType) / files, which this recomputes from the printed block.
+  const wrongType = (out.match(/type: expected /g) ?? []).length
+  const typed = Object.values(expected).filter(e => e.type !== undefined).length
+  const accuracy = ((typed - wrongType) / graded) * 100
+  if (Math.abs(type - accuracy) > 0.05) {
+    throw new Error(
+      `I4 score: the report says ${type}% type accuracy, but ${wrongType} of ${typed} typed file(s) missed — ${accuracy.toFixed(1)}%:\n${out}`
+    )
+  }
+  const declared = metric(out, 'misses', /\((\d+)\)/)
+  const shown = (out.match(/^ {4}expected: /gm) ?? []).length
+  if (declared !== shown) {
+    throw new Error(
+      `I4 score: the report announces ${declared} miss(es) and shows ${shown}:\n${out}`
+    )
+  }
+
+  for (const [label, value] of [
+    ['type accuracy', type],
+    ['full name match', full],
+    ['vision share', vision]
+  ] as const) {
+    if (!(value >= 0 && value <= 100)) {
+      throw new Error(`I4 score: ${label} is ${value}%, which is not a percentage:\n${out}`)
     }
+  }
+  if (!(seconds > 0)) {
+    throw new Error(`I4 score: time per file is ${seconds}s, which is no measurement:\n${out}`)
+  }
+  // src/eval.ts cannot compute a dollar figure — plan() surfaces no per-call token
+  // usage, so the report carries 0 rather than a guess. A non-zero cost means that
+  // changed, and this line must then assert the real number instead.
+  if (cost !== 0) {
+    throw new Error(`I4 score: cost per file is $${cost}, and nothing computes one yet:\n${out}`)
   }
   return s
 }

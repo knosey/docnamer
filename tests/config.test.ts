@@ -90,10 +90,16 @@ test('config: the folder config is docnamer.json and no other name', async () =>
   const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-config-${crypto.randomUUID()}`
   Bun.spawnSync(['mkdir', '-p', dir])
 
-  // The folder's own config is honoured under the one shipped name.
-  await Bun.write(`${dir}/docnamer.json`, await Bun.file(jsonPath).text())
+  // The folder's own config is honoured under the one shipped name. The sentinel
+  // roster shares no type name with the shipped one, because src/cli.ts's fallback
+  // IS the shipped file: `bank_statement` is in both, so it cannot tell them apart.
+  const sentinel = {
+    types: { sentinel_x: { describe: 'from the folder', fields: {}, template: 'sentinel_x' } }
+  }
+  await Bun.write(`${dir}/docnamer.json`, JSON.stringify(sentinel))
   const honoured = await cli.configFor(dir)
-  expect(Object.keys(honoured.types)).toContain('bank_statement')
+  expect(Object.keys(honoured.types)).toContain('sentinel_x')
+  expect(Object.keys(honoured.types)).not.toContain('bank_statement')
 
   // A folder carrying only the old YAML name is NOT a config location any more.
   // One file, one location: a stale docnamer.yaml must not be read at all.
@@ -110,6 +116,9 @@ test('config: the folder config is docnamer.json and no other name', async () =>
   )
   const ignored = await cli.configFor(dir)
   expect(Object.keys(ignored.types)).not.toContain('bogus')
+  // Refusing the YAML is half of it: the folder must then fall back to the shipped
+  // roster, not to some thinner config for the no-file case.
+  expect(Object.keys(ignored.types)).toContain('bank_statement')
 })
 
 test('config: a folder with no docnamer.json is planned by the shipped roster itself', async () => {
@@ -121,10 +130,12 @@ test('config: a folder with no docnamer.json is planned by the shipped roster it
 
   // One shipped binary, usable on any folder: the roster it was built from IS
   // the config for a folder that carries none. There is no second, thinner
-  // config for the no-file case, so a folder without docnamer.json plans with
-  // the same 16 types, the same real models and the same entities as one that
-  // carries a copy of the shipped file.
+  // config for the no-file case — the very same object answers, which is what
+  // identity pins and a re-parse of the same file could not (content rot would
+  // move both sides together).
+  const { BUILTIN_CONFIG } = (await import('../src/config.ts')) as {
+    BUILTIN_CONFIG: Record<string, unknown>
+  }
   const shipped = await cli.configFor(dir)
-  const built = JSON.parse(await Bun.file(jsonPath).text()) as Record<string, unknown>
-  expect(shipped).toEqual(built)
+  expect(shipped).toBe(BUILTIN_CONFIG)
 })

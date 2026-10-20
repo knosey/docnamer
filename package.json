@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "bun test --path-ignore-patterns='**/*.red.spec.ts'",
-    "test:free": "bun test tests/plan-file.test.ts tests/ui.test.ts tests/prompt.test.ts tests/auth.test.ts tests/pty.test.ts tests/review-screen.test.ts tests/json-only.test.ts tests/cli-help.test.ts tests/config.test.ts tests/manifest.test.ts tests/name.test.ts tests/validate.test.ts tests/read-formats.test.ts tests/failure-report.test.ts tests/device.test.ts tests/device-cli.test.ts tests/app-bundle.test.ts tests/wrapper-pty.test.ts",
+    "test:free": "bun test tests/plan-file.test.ts tests/score.test.ts tests/ui.test.ts tests/prompt.test.ts tests/auth.test.ts tests/pty.test.ts tests/review-screen.test.ts tests/json-only.test.ts tests/cli-help.test.ts tests/config.test.ts tests/manifest.test.ts tests/name.test.ts tests/validate.test.ts tests/read-formats.test.ts tests/failure-report.test.ts tests/device.test.ts tests/device-cli.test.ts tests/app-bundle.test.ts tests/wrapper-pty.test.ts",
     "test:e2e": "bun test",
     "build": "bun scripts/build-app.ts",
     "check": "bun check",
