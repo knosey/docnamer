@@ -38,27 +38,31 @@ function plistValue(key: string): string {
   return proc.stdout.toString().trim()
 }
 
-test('bun run build assembles ~/Applications/docnamer.app around the compiled binary', async () => {
-  const build = await runChild(['bun', 'run', 'build'], {
-    cwd: repo,
-    env: { ...Bun.env, DOCNAMER_APP_HOME: root },
-    timeoutMs: BUILD_MS
-  })
-  const buildOutput = `${build.stdout}${build.stderr}`
-  expect(build.code, `bun run build failed:\n${buildOutput}`).toBe(0)
+test(
+  'bun run build assembles ~/Applications/docnamer.app around the compiled binary',
+  async () => {
+    const build = await runChild(['bun', 'run', 'build'], {
+      cwd: repo,
+      env: { ...Bun.env, DOCNAMER_APP_HOME: root },
+      timeoutMs: BUILD_MS
+    })
+    const buildOutput = `${build.stdout}${build.stderr}`
+    expect(build.code, `bun run build failed:\n${buildOutput}`).toBe(0)
 
-  expect(existsSync(appPath), `${appPath} was not created by bun run build`).toBe(true)
-  expect(existsSync(infoPlist), `${infoPlist} is missing`).toBe(true)
-  expect(existsSync(appBinary), `${appBinary} is missing`).toBe(true)
-  const mode = statSync(appBinary).mode
-  expect(
-    mode & 0o111,
-    `${appBinary} exists but is not executable (mode ${(mode & 0o777).toString(8)})`
-  ).toBeGreaterThan(0)
+    expect(existsSync(appPath), `${appPath} was not created by bun run build`).toBe(true)
+    expect(existsSync(infoPlist), `${infoPlist} is missing`).toBe(true)
+    expect(existsSync(appBinary), `${appBinary} is missing`).toBe(true)
+    const mode = statSync(appBinary).mode
+    expect(
+      mode & 0o111,
+      `${appBinary} exists but is not executable (mode ${(mode & 0o777).toString(8)})`
+    ).toBeGreaterThan(0)
 
-  expect(plistValue('CFBundleIdentifier'), 'the bundle identifier').toBe('com.tom.docnamer')
-  expect(plistValue('CFBundleName'), 'the display name').toBe('docnamer')
-})
+    expect(plistValue('CFBundleIdentifier'), 'the bundle identifier').toBe('com.tom.docnamer')
+    expect(plistValue('CFBundleName'), 'the display name').toBe('docnamer')
+  },
+  BUILD_MS
+)
 
 test('the app bundle is signed, ad-hoc or with a real identity', () => {
   expect(existsSync(appPath), `${appPath} does not exist, so there is nothing to sign`).toBe(true)

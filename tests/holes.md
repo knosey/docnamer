@@ -15,6 +15,7 @@ entry here is not a covered boundary; it is a hole with a name.
 | 5 | Rendered frames are evidence | operator | layout, glyph and colour regressions are invisible |
 | 6 | Raw mode on the operator's own terminal | operator | the picker misbehaves on a real tty |
 | 7 | The appearance layer shows no appearance | operator | `NO_COLOR=1` piped text is called visual evidence |
+| 8 | The installed wrapper is this tree's build | operator | a pty pass reports on an older build |
 
 ## 1 · `mac-ocr` is the pinned binary
 
@@ -141,3 +142,29 @@ entry here is not a covered boundary; it is a hole with a name.
 - **Revisit when:** a frame is offered as proof of a rendered change.
 - **Release impact:** the ASCII fallback and the unicode path can both be wrong
   while every test passes; hole 5 is where the rendered check belongs.
+
+## 8 · The installed wrapper is this tree's build
+
+- **Unproven claim:** that the artifacts the pty tests drive — `~/bin/docnamer`
+  and `~/Applications/docnamer.app` — were built from the tree under test. They
+  are whatever `bun run build` last wrote, so a wrapper whose `stty` line was
+  deleted passes the pty tests until someone rebuilds.
+- **Owner:** operator.
+- **Deterministic closure:** partial. `scripts/build-app.ts` records the tree and
+  the moment it built from into the bundle, and
+  `tests/wrapper-pty.test.ts` compares both against the sources and refuses a
+  pass when the tree has moved since (`staleInstall` in
+  `tests/doc-renamer-apply-harness.ts`). What is NOT closed: in a second
+  checkout the record names another tree, so the check returns null and the pty
+  tests drive whatever is installed — `bun run build` there would install
+  unmerged code over the operator's own app. Closing it needs a build into a
+  temp root (`DOCNAMER_APP_HOME`, which `tests/app-bundle.test.ts` already
+  uses), and whether LaunchServices will launch a second bundle declaring the
+  same `CFBundleIdentifier` from a temp path is unmeasured.
+- **Manual smoke:** `bun run build`, then `bun run test:free`; the pty tests only
+  speak for the build they just ran against.
+- **Cost:** a rebuild, about half a minute.
+- **Revisit when:** a wrapper or bundle change is claimed proven by a pty run, or
+  a worktree wants wrapper coverage of its own.
+- **Release impact:** a wrapper regression is invisible on a machine whose
+  install predates it — the suite reports a pass for code that never ran.

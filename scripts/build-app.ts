@@ -30,7 +30,7 @@ const run = (cmd: string[]): void => {
 }
 
 // 1. Compile the binary into the bundle.
-run(['mkdir', '-p', macos, `${home}/bin`])
+run(['mkdir', '-p', macos, `${app}/Contents/Resources`, `${home}/bin`])
 run(['bun', 'build', '--compile', '--outfile', `${macos}/docnamer`, 'src/cli.ts'])
 
 // 2. The Info.plist is the TCC identity: folder prompts name this bundle.
@@ -107,5 +107,15 @@ exit 1
 `
 )
 run(['chmod', '+x', wrapper])
+
+// 5. What this install was built from. `~/bin/docnamer` is whatever the last
+//    build wrote, so a test that drives it can report a pass for a tree that
+//    never ran. The record is the tree and the moment, and
+//    tests/wrapper-pty.test.ts refuses that pass when the tree has moved since
+//    (tests/doc-renamer-apply-harness.ts, `staleInstall`).
+await Bun.write(
+  `${app}/Contents/Resources/install.json`,
+  JSON.stringify({ repo: process.cwd(), at: Date.now() })
+)
 
 console.log(`built ${app} (${identity ?? 'ad-hoc'}) and installed ${wrapper}`)

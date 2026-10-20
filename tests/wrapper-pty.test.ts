@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { appBin as BINARY, appPlist as PLIST, wrapper as WRAPPER } from './app-binary.ts'
 import { PLAN_FILE } from '../src/commands.ts'
+import { staleInstall } from './doc-renamer-apply-harness.ts'
 import { ANSI, drive, hasPty, makeTerminal, slaveDevice } from './pty.ts'
 import { scratch } from './scratch.ts'
 
@@ -49,6 +50,15 @@ test('Bun.Terminal is present, so the pty tests below run rather than skip', () 
   expect(hasPty, 'Bun.Terminal is absent; every pty test below would skip and stay green').toBe(
     true
   )
+})
+
+// The wrapper and the bundle are whatever `bun run build` last wrote, so driving
+// them says nothing about the tree that just changed unless the build came from
+// this tree and nothing has moved since. `staleInstall` reads the record the
+// build writes and compares it against the sources.
+test('the installed wrapper and bundle were built from this tree', async () => {
+  const stale = await staleInstall()
+  expect(stale, `the installed artifacts are not this tree's: ${stale}`).toBe(null)
 })
 
 /** A shell script starts with `#!`; the compiled binary this replaces does not. */

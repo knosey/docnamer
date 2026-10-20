@@ -25,12 +25,13 @@
  * This is test code, so `node:` built-ins are fine here (R0c): the ban is on
  * `src/`, which the compiled binary ships.
  */
+import { readdirSync, statSync } from 'node:fs'
 import { chmod, rm } from 'node:fs/promises'
 import { writePlan as persistPlan } from '../src/commands.ts'
 import { CONFIG_FILE } from '../src/config.ts'
 import { EXPECTED_FILE } from '../src/eval.ts'
-import { appBin } from './app-binary.ts'
-import { runChild } from './child.ts'
+import { appBin, installRecord } from './app-binary.ts'
+import { runChild, type ChildRun } from './child.ts'
 import { frame } from './frame.ts'
 import { assertPlanCovers, base, planRows } from './plan-file.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
@@ -164,6 +165,71 @@ export async function resolveCli(): Promise<string[] | null> {
   if (await Bun.file(src).exists()) return [Bun.which('bun') ?? 'bun', src]
   if (await Bun.file(appBin).exists()) return [appBin]
   return null
+}
+
+/** Everything `bun run build` bakes into the installed artifacts: the compiled
+ *  sources, the build script, the config it embeds and the lockfile it bundles. */
+const BAKED = ['src', 'scripts', 'package.json', 'docnamer.json', 'bun.lock', 'bunfig.toml']
+
+/** The newest file under the baked inputs, by mtime. */
+function newestSource(): { path: string; mtime: number } {
+  let newest = { path: '', mtime: 0 }
+  const visit = (abs: string): void => {
+    const stat = statSync(abs, { throwIfNoEntry: false })
+    if (stat === undefined) return
+    if (!stat.isDirectory()) {
+      if (stat.mtimeMs > newest.mtime) newest = { path: abs, mtime: stat.mtimeMs }
+      return
+    }
+    for (const name of readdirSync(abs)) visit(`${abs}/${name}`)
+  }
+  for (const rel of BAKED) visit(`${repo}/${rel}`)
+  return newest
+}
+
+/** Why the installed artifacts are not this tree's, or null when they are.
+ *
+ *  `~/bin/docnamer` and ~/Applications/docnamer.app are whatever `bun run build`
+ *  last wrote, so a test that drives them reports on that build, not on the tree
+ *  that just changed: a wrapper whose `stty` line was deleted an hour ago passes
+ *  the pty tests until someone rebuilds. scripts/build-app.ts records the tree and
+ *  the moment it built from, and this compares both.
+ *
+ *  A record naming a DIFFERENT checkout returns null, because it says nothing
+ *  about this tree: in a worktree, installing a build of unmerged code over the
+ *  operator's own app is the thing tests/app-binary.ts exists to prevent, so the
+ *  pty tests there drive whatever is installed and the hole is named in
+ *  tests/holes.md. */
+export async function staleInstall(): Promise<string | null> {
+  const file = Bun.file(installRecord)
+  if (!(await file.exists())) {
+    return `no record of what the installed artifacts were built from (${installRecord}), so a pty pass says nothing about this tree — run \`bun run build\``
+  }
+  const record: { repo?: string; at?: number } = await file.json()
+  if (record.repo !== repo || typeof record.at !== 'number') return null
+  const newest = newestSource()
+  if (newest.mtime > record.at) {
+    return `${newest.path} is newer than the installed artifacts (built ${new Date(record.at).toISOString()}), so a pty run would exercise the last build instead of this tree — run \`bun run build\``
+  }
+  return null
+}
+
+/** Run the real CLI against a throwaway HOME with a scrubbed environment: no
+ *  FIREWORKS_API_KEY and no inherited XDG_CONFIG_HOME, so a pass can never be the
+ *  operator's own credential or config answering. `input` is written to stdin for
+ *  a flow that asks a question. One owner, because two copies of this scrub drift
+ *  and the copy that stops deleting the variable is the one nobody reads. */
+export async function runCliAs(home: string, args: string[], input?: string): Promise<ChildRun> {
+  const argv = await resolveCli()
+  if (argv === null) {
+    throw new Error('no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`')
+  }
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
+  delete env.FIREWORKS_API_KEY
+  delete env.XDG_CONFIG_HOME
+  env.HOME = home
+  return runChild([...argv, ...args], { cwd: repo, env, input })
 }
 
 /**

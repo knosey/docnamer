@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test'
-import { runChild } from './child.ts'
-import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
+import { runCliAs } from './doc-renamer-apply-harness.ts'
 import { scratch } from './scratch.ts'
 
 /**
@@ -44,40 +43,8 @@ async function homeWith(pi?: unknown, own?: unknown): Promise<string> {
   return dir
 }
 
-/** Run the real CLI with a scrubbed environment: no key, and the given HOME. */
-async function cliAs(
-  home: string,
-  ...args: string[]
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  return cliAsTyping(home, undefined, ...args)
-}
-
-/**
- * The same, with a line of input on stdin for a flow that asks a question. The
- * environment is scrubbed the same way, so a pass can never be the variable
- * answering.
- */
-async function cliAsTyping(
-  home: string,
-  input: string | undefined,
-  ...args: string[]
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  const argv = await resolveCli()
-  if (argv === null) {
-    throw new Error('no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`')
-  }
-  const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
-  delete env.FIREWORKS_API_KEY
-  // Both stores resolve under HOME; an inherited XDG_CONFIG_HOME would point
-  // docnamer's own store at the real one and make this machine-dependent.
-  delete env.XDG_CONFIG_HOME
-  env.HOME = home
-  return runChild([...argv, ...args], { cwd: repo, env, input })
-}
-
 test('auth resolves a credential from pi when the environment carries no key', async () => {
-  const r = await cliAs(await homeWith(PI_STORE), 'auth')
+  const r = await runCliAs(await homeWith(PI_STORE), ['auth'])
   expect(r.code, `auth exited ${r.code}: ${r.stderr}`).toBe(0)
   expect(r.stdout, 'auth did not name the provider the config needs').toContain('fireworks')
   expect(r.stdout, "auth did not say the credential came from pi's file").toContain(
@@ -86,7 +53,7 @@ test('auth resolves a credential from pi when the environment carries no key', a
 })
 
 test("pi's login wins over docnamer's own store when both are present", async () => {
-  const r = await cliAs(await homeWith(PI_STORE, OWN_STORE), 'auth')
+  const r = await runCliAs(await homeWith(PI_STORE, OWN_STORE), ['auth'])
   expect(r.code, `auth exited ${r.code}: ${r.stderr}`).toBe(0)
   expect(r.stdout, "the credential was taken from docnamer's store while pi held one").toContain(
     '.pi/agent/auth.json'
@@ -94,7 +61,7 @@ test("pi's login wins over docnamer's own store when both are present", async ()
 })
 
 test("docnamer's own store answers when pi holds no login", async () => {
-  const r = await cliAs(await homeWith(undefined, OWN_STORE), 'auth')
+  const r = await runCliAs(await homeWith(undefined, OWN_STORE), ['auth'])
   expect(r.code, `auth exited ${r.code}: ${r.stderr}`).toBe(0)
   expect(r.stdout, 'auth did not name the provider the config needs').toContain('fireworks')
   expect(r.stdout, "auth did not say the credential came from docnamer's own store").toContain(
@@ -103,7 +70,7 @@ test("docnamer's own store answers when pi holds no login", async () => {
 })
 
 test('auth fails and points at login when neither store holds a credential', async () => {
-  const r = await cliAs(await homeWith(), 'auth')
+  const r = await runCliAs(await homeWith(), ['auth'])
   // 1, not 2: the invocation was accepted and the run failed. 2 is for an
   // invocation docnamer refused, which this one is not — the two codes are only
   // worth having if something pins each side.
@@ -114,17 +81,17 @@ test('auth fails and points at login when neither store holds a credential', asy
 
 test('login and logout are real commands with their own help', async () => {
   for (const cmd of ['login', 'logout']) {
-    const r = await cliAs(await homeWith(), cmd, '--help')
+    const r = await runCliAs(await homeWith(), [cmd, '--help'])
     expect(r.code, `${cmd} --help exited ${r.code}`).toBe(0)
     expect(r.stdout.trim().length, `${cmd} --help printed nothing`).toBeGreaterThan(0)
   }
-  const login = await cliAs(await homeWith(), 'login', '--help')
+  const login = await runCliAs(await homeWith(), ['login', '--help'])
   expect(login.stdout, 'login --help does not say what it takes').toContain('provider')
 })
 
 test('login stores the key it was given, owner-only, and auth then finds it', async () => {
   const home = await homeWith()
-  const typed = await cliAsTyping(home, 'typed-in-key\n', 'login', 'fireworks')
+  const typed = await runCliAs(home, ['login', 'fireworks'], 'typed-in-key\n')
   expect(typed.code, `login exited ${typed.code}: ${typed.stderr}`).toBe(0)
 
   const store = `${home}/.config/docnamer/credentials.json`
@@ -137,7 +104,7 @@ test('login stores the key it was given, owner-only, and auth then finds it', as
   const mode = (await Bun.file(store).stat()).mode & 0o777
   expect(mode.toString(8), 'the stored key is readable by anyone else on the machine').toBe('600')
 
-  const after = await cliAs(home, 'auth')
+  const after = await runCliAs(home, ['auth'])
   expect(after.code, `auth after login exited ${after.code}: ${after.stderr}`).toBe(0)
   expect(after.stdout, 'auth did not see the credential login had just written').toContain(
     'docnamer/credentials.json'
@@ -152,7 +119,7 @@ test('login stores the key it was given, owner-only, and auth then finds it', as
  */
 
 test('a bare `login` offers the catalog instead of a usage error', async () => {
-  const r = await cliAsTyping(await homeWith(PI_STORE), 'q\n', 'login')
+  const r = await runCliAs(await homeWith(PI_STORE), ['login'], 'q\n')
   expect(r.code, `login exited ${r.code}: ${r.stderr}`).toBe(0)
   expect(r.stdout, 'a bare login is still a usage error').not.toContain('usage:')
   // The shipped config needs one provider; the list a person picks from is the
@@ -163,7 +130,7 @@ test('a bare `login` offers the catalog instead of a usage error', async () => {
 })
 
 test('the offered list says which providers are already signed in, and where from', async () => {
-  const r = await cliAsTyping(await homeWith(PI_STORE), 'q\n', 'login')
+  const r = await runCliAs(await homeWith(PI_STORE), ['login'], 'q\n')
   const line = (text: string, id: string): string | undefined =>
     text.split('\n').find(l => l.toLowerCase().includes(id))
   const signedIn = line(r.stdout, 'fireworks')
@@ -180,7 +147,7 @@ test('the offered list says which providers are already signed in, and where fro
 
 test('a bare `login` takes a provider typed by name and runs its flow', async () => {
   const home = await homeWith()
-  const r = await cliAsTyping(home, 'fireworks\ntyped-in-key\n', 'login')
+  const r = await runCliAs(home, ['login'], 'fireworks\ntyped-in-key\n')
   expect(r.code, `login exited ${r.code}: ${r.stderr}`).toBe(0)
   const written: { fireworks?: unknown } = await Bun.file(
     `${home}/.config/docnamer/credentials.json`
@@ -192,13 +159,13 @@ test('a bare `login` takes a provider typed by name and runs its flow', async ()
 })
 
 test('a bare `login` refuses a choice that is not in the list, and names it', async () => {
-  const r = await cliAsTyping(await homeWith(), 'not-a-provider\n', 'login')
+  const r = await runCliAs(await homeWith(), ['login'], 'not-a-provider\n')
   expect(r.code, 'an unknown choice was accepted').not.toBe(0)
   expect(r.stderr, 'the refusal must name what was typed').toContain('not-a-provider')
 })
 
 test('a bare `logout` lists only the credential docnamer itself holds', async () => {
-  const r = await cliAsTyping(await homeWith(PI_STORE, OWN_STORE), 'q\n', 'logout')
+  const r = await runCliAs(await homeWith(PI_STORE, OWN_STORE), ['logout'], 'q\n')
   expect(r.code, `logout exited ${r.code}: ${r.stderr}`).toBe(0)
   expect(r.stdout, 'logout does not list the credential docnamer holds').toContain('fireworks')
   expect(
@@ -208,7 +175,7 @@ test('a bare `logout` lists only the credential docnamer itself holds', async ()
 })
 
 test('`logout <provider>` refuses a credential that is pi to remove, and says whose', async () => {
-  const r = await cliAs(await homeWith(PI_STORE), 'logout', 'fireworks')
+  const r = await runCliAs(await homeWith(PI_STORE), ['logout', 'fireworks'])
   expect(r.code, 'logout reported a success it did not perform').not.toBe(0)
   expect(r.stderr, 'the refusal does not name the file that holds it').toContain(
     '.pi/agent/auth.json'
@@ -224,7 +191,7 @@ test('`logout <provider>` refuses a credential that is pi to remove, and says wh
  */
 test("`logout <provider>` removes docnamer's own credential and says so", async () => {
   const home = await homeWith(undefined, OWN_STORE)
-  const r = await cliAs(home, 'logout', 'fireworks')
+  const r = await runCliAs(home, ['logout', 'fireworks'])
   expect(r.code, `logout exited ${r.code}: ${r.stderr}`).toBe(0)
   expect(r.stdout, 'logout did not name the provider it signed out of').toContain('fireworks')
 
@@ -232,6 +199,6 @@ test("`logout <provider>` removes docnamer's own credential and says so", async 
   const written: { fireworks?: unknown } = await Bun.file(store).json()
   expect(written.fireworks, 'logout left the credential it reported removing').toBeUndefined()
 
-  const after = await cliAs(home, 'auth')
+  const after = await runCliAs(home, ['auth'])
   expect(after.code, 'auth still found a credential logout had removed').not.toBe(0)
 })

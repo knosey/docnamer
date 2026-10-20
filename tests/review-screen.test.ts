@@ -6,8 +6,7 @@
  */
 import { expect, test } from 'bun:test'
 import { join } from 'node:path'
-import { runChild } from './child.ts'
-import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
+import { runCliAs } from './doc-renamer-apply-harness.ts'
 import { scratch } from './scratch.ts'
 
 /** A plan row as the plan file stores it; only review's own fields matter. */
@@ -27,25 +26,6 @@ function row(old: string, flags: string[], status: string): Record<string, unkno
   }
 }
 
-async function cliAsTyping(
-  home: string,
-  input: string,
-  ...args: string[]
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  const argv = await resolveCli()
-  if (argv === null) {
-    throw new Error('no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`')
-  }
-  const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
-  delete env.FIREWORKS_API_KEY
-  // Both stores resolve under HOME; an inherited XDG_CONFIG_HOME would point
-  // docnamer's own store at the real one and make this machine-dependent.
-  delete env.XDG_CONFIG_HOME
-  env.HOME = home
-  return runChild([...argv, ...args], { cwd: repo, env, input })
-}
-
 test('review numbers each row by its place in the review, not by its plan index', async () => {
   const home = scratch('docnamer-review-home')
   const folder = scratch('docnamer-review')
@@ -59,7 +39,7 @@ test('review numbers each row by its place in the review, not by its plan index'
   await Bun.write(join(folder, '.docnamer-plan.json'), JSON.stringify(rows, null, 2))
 
   // Three accepts, then quit.
-  const run = await cliAsTyping(home, '\r\r\rq', 'review', folder)
+  const run = await runCliAs(home, ['review', folder], '\r\r\rq')
   expect(run.code, `review exited ${run.code}: ${run.stderr}`).toBe(0)
 
   expect(run.stdout, 'the first row reviewed is the first flagged one').toContain('[1/3]')
