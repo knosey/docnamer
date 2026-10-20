@@ -1,0 +1,28 @@
+#!/bin/sh
+# Every check this tree can run on a change, scoped to the change itself. The
+# format pass rewrites the staged files and re-stages them, so what lands is
+# what was checked; the analysis gate judges only what this commit touches and
+# inherits what the tree already carried, so an old finding is never charged to
+# an unrelated change. `bun check` is the typecheck: bun 1.4 resolves
+# tsconfig.json and reports the whole tree's errors in one pass.
+set -e
+
+changed=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -n "$changed" ] || exit 0
+
+targets=""
+for file in $changed; do
+  case "$file" in
+    *.ts | *.json) targets="$targets $file" ;;
+  esac
+done
+if [ -n "$targets" ]; then
+  bunx oxfmt $targets
+  for file in $targets; do
+    git add -- "$file"
+  done
+fi
+
+bun check
+bunx oxlint --deny-warnings
+bun run audit

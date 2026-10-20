@@ -60,9 +60,7 @@ const identities = Bun.spawnSync(['security', 'find-identity', '-v', '-p', 'code
   stdout: 'pipe',
   stderr: 'pipe'
 })
-const identity = identities.stdout
-  .toString()
-  .match(/\)\s+[0-9A-F]{40}\s+"([^"]+)"/)?.[1]
+const identity = identities.stdout.toString().match(/\)\s+[0-9A-F]{40}\s+"([^"]+)"/)?.[1]
 run(
   identity
     ? ['codesign', '--force', '--sign', identity, app]

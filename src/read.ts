@@ -331,7 +331,13 @@ export async function read(file: string): Promise<Content | null> {
 
   if (ext === '.xlsx' || ext === '.pptx' || ext === '.pages') {
     const text = await officeText(file, ext)
-    return { text: text.slice(0, TEXT_CAP), images: [], method: 'text', ocrConfidence: null, pages: 1 }
+    return {
+      text: text.slice(0, TEXT_CAP),
+      images: [],
+      method: 'text',
+      ocrConfidence: null,
+      pages: 1
+    }
   }
 
   if (IMAGE_EXTS.has(ext)) {

@@ -19,8 +19,8 @@ function referenceLines(): string[] {
   return proc.stdout
     .toString()
     .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
 }
 
 /** The directory the reference lists, resolved against the repo root. */
@@ -105,10 +105,12 @@ test('spotlight: setFinderComment resolves for a fixture copy', async () => {
 test('spotlight: addOcrTextLayer reports the bytes it wrote and its sidecar', async () => {
   const mod = await importSpotlight()
   expect(mod).not.toBeNull()
-  const name = referenceLines().find((n) => n.endsWith('.pdf')) ?? ''
+  const name = referenceLines().find(n => n.endsWith('.pdf')) ?? ''
   const file = `${scratch}/${name}`
   await Bun.write(file, await Bun.file(new URL(name, referenceDir())).bytes())
-  const addOcrTextLayer = mod?.addOcrTextLayer as (f: string) => Promise<{ bytes: number; sidecar: string }>
+  const addOcrTextLayer = mod?.addOcrTextLayer as (
+    f: string
+  ) => Promise<{ bytes: number; sidecar: string }>
   const result = await addOcrTextLayer(file)
   expect(typeof result.bytes).toBe('number')
   expect(result.bytes).toBeGreaterThan(0)

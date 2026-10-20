@@ -45,5 +45,5 @@ export const MODEL_CALL_MS = 300000
 ): void => {
   // A flow drives the real CLI end to end: Apple Vision OCR plus one paid model
   // call per document, run one file at a time. That is tens of seconds.
-  test(name, fn as () => unknown, MODEL_CALL_MS)
+  test(name, fn as () => void | Promise<unknown>, MODEL_CALL_MS)
 }

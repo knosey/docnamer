@@ -27,7 +27,7 @@
  * throw and never a fabricated Analysis (R6).
  */
 import { getModel, getProviders } from '@earendil-works/pi-ai/compat'
-import type { AssistantMessage, Message, Tool } from '@earendil-works/pi-ai/compat'
+import type { AssistantMessage, Message, Tool, ToolCall } from '@earendil-works/pi-ai/compat'
 import { docnamerModels } from './auth.ts'
 import type { Config, DocType } from './config.ts'
 import type { Content } from './read.ts'
@@ -206,7 +206,7 @@ function readCall(
     .filter(b => b.type === 'text')
     .map(b => b.text)
     .join('\n')
-  const call = msg.content.find(b => b.type === 'toolCall' && b.name === TOOL_NAME)
+  const call = msg.content.find((b): b is ToolCall => b.type === 'toolCall' && b.name === TOOL_NAME)
   if (!call) {
     return { error: `the reply contained no ${TOOL_NAME} tool call`, raw: text }
   }

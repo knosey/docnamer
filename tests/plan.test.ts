@@ -216,11 +216,15 @@ test('T5 CLI main refuses `undo --run` with no value', async () => {
 })
 
 // `plan` makes one real paid model call, so it waits past bun's 5s default.
-test('T5 CLI main plans a folder end to end', async () => {
-  const cli = await loadCli()
-  const dir = seed()
-  const code = await cli.main(['plan', dir])
-  expect(typeof code).toBe('number')
-  expect(code).toBe(0)
-  expect(existsSync(join(dir, '.docnamer-plan.json'))).toBe(true)
-}, MODEL_CALL_MS)
+test(
+  'T5 CLI main plans a folder end to end',
+  async () => {
+    const cli = await loadCli()
+    const dir = seed()
+    const code = await cli.main(['plan', dir])
+    expect(typeof code).toBe('number')
+    expect(code).toBe(0)
+    expect(existsSync(join(dir, '.docnamer-plan.json'))).toBe(true)
+  },
+  MODEL_CALL_MS
+)

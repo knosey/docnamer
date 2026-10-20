@@ -192,7 +192,14 @@ export function pickerFrame(o: Frame): string[] {
  * discarded, so the idle timer below can give up on a partial escape sequence
  * without throwing away the bytes that arrive just after it.
  */
-let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
+/** The slice of a byte-stream reader this module uses. Bun's stdin stream and a
+ * device file stream are declared by two different `ReadableStream` types, so
+ * the reader is named structurally: these are the only members ever touched. */
+type ByteReader = {
+  read(): Promise<{ done: boolean; value?: Uint8Array }>
+  cancel(): Promise<void>
+}
+let reader: ByteReader | null = null
 let inflight: Promise<Uint8Array | null> | null = null
 let ended = false
 let lineBuffer = ''

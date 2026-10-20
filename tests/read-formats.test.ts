@@ -100,7 +100,8 @@ afterAll(() => {
 
 test('read() extracts text from xlsx shared strings', async () => {
   const c = await read(fixtures.xlsx)
-  if (c === null) throw new Error('read() skipped xlsx: null means Stage 1 silently drops it from the plan')
+  if (c === null)
+    throw new Error('read() skipped xlsx: null means Stage 1 silently drops it from the plan')
   expect(c.method).toBe('text')
   expect(c.text).toContain('Invoice Q3 totals')
   expect(c.text).toContain('Amount due 1200')
@@ -108,7 +109,8 @@ test('read() extracts text from xlsx shared strings', async () => {
 
 test('read() extracts slide text from pptx', async () => {
   const c = await read(fixtures.pptx)
-  if (c === null) throw new Error('read() skipped pptx: null means Stage 1 silently drops it from the plan')
+  if (c === null)
+    throw new Error('read() skipped pptx: null means Stage 1 silently drops it from the plan')
   expect(c.method).toBe('text')
   expect(c.text).toContain('Quarterly forecast review')
 })
@@ -121,7 +123,8 @@ test('read() throws naming the slide a pptx lists but cannot extract', async () 
 
 test('read() extracts text from a pages document via its QuickLook preview', async () => {
   const c = await read(fixtures.pages)
-  if (c === null) throw new Error('read() skipped pages: null means Stage 1 silently drops it from the plan')
+  if (c === null)
+    throw new Error('read() skipped pages: null means Stage 1 silently drops it from the plan')
   expect(c.method).toBe('text')
   expect(c.text).toContain('Board minutes of the annual general meeting')
 })
@@ -129,5 +132,7 @@ test('read() extracts text from a pages document via its QuickLook preview', asy
 test('read() throws naming the missing preview for a pages file with none', async () => {
   await stageFile('index.xml', '<empty/>')
   zipTree(`${dir}/broken.pages`, ['index.xml'])
-  await expect(read(`${dir}/broken.pages`)).rejects.toThrow(/pages.*QuickLook\/Preview\.pdf|QuickLook\/Preview\.pdf.*pages/i)
+  await expect(read(`${dir}/broken.pages`)).rejects.toThrow(
+    /pages.*QuickLook\/Preview\.pdf|QuickLook\/Preview\.pdf.*pages/i
+  )
 })

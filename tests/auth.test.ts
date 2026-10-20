@@ -84,8 +84,10 @@ async function cliAsTyping(
     env
   })
   if (input !== undefined) {
-    await p.stdin.write(input)
-    await p.stdin.end()
+    const sink = p.stdin
+    if (sink === undefined) throw new Error('auth: spawn gave no stdin sink')
+    await sink.write(input)
+    await sink.end()
   }
   const [stdout, stderr, code] = await Promise.all([
     new Response(p.stdout).text(),

@@ -1,6 +1,6 @@
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? "which open"
+export const reference = process.env.GRAPH_REFERENCE ?? 'which open'
 
 import { expect, test } from 'bun:test'
 
@@ -183,10 +183,14 @@ test.skipIf(!hasPty)(
       expect(device.startsWith('/dev/'), `the probe pty reported ${device}`).toBe(true)
 
       // The picker draws on the device and Esc cancels it: the prompt comes back.
-      const login = await drive(t, ['login'], [
-        [1.5, '\x1b'],
-        [0.5, 'x']
-      ])
+      const login = await drive(
+        t,
+        ['login'],
+        [
+          [1.5, '\x1b'],
+          [0.5, 'x']
+        ]
+      )
       expect(login.exited, 'a cancelled login must return, not hold the terminal open').toBe(true)
       expect(login.code, 'a cancelled picker exits 0').toBe(0)
       expect(
@@ -198,10 +202,7 @@ test.skipIf(!hasPty)(
       // app does, so only --exit-file can carry the 2 back — the whole point of it.
       const refused = await drive(t, ['nonsense-command'], [])
       expect(refused.exited, 'the app must exit').toBe(true)
-      expect(
-        refused.code,
-        'the app exit code must propagate through open and the wrapper'
-      ).toBe(2)
+      expect(refused.code, 'the app exit code must propagate through open and the wrapper').toBe(2)
     } finally {
       t.terminal.close()
     }

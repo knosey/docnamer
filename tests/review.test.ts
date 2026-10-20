@@ -184,17 +184,21 @@ describe('T3 review() and the CLI wiring', () => {
   })
 
   // `plan` makes one real paid model call, so it waits past bun's 5s default.
-  test('the CLI still dispatches plan and rejects an unknown command', async () => {
-    const cli = await importOrNull('../src/cli.ts')
-    expect(cli, 'src/cli.ts must exist (T3)').not.toBeNull()
-    const main = fn(cli as Record<string, unknown>, 'main') as (argv: string[]) => Promise<number>
+  test(
+    'the CLI still dispatches plan and rejects an unknown command',
+    async () => {
+      const cli = await importOrNull('../src/cli.ts')
+      expect(cli, 'src/cli.ts must exist (T3)').not.toBeNull()
+      const main = fn(cli as Record<string, unknown>, 'main') as (argv: string[]) => Promise<number>
 
-    const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-review-${crypto.randomUUID()}`
-    Bun.spawnSync(['mkdir', '-p', dir])
-    await Bun.write(`${dir}/a.txt`, 'INVOICE\nAcme Ltd\nDate: 03/04/2026\n')
-    expect(await main(['plan', dir])).toBe(0)
-    expect(await main(['nonsense', dir])).toBe(1)
-  }, MODEL_CALL_MS)
+      const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-review-${crypto.randomUUID()}`
+      Bun.spawnSync(['mkdir', '-p', dir])
+      await Bun.write(`${dir}/a.txt`, 'INVOICE\nAcme Ltd\nDate: 03/04/2026\n')
+      expect(await main(['plan', dir])).toBe(0)
+      expect(await main(['nonsense', dir])).toBe(1)
+    },
+    MODEL_CALL_MS
+  )
 
   test('the CLI is driven by the runtime the reference names', () => {
     const bun = Bun.which('bun')

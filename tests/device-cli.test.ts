@@ -1,6 +1,6 @@
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? "echo 0"
+export const reference = process.env.GRAPH_REFERENCE ?? 'echo 0'
 
 import { expect, test } from 'bun:test'
 
@@ -136,4 +136,3 @@ test('a run without a device keeps the direct, piped path', async () => {
   expect(run.code, 'the direct path still exits 0').toBe(0)
   expect(run.out, 'the direct path still prints to stdout').toContain('docnamer ')
 })
-

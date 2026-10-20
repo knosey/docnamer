@@ -152,24 +152,28 @@ test('isFailed distinguishes a Failed from an Analysis', async () => {
 })
 
 // One real paid model call, so it waits past bun's 5s default.
-test('analyse classifies and extracts a text invoice in one model call', async () => {
-  const mod = await load()
-  await ensureProviderKey()
-  const result = await mod.analyse(content, 'invoice-acme-2026-04.txt', config)
-  if (mod.isFailed(result)) {
-    throw new Error(
-      'Stage 2 analyse returned Failed, so the real model call did not complete: ' +
-        result.reason +
-        ' — raw: ' +
-        result.raw
-    )
-  }
-  expect(result.type).toBe('invoice')
-  expect(typeof result.type_confidence).toBe('number')
-  expect(result.type_confidence).toBeGreaterThanOrEqual(0)
-  expect(result.type_confidence).toBeLessThanOrEqual(1)
-  expect(result.fields.vendor.value).toBeTruthy()
-  expect(typeof result.fields.vendor.evidence).toBe('string')
-  expect(typeof result.summary).toBe('string')
-  expect(result.summary.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(20)
-}, MODEL_CALL_MS)
+test(
+  'analyse classifies and extracts a text invoice in one model call',
+  async () => {
+    const mod = await load()
+    await ensureProviderKey()
+    const result = await mod.analyse(content, 'invoice-acme-2026-04.txt', config)
+    if (mod.isFailed(result)) {
+      throw new Error(
+        'Stage 2 analyse returned Failed, so the real model call did not complete: ' +
+          result.reason +
+          ' — raw: ' +
+          result.raw
+      )
+    }
+    expect(result.type).toBe('invoice')
+    expect(typeof result.type_confidence).toBe('number')
+    expect(result.type_confidence).toBeGreaterThanOrEqual(0)
+    expect(result.type_confidence).toBeLessThanOrEqual(1)
+    expect(result.fields.vendor.value).toBeTruthy()
+    expect(typeof result.fields.vendor.evidence).toBe('string')
+    expect(typeof result.summary).toBe('string')
+    expect(result.summary.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(20)
+  },
+  MODEL_CALL_MS
+)

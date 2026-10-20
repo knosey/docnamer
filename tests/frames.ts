@@ -13,13 +13,28 @@
 import { frame } from './frame.ts'
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
-const BIN = `${Bun.env.HOME}/bin/docnamer`
+
+/** The operator's own home: the frames must show a real plan, so the paid run
+ * reads the machine's credential store rather than a throwaway one. */
+const HOME = Bun.env.HOME
+if (HOME === undefined) throw new Error('frames: HOME is unset')
+
+const BIN = `${HOME}/bin/docnamer`
 
 /** Where the paid run reads its documents: a copy, so the repo stays clean. */
 const WORK = '/tmp/docnamer-frames-docs'
 const FIXTURES = ['acme-statement-scan.pdf', 'statement-text.pdf', 'letter.docx', 'receipt.png']
 
 type Run = { code: number; stdout: string; stderr: string }
+
+/** Bun types a spawn's stdin as optional whatever it was asked for; the guard
+ * lives here so `run` itself stays a straight line. */
+async function feed(p: Bun.Subprocess<'ignore' | 'pipe'>, input: string): Promise<void> {
+  const sink = p.stdin
+  if (sink === undefined) throw new Error('frames: spawn gave no stdin sink')
+  await sink.write(input)
+  await sink.end()
+}
 
 async function run(args: string[], home: string, input?: string): Promise<Run> {
   const env: Record<string, string> = {}
@@ -36,10 +51,7 @@ async function run(args: string[], home: string, input?: string): Promise<Run> {
     cwd: repo,
     env
   })
-  if (input !== undefined) {
-    await p.stdin.write(input)
-    await p.stdin.end()
-  }
+  if (input !== undefined) await feed(p, input)
   const [stdout, stderr, code] = await Promise.all([
     new Response(p.stdout).text(),
     new Response(p.stderr).text(),
@@ -96,7 +108,7 @@ async function testset(): Promise<string> {
 const folder = await scratch()
 // The machine's own credential store answers this run: the frames must show a
 // real plan, and a fake key would only frame the failure path.
-const planRun = await run(['plan', folder], Bun.env.HOME)
+const planRun = await run(['plan', folder], HOME)
 if (planRun.code !== 0) {
   throw new Error(`frames: plan exited ${planRun.code}: ${planRun.stderr.trim()}`)
 }
@@ -114,12 +126,12 @@ const cases: [string, 'stdout' | 'stderr', () => Promise<Run>][] = [
   ['ui-07-plan-table', 'stdout', () => Promise.resolve(planRun)],
   // Accept three of the four rows, then apply and undo them: the two frames
   // showing the live progress are the run's own doing, not a hand-made plan.
-  ['ui-08-review', 'stdout', () => run(['review', folder], Bun.env.HOME, '\r\r\rq')],
-  ['ui-09-apply-progress', 'stdout', () => run(['apply', folder], Bun.env.HOME)],
-  ['ui-10-undo-progress', 'stdout', () => run(['undo', folder], Bun.env.HOME)],
+  ['ui-08-review', 'stdout', () => run(['review', folder], HOME, '\r\r\rq')],
+  ['ui-09-apply-progress', 'stdout', () => run(['apply', folder], HOME)],
+  ['ui-10-undo-progress', 'stdout', () => run(['undo', folder], HOME)],
   // eval scores a whole fixture set against its expected.json: eight documents,
   // so this is the longest spinner of the lot and the one worth framing.
-  ['ui-11-eval-progress', 'stdout', async () => run(['eval', await testset()], Bun.env.HOME)],
+  ['ui-11-eval-progress', 'stdout', async () => run(['eval', await testset()], HOME)],
   ['ui-12-logout-picker', 'stdout', () => run(['logout'], owns, 'q\n')]
 ]
 
