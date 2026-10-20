@@ -12,6 +12,9 @@ import { ocrPages } from './read.ts'
 
 const TAG_XATTR = 'com.apple.metadata:_kMDItemUserTags'
 
+/** The suffix of the OCR text layer written beside a scan. */
+export const SIDECAR = '.ocr.txt'
+
 // --- Tag plist codec ----------------------------------------------------------
 
 /** Encode Finder tags as the binary plist the _kMDItemUserTags xattr stores. */
@@ -121,7 +124,7 @@ export async function addOcrTextLayer(file: string): Promise<{ bytes: number; si
   if (ocr.chars === 0) {
     throw new Error(`addOcrTextLayer: Vision OCR found no text in ${file}`)
   }
-  const sidecar = `${file}.ocr.txt`
+  const sidecar = `${file}${SIDECAR}`
   const bytes = await Bun.write(sidecar, ocr.text)
   return { bytes, sidecar }
 }

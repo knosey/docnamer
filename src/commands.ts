@@ -8,7 +8,7 @@ import { analyse, isFailed, type Analysis } from './analyse.ts'
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
 import { read, pageImages } from './read.ts'
-import { setFinderTag, setFinderComments, addOcrTextLayer } from './spotlight.ts'
+import { setFinderTag, setFinderComments, addOcrTextLayer, SIDECAR } from './spotlight.ts'
 import { validate, type Checked } from './validate.ts'
 
 export type PlanRow = {
@@ -59,6 +59,9 @@ async function scan(folder: string, recursive: boolean): Promise<string[]> {
   for await (const rel of new Bun.Glob(pattern).scan({ cwd: folder, onlyFiles: true })) {
     if (rel === PLAN_FILE) continue
     if (rel.split('/').some(part => part.startsWith('.'))) continue
+    // An OCR sidecar is apply's own text copy of a scan, not a document: planned,
+    // it would be read as text and renamed to a `.txt` of its own.
+    if (rel.endsWith(SIDECAR)) continue
     out.push(rel)
   }
   out.sort()
@@ -272,7 +275,11 @@ export async function apply(
       // Comments are batched into one osascript after the loop.
       comments.push({ file: to, comment: row.summary })
     }
-    if (ocrLayer) entry.sidecar = (await ocrLayer).sidecar
+    // Relative to the folder, like `old` and `new`, which is how undo reads it.
+    if (ocrLayer) {
+      await ocrLayer
+      entry.sidecar = `${row.new}${SIDECAR}`
+    }
     entries.push(entry)
   }
   await setFinderComments(comments)
@@ -302,6 +309,29 @@ async function latestUndoFile(folder: string): Promise<string | null> {
   return found.at(-1) ?? null
 }
 
+/** Put one entry back under its original name, with its tag and without its
+ *  sidecar; the refusal when it cannot be put back without overwriting. */
+async function restore(
+  folder: string,
+  entry: UndoEntry,
+  config: Config
+): Promise<{ file: string; reason: string } | null> {
+  const from = `${folder}/${entry.new}`
+  const to = `${folder}/${entry.old}`
+  if (!(await Bun.file(from).exists()))
+    return { file: entry.new, reason: 'renamed file is missing' }
+  if (await Bun.file(to).exists()) return { file: entry.old, reason: 'original name is occupied' }
+  renameFile(from, to)
+  if (entry.tag && config.defaults.finder_tags) await setFinderTag(to, entry.tag)
+  // Records written before the sidecar was recorded relative hold its absolute
+  // path; joined onto the folder again it named nothing, and `rm -f` of nothing
+  // succeeds.
+  if (entry.sidecar) {
+    removeFile(entry.sidecar.startsWith('/') ? entry.sidecar : `${folder}/${entry.sidecar}`)
+  }
+  return null
+}
+
 /**
  * Undo a run: rename every recorded entry back to its original name, in reverse
  * order, never overwriting. `run` names the undo file; null takes the latest.
@@ -328,20 +358,9 @@ export async function undo(
   const back = [...record.entries].reverse()
   for (const [i, entry] of back.entries()) {
     progress?.(i + 1, back.length, entry.new)
-    const from = `${folder}/${entry.new}`
-    const to = `${folder}/${entry.old}`
-    if (!(await Bun.file(from).exists())) {
-      skipped.push({ file: entry.new, reason: 'renamed file is missing' })
-      continue
-    }
-    if (await Bun.file(to).exists()) {
-      skipped.push({ file: entry.old, reason: 'original name is occupied' })
-      continue
-    }
-    renameFile(from, to)
-    if (entry.tag && config.defaults.finder_tags) await setFinderTag(to, entry.tag)
-    if (entry.sidecar) removeFile(`${folder}/${entry.sidecar}`)
-    restored.push(entry.old)
+    const refused = await restore(folder, entry, config)
+    if (refused === null) restored.push(entry.old)
+    else skipped.push(refused)
   }
   removeFile(path)
   return { restored, skipped }
