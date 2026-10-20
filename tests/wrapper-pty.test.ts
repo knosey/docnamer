@@ -238,3 +238,39 @@ test.skipIf(!hasPty)(
   },
   60000
 )
+
+/**
+ * The wrapper sets the tty raw so the app can read keys off the device, and
+ * `stty raw` on macOS also clears `opost`: output processing off, so a `\n` the
+ * app writes moves the cursor down without returning it to column 0. Every
+ * plain-text command — `--help` most visibly — then staircases across the
+ * screen. pi-tui's own raw mode (libuv's `setRawMode`) leaves output processing
+ * on; the wrapper must do the same. The bytes are read before any line split,
+ * because `paints()` splits on `\r\n|\n|\r` and so cannot tell the two apart.
+ */
+test.skipIf(!hasPty)(
+  'every line the app writes through the wrapper returns to column 0',
+  async () => {
+    if (!(await isWrapper(WRAPPER))) {
+      expect(false, `no wrapper installed at ${WRAPPER}`).toBe(true)
+      return
+    }
+
+    const t = makeTerminal()
+    try {
+      const run = await drive(t, [WRAPPER, '--help'], [], { env: wrapperEnv })
+      expect(run.exited, 'the app must exit').toBe(true)
+      expect(run.code, '--help exits 0').toBe(0)
+      const bare = run.output.match(/(?<!\r)\n/g)?.length ?? 0
+      expect(
+        bare,
+        `${bare} line feeds reached the terminal without a carriage return — the tty's output processing is off: ${JSON.stringify(
+          run.output.replace(ANSI, '').slice(0, 300)
+        )}`
+      ).toBe(0)
+    } finally {
+      t.terminal.close()
+    }
+  },
+  60000
+)

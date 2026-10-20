@@ -82,9 +82,13 @@ run(
 //    the app's real code has to come back some other way: the exit file. Raw mode
 //    is the shell's job — /dev/tty needs a controlling terminal and the wrapper
 //    has none, so stty runs on stdin, which `tty` has already resolved to the
-//    device the app is handed. LaunchServices starts the app in "/", so the
-//    caller's directory is carried across as `$PWD` (measured: `open -n`ing a
-//    probe app prints "/" whatever the shell's cwd is).
+//    device the app is handed. `stty raw` on macOS also clears `opost`, and
+//    with output processing off every `\n` the app writes is a bare line feed
+//    that staircases the screen, so `opost` puts it back: raw input, cooked
+//    output, the shape pi-tui's own `setRawMode` leaves a tty in (measured:
+//    `stty raw -echo opost` reports `opost onlcr`). LaunchServices starts the
+//    app in "/", so the caller's directory is carried across as `$PWD`
+//    (measured: `open -n`ing a probe app prints "/" whatever the shell's cwd is).
 //    The exit file decides the exit code, and `open`'s own code is only the
 //    fallback for when the app never wrote one: `open -W` also fails when it
 //    loses the race to block on an app that has already exited — measured, run 7
@@ -97,7 +101,7 @@ APP="${app}"
 TTY=$(tty) || exit 1
 EXIT_FILE=$(mktemp /tmp/docnamer-exit.XXXXXX)
 SAVED=$(stty -g)
-stty raw -echo
+stty raw -echo opost
 COLS=$(tput cols); ROWS=$(tput lines)
 /usr/bin/open -n -W "$APP" --args --tty "$TTY" --cols "$COLS" --rows "$ROWS" --exit-file "$EXIT_FILE" --cwd "$PWD" "$@"
 OPEN_CODE=$?
