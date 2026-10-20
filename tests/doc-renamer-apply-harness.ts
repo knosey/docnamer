@@ -151,15 +151,20 @@ export async function shell(
   return { code, stdout, stderr }
 }
 
-/** The one place that decides which artifact is under test. Exported because a
- *  flow that never reaches a model (tests/cli-help.test.ts, the front door) must
- *  still drive the same artifact this harness drives, not a second guess at it. */
+/** The one place that decides which artifact is under test. The TREE comes first:
+ *  the installed bundle is whatever was built last, so preferring it tested stale
+ *  code and reported the result as this tree's flow. The bundle is the fallback for
+ *  a checkout with no sources, and DOCNAMER_BIN overrides both.
+ *
+ *  Exported because a flow that never reaches a model (tests/cli-help.test.ts, the
+ *  front door) must still drive the same artifact this harness drives, not a second
+ *  guess at it. */
 export async function resolveCli(): Promise<string[] | null> {
   const override = Bun.env.DOCNAMER_BIN
   if (override && override.trim()) return override.trim().split(/\s+/)
-  if (await Bun.file(appBin).exists()) return [appBin]
   const src = `${repo}/src/cli.ts`
   if (await Bun.file(src).exists()) return [Bun.which('bun') ?? 'bun', src]
+  if (await Bun.file(appBin).exists()) return [appBin]
   return null
 }
 
