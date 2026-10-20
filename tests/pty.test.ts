@@ -255,14 +255,17 @@ test.skipIf(!hasPty)(
 )
 
 /**
- * `e` on the review screen is a keypress on a terminal: it arrives alone, with
- * no name after it. Review read the name off the rest of that same chunk — the
- * shape a pipe delivers — so a person pressing `e` got
- * "applyAction: edit needs the new name as its value" and lost the review. On a
- * terminal `e` opens the row's name for editing; Esc leaves the row as it was.
+ * The review screen on a terminal is driven by keys, and a key is a sequence,
+ * not a byte. Review read one byte at a time, so ↑ (`ESC [ A`) ended on `A` —
+ * accept every unflagged row — and `e` read its name off the rest of the read,
+ * which on a terminal is empty: "applyAction: edit needs the new name as its
+ * value". Ctrl-C was a byte nobody handled, so the review could not be left.
+ *
+ * Here ↓ and ↑ move between rows and decide nothing, the edit line takes Home
+ * and End, Esc leaves a row as it was, and Ctrl-C saves and quits.
  */
 test.skipIf(!hasPty)(
-  'e on the review screen edits the name in place on a real pty',
+  'the review screen moves, edits and quits by key on a real pty',
   async () => {
     const cli = await cliOrThrow()
     const home = await freshHome()
@@ -282,43 +285,57 @@ test.skipIf(!hasPty)(
     })
     await Bun.write(
       `${folder}/.docnamer-plan.json`,
-      JSON.stringify([planRow('a-receipt.pdf'), planRow('b-receipt.pdf')], null, 2)
+      JSON.stringify(
+        [planRow('a-receipt.pdf'), planRow('b-receipt.pdf'), planRow('c-receipt.pdf')],
+        null,
+        2
+      )
     )
     const t = makeTerminal()
     try {
-      // Four backspaces take ".pdf" off the name it starts from; the space is
-      // part of the name, not a key to drop.
       const run = await drive(
         t,
         [...cli, 'review', folder],
         [
-          ['[1/2]', 'e'],
-          ['new name:', '\x7f\x7f\x7f\x7f fixed.pdf\r'],
-          // One write: the Esc reaches the review in the read that carried
-          // the `e`, before the line it cancels was drawn.
-          ['[2/2]', 'e\x1b'],
-          ['unchanged', 'q']
+          ['[1/3]', '\x1b[B'],
+          // ↑ then `e`: the edit opens on the row ↑ moved back to.
+          ['[2/3]', '\x1b[Ae'],
+          // Home, a prefix, End, four backspaces off ".pdf", and a suffix with a
+          // space in it.
+          ['new name: 2024-03-12 a-receipt.pdf', '\x1b[HX \x1b[F\x7f\x7f\x7f\x7f fixed.pdf\r'],
+          // One write: the Esc reaches the review in the read that carried the
+          // `e`, before the line it cancels was drawn.
+          ['X 2024-03-12 a-receipt fixed.pdf', 'e\x1b'],
+          ['unchanged', '\x03']
         ],
         { cwd: repo, env: cleanEnv(home), ms: 8000 }
       )
       const seen = run.output.replace(ANSI, '')
       expect(
         run.exited,
-        `review must return — the terminal showed ${JSON.stringify(seen.slice(-400))}`
+        `Ctrl-C must leave the review — the terminal showed ${JSON.stringify(seen.slice(-400))}`
       ).toBe(true)
       expect(
         run.code,
         `review exits 0 — the terminal showed ${JSON.stringify(seen.slice(-400))}`
       ).toBe(0)
 
+      expect(
+        run.output.includes('\x1b_'),
+        "pi-tui's cursor markers are its renderer's to resolve; raw, they reach the terminal"
+      ).toBe(false)
+
       const after: { new: string; status: string }[] = JSON.parse(
         await Bun.file(`${folder}/.docnamer-plan.json`).text()
       )
       expect(after[0], 'the edited name is the one stored, and the row is accepted').toEqual(
-        expect.objectContaining({ new: '2024-03-12 a-receipt fixed.pdf', status: 'accepted' })
+        expect.objectContaining({ new: 'X 2024-03-12 a-receipt fixed.pdf', status: 'accepted' })
       )
       expect(after[1], 'an edit cancelled with Esc changes nothing').toEqual(
         expect.objectContaining({ new: '2024-03-12 b-receipt.pdf', status: 'pending' })
+      )
+      expect(after[2], 'an arrow key decides nothing: ↑ is not `A`').toEqual(
+        expect.objectContaining({ status: 'pending' })
       )
     } finally {
       t.terminal.close()

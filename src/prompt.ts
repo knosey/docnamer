@@ -26,6 +26,9 @@
  * same byte stream, and a second `getReader()` over `Bun.stdin.stream()` throws
  * on the lock the first one holds.
  */
+import { Input } from '@earendil-works/pi-tui/dist/components/input.js'
+import { StdinBuffer } from '@earendil-works/pi-tui/dist/stdin-buffer.js'
+import { FAKE_CURSOR_END, FAKE_CURSOR_START } from '@earendil-works/pi-tui/dist/tui.js'
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import { deviceStream, hasDevice, terminalWidth, ui, type Style } from './ui.ts'
 
@@ -393,52 +396,94 @@ async function pickInteractive(
   }
 }
 
+/** Whole keys from the terminal, one sequence each. */
+export type Keys = {
+  /** The next key, or null once the input has ended. */
+  next(): Promise<string | null>
+}
+
 /**
- * One line typed on a terminal the caller already holds raw, starting from
- * `initial` so an edit begins with what is there. Raw mode does not echo, so
- * the line is redrawn on every key; a line wider than the terminal shows its
- * end, because a wrapped line would leave the `\r` redraw one row short.
- * Enter returns the line and leaves it on screen; Esc or Ctrl-C erases it and
- * returns null. `ahead` is what arrived in the same read as the key that opened
- * the line: typed before the line was drawn, but typed into it all the same.
+ * The terminal's keys as pi-tui's `StdinBuffer` splits them: an arrow, Home or
+ * Delete is one key however the reads cut it, and a lone Esc is a key once
+ * nothing follows it. The buffer releases a held sequence on a timer, so a key
+ * can arrive between reads as well as with one.
+ */
+export function terminalKeys(): Keys {
+  const buffer = new StdinBuffer()
+  const queue: string[] = []
+  let wake: (() => void) | null = null
+  const push = (key: string): void => {
+    queue.push(key)
+    wake?.()
+  }
+  buffer.on('data', push)
+  // `Input` takes a paste whole when it comes wrapped in its markers.
+  buffer.on('paste', text => push(`${ESC}[200~${text}${ESC}[201~`))
+  return {
+    async next(): Promise<string | null> {
+      for (;;) {
+        const key = queue.shift()
+        if (key !== undefined) return key
+        const woken = new Promise<'woken'>(resolve => {
+          wake = () => resolve('woken')
+        })
+        // A read that loses to the timer stays in flight for the next call.
+        const raced = await Promise.race([readOnce(), woken])
+        wake = null
+        if (raced === 'woken') continue
+        take()
+        if (raced === null) {
+          queue.push(...buffer.flush())
+          return queue.shift() ?? null
+        }
+        buffer.process(bytes.decode(raced, { stream: true }))
+      }
+    }
+  }
+}
+
+/** A line rendered by `Input`, with pi-tui's cursor markers drawn the way its
+ *  own renderer draws them: as a reverse-video cell. */
+function withCursor(line: string): string {
+  return line.replaceAll(FAKE_CURSOR_START, `${ESC}[7m`).replaceAll(FAKE_CURSOR_END, `${ESC}[27m`)
+}
+
+/**
+ * One line edited on a terminal the caller already holds raw, in pi-tui's
+ * `Input`: ←/→, Home/End, word moves, deletes, kill and yank, undo and paste.
+ * It starts from `initial` with the cursor at its end, so an edit begins with
+ * what is there. Enter returns the line and leaves it on screen; Esc or Ctrl-C
+ * erases it and returns null. One cell short of the width, so the line never
+ * reaches the last column and wraps.
  */
 export async function editLine(
   label: string,
   initial: string,
   out: (text: string) => void,
-  ahead = ''
+  keys: Keys
 ): Promise<string | null> {
-  let line = initial
-  const room = terminalWidth() - visibleWidth(label) - 1
-  const paint = (): void => {
-    let shown = line
-    if (visibleWidth(shown) > room) {
-      const chars = Array.from(line)
-      while (visibleWidth(`\u2026${chars.join('')}`) > room) chars.shift()
-      shown = `\u2026${chars.join('')}`
-    }
-    out(`\r${ERASE}${label}${shown}`)
+  const input = new Input({ prompt: label })
+  input.setValue(initial)
+  input.handleInput(`${ESC}[F`)
+  let answer: string | null | undefined
+  input.onSubmit = value => {
+    answer = value
   }
+  input.onEscape = () => {
+    answer = null
+  }
+  const width = terminalWidth() - 1
+  const paint = (): void => out(`\r${ERASE}${withCursor(input.render(width)[0] ?? '')}`)
   paint()
-  for await (const key of keysAfter(ahead)) {
-    if (key.type === 'cancel') break
-    if (key.type === 'enter') {
-      out('\n')
-      return line
-    }
-    if (key.type === 'backspace') line = Array.from(line).slice(0, -1).join('')
-    else if (key.type === 'char') line += key.char
-    paint()
+  while (answer === undefined) {
+    const key = await keys.next()
+    if (key === null) answer = null
+    else input.handleInput(key)
+    if (answer === undefined) paint()
   }
-  out(`\r${ERASE}`)
-  return null
-}
-
-/** The keys in `ahead`, then the keys the terminal delivers after it. */
-async function* keysAfter(ahead: string): AsyncGenerator<Key> {
-  const decode = keyDecoder()
-  yield* [...decode(new TextEncoder().encode(ahead)), ...decode.flush()]
-  yield* stdinKeys()
+  if (answer === null) out(`\r${ERASE}`)
+  else out(`\r${ERASE}${truncateToWidth(`${label}${answer}`, width)}\n`)
+  return answer
 }
 
 async function pickNumbered(
