@@ -191,7 +191,9 @@ describe('T3 review() and the CLI wiring', () => {
       Bun.spawnSync(['mkdir', '-p', dir])
       await Bun.write(`${dir}/a.txt`, 'INVOICE\nAcme Ltd\nDate: 03/04/2026\n')
       expect(await main(['plan', dir])).toBe(0)
-      expect(await main(['nonsense', dir])).toBe(1)
+      // An unknown command is a refusal: 2, not the 1 reserved for an accepted
+      // run that then failed (src/cli.ts USAGE_EXIT).
+      expect(await main(['nonsense', dir])).toBe(2)
     },
     MODEL_CALL_MS
   )

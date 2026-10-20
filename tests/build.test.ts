@@ -85,7 +85,7 @@ test(
   'the compiled binary plans a scan PDF as itself, not degraded to other',
   async () => {
     // A spawned child does NOT inherit `Bun.env` mutations made after startup.
-    // Verified on bun 1.4.2: `ensureProviderKey()` sets both `Bun.env` and
+    // Verified on bun 1.4.3: `ensureProviderKey()` sets both `Bun.env` and
     // `process.env`, and a child spawned with no `env` option still sees neither,
     // because the default is a snapshot taken when the process started. So the key
     // has to be handed over explicitly, and asking for it here is what makes

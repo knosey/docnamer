@@ -158,7 +158,7 @@ export async function boot(s: Session): Promise<void> {
   for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
 
   // A real fixture set, when one exists, is copied in beside the seed files.
-  // Bun.file(dir).exists() is false for a DIRECTORY (Bun 1.4.2), so the scan is
+  // Bun.file(dir).exists() is false for a DIRECTORY (Bun 1.4.3), so the scan is
   // the existence check: ENOENT means there is no fixture set to copy.
   const fixtures = `${repo}/tests/fixtures`
   try {

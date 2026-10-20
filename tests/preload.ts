@@ -35,7 +35,7 @@ export async function ensureProviderKey(): Promise<void> {
  * document measured 1.5-2.8s with a tail past 5s (2 of 20 fresh-process runs of
  * tests/review.test.ts), while bun allows a test 5s by default — so the default
  * budget sits below the call the test waits on. `[test] timeout` in bunfig.toml
- * is not applied by bun 1.4.2, so the budget is named here, in code, once.
+ * is not applied by bun 1.4.3, so the budget is named here, in code, once.
  */
 export const MODEL_CALL_MS = 300000
 

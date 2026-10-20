@@ -23,6 +23,7 @@ type DeviceArgs = {
   cols: number | null
   rows: number | null
   exitFile: string | null
+  cwd: string | null
 }
 
 type DeviceModule = {
@@ -31,13 +32,15 @@ type DeviceModule = {
   deviceReader: (path: string) => ReadableStream<Uint8Array>
 }
 
-/** Import the module under test inside a check, so its absence is a failed
- *  assertion the test prints rather than an uncaught throw at load. */
-async function loadDevice(): Promise<DeviceModule | null> {
+/** Import the module under test. A module that will not load is a different
+ *  failure from one that is absent, so the cause is rethrown rather than
+ *  swallowed: returning null here reported a syntax error as "src/device.ts
+ *  must exist", which names the wrong thing to go and fix. */
+async function loadDevice(): Promise<DeviceModule> {
   try {
     return (await import('../src/device.ts')) as unknown as DeviceModule
-  } catch {
-    return null
+  } catch (e) {
+    throw new Error(`src/device.ts could not be imported: ${(e as Error).message}`)
   }
 }
 
@@ -58,10 +61,8 @@ test('src/device.ts exists and imports no node: built-in', async () => {
   ).toBe(false)
 })
 
-test('parseDeviceArgs reads --tty, --cols, --rows and --exit-file from argv', async () => {
+test('parseDeviceArgs reads --tty, --cols, --rows, --exit-file and --cwd from argv', async () => {
   const mod = await loadDevice()
-  expect(mod, 'src/device.ts must exist and export parseDeviceArgs').not.toBeNull()
-  if (mod === null) return
   expect(typeof mod.parseDeviceArgs, 'src/device.ts must export parseDeviceArgs').toBe('function')
 
   const parsed = mod.parseDeviceArgs([
@@ -74,24 +75,30 @@ test('parseDeviceArgs reads --tty, --cols, --rows and --exit-file from argv', as
     '--rows',
     '40',
     '--exit-file',
-    '/tmp/docnamer-exit'
+    '/tmp/docnamer-exit',
+    '--cwd',
+    '/Users/someone/Downloads'
   ])
   expect(parsed.tty).toBe('/dev/ttys003')
   expect(parsed.cols, '--cols is a number the layout can use').toBe(100)
   expect(parsed.rows, '--rows is a number the layout can use').toBe(40)
   expect(parsed.exitFile).toBe('/tmp/docnamer-exit')
+  // LaunchServices starts the app in "/", so the caller's folder can only arrive
+  // as a flag; nothing else in the suite pins it to the parser.
+  expect(parsed.cwd, '--cwd carries the caller folder across the launch').toBe(
+    '/Users/someone/Downloads'
+  )
 
   const none = mod.parseDeviceArgs(['plan', '~/docs'])
   expect(none.tty, 'no --tty means no device mode').toBeFalsy()
   expect(none.cols).toBeFalsy()
   expect(none.rows).toBeFalsy()
   expect(none.exitFile).toBeFalsy()
+  expect(none.cwd, 'no --cwd leaves the process in its own directory').toBeFalsy()
 })
 
 test('deviceWriter and deviceReader move bytes over the device path', async () => {
   const mod = await loadDevice()
-  expect(mod, 'src/device.ts must exist and export deviceWriter/deviceReader').not.toBeNull()
-  if (mod === null) return
   expect(typeof mod.deviceWriter, 'src/device.ts must export deviceWriter').toBe('function')
   expect(typeof mod.deviceReader, 'src/device.ts must export deviceReader').toBe('function')
 
@@ -114,9 +121,6 @@ test('deviceWriter and deviceReader move bytes over the device path', async () =
 })
 
 test('the runtime the device module runs on is the one the reference names', async () => {
-  const mod = await loadDevice()
-  expect(mod, 'src/device.ts must exist').not.toBeNull()
-  if (mod === null) return
   const truth = referenceOutput()
   expect(truth.length, 'the reference must print a value').toBeGreaterThan(0)
   expect(

@@ -207,7 +207,9 @@ test('T5 CLI main refuses `undo --run` with no value', async () => {
     JSON.stringify({ entries: [{ old: 'invoice-acme.txt', new: renamed }] })
   )
   const code = await cli.main(['undo', dir, '--run'])
-  expect(code).toBe(1)
+  // A truncated flag is refused, and a refusal is 2 (src/cli.ts USAGE_EXIT); 1 is
+  // reserved for a run that was accepted and then failed. This asserted 1.
+  expect(code).toBe(2)
   expect(existsSync(join(dir, renamed))).toBe(true)
   expect(existsSync(join(dir, 'invoice-acme.txt'))).toBe(false)
 })

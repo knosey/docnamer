@@ -22,7 +22,7 @@ async function importSrc(rel: string): Promise<any> {
 /**
  * Every file under tests/fixtures/, relative paths; [] when the directory is absent.
  *
- * The guard cannot be `Bun.file(dir).exists()`: in Bun 1.4.2 that is FALSE for a
+ * The guard cannot be `Bun.file(dir).exists()`: in Bun 1.4.3 that is FALSE for a
  * directory, so it reported an absent directory for a present one and emptied this
  * list. The scan is its own check — it throws ENOENT exactly when the directory is
  * missing, and nothing else when it is there.

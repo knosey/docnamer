@@ -22,7 +22,8 @@
  * observable from that surface throws `Skipped` — a machine-readable, non-green
  * hole — rather than passing.
  *
- * Native Bun APIs only; no `node:` built-ins (D2).
+ * This is test code, so `node:` built-ins are fine here (R0c): the ban is on
+ * `src/`, which the compiled binary ships.
  */
 import { chmod, mkdir, rm } from 'node:fs/promises'
 import { CONFIG_FILE } from '../src/config.ts'

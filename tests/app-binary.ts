@@ -31,8 +31,13 @@ export function artifactsAt(root: string): Artifacts {
   }
 }
 
-/** The install `bun run build` last wrote, which is what a person runs. */
-const installed = artifactsAt(Bun.env.HOME ?? '')
+/** The install `bun run build` last wrote, which is what a person runs. A
+ *  missing HOME throws: defaulting to '' would turn these into /Applications/...
+ *  and /bin/docnamer, so a test could pass against a system artifact while the
+ *  operator's own install was broken. */
+const home = Bun.env.HOME
+if (!home) throw new Error('HOME is not set; the installed docnamer cannot be located')
+const installed = artifactsAt(home)
 
 export const appBin = installed.appBin
 export const appPlist = installed.appPlist
