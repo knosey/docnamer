@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { repo, resolveCli, closedFolder, reopen } from './doc-renamer-apply-harness.ts'
-import { ANSI, drive, hasPty, makeTerminal } from './pty.ts'
+import { ANSI, drive, hasPty, makeTerminal, paints } from './pty.ts'
 import { scratch } from './scratch.ts'
 
 /**
@@ -135,33 +135,6 @@ test.skipIf(!hasPty)(
   },
   20000
 )
-
-/**
- * Every paint the picker wrote, in order: the up-count it issued before drawing
- * and the lines it drew, as the text a person sees. A paint is the frame between
- * one erase and the next, and the up-count of the paint that follows it is glued
- * to the end of the frame before it.
- */
-function paints(output: string): { up: number; lines: string[] }[] {
-  const esc = String.fromCharCode(27)
-  const held = new RegExp(`${esc}\\[([0-9]+)A$`)
-  const bodies = output.split(`${esc}[J`).slice(1)
-  const counted = bodies.map(body => {
-    const found = body.match(held)
-    return found === null ? null : Number(found[1])
-  })
-  return bodies.map((body, i) => {
-    const up = counted[i]
-    const text = up === null ? body : body.slice(0, body.length - `${esc}[${up}A`.length)
-    return {
-      up: i === 0 ? 0 : (counted[i - 1] as number),
-      lines: text
-        .replace(ANSI, '')
-        .split(/\r\n|\n|\r/)
-        .slice(0, -1)
-    }
-  })
-}
 
 /** How many rows the terminal used for `lines`: a line wider than the terminal
  *  is the terminal's to wrap, and a wrapped line costs a second row. */

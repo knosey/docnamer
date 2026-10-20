@@ -16,10 +16,12 @@
  * screen that printed the wrong thing used to render a green frame.
  */
 import { mkdirSync, cpSync } from 'node:fs'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import { appBin } from './app-binary.ts'
 import { frame } from './frame.ts'
 import { runChild, type ChildRun } from './child.ts'
 import { scratch, cleanupScratch } from './scratch.ts'
+import { drive, hasPty, makeTerminal, paints } from './pty.ts'
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
 
@@ -83,16 +85,24 @@ const plain = await home()
 const signedIn = await home({ fireworks: KEY })
 const owns = await home(undefined, { fireworks: KEY })
 
+/** Run one frame by name: `FRAMES_ONLY=ui-13-login-picker-80 bun run frames`. */
+const ONLY = Bun.env.FRAMES_ONLY
+
 try {
   const folder = await docs()
   // The machine's own credential store answers this run: the frames must show a
-  // real plan, and a fake key would only frame the failure path.
-  const planRun = await run(['plan', folder], HOME)
-  if (planRun.code !== 0) {
-    throw new Error(`frames: plan exited ${planRun.code}: ${planRun.stderr.trim()}`)
-  }
-  if (!(await Bun.file(`${folder}/.docnamer-plan.json`).exists())) {
-    throw new Error(`frames: plan wrote no plan file in ${folder}`)
+  // real plan, and a fake key would only frame the failure path. Lazy, so a
+  // FRAMES_ONLY run naming no plan-fed frame makes no model call.
+  let planRun: ChildRun | undefined
+  const planned = async (): Promise<ChildRun> => {
+    if (planRun !== undefined) return planRun
+    const r = await run(['plan', folder], HOME)
+    if (r.code !== 0) throw new Error(`frames: plan exited ${r.code}: ${r.stderr.trim()}`)
+    if (!(await Bun.file(`${folder}/.docnamer-plan.json`).exists())) {
+      throw new Error(`frames: plan wrote no plan file in ${folder}`)
+    }
+    planRun = r
+    return r
   }
 
   const cases: [string, number, 'stdout' | 'stderr', () => Promise<ChildRun>][] = [
@@ -102,12 +112,36 @@ try {
     ['ui-04-bare', USAGE_EXIT, 'stderr', () => run([], plain)],
     ['ui-05-auth', 0, 'stdout', () => run(['auth'], signedIn)],
     ['ui-06-login-picker', 0, 'stdout', () => run(['login'], plain, 'q\n')],
-    ['ui-07-plan-table', 0, 'stdout', () => Promise.resolve(planRun)],
+    ['ui-07-plan-table', 0, 'stdout', () => planned()],
     // Accept three of the four rows, then apply and undo them: the two frames
     // showing the live progress are the run's own doing, not a hand-made plan.
-    ['ui-08-review', 0, 'stdout', () => run(['review', folder], HOME, '\r\r\rq')],
-    ['ui-09-apply-progress', 0, 'stdout', () => run(['apply', folder], HOME)],
-    ['ui-10-undo-progress', 0, 'stdout', () => run(['undo', folder], HOME)],
+    [
+      'ui-08-review',
+      0,
+      'stdout',
+      async () => {
+        await planned()
+        return run(['review', folder], HOME, '\r\r\rq')
+      }
+    ],
+    [
+      'ui-09-apply-progress',
+      0,
+      'stdout',
+      async () => {
+        await planned()
+        return run(['apply', folder], HOME)
+      }
+    ],
+    [
+      'ui-10-undo-progress',
+      0,
+      'stdout',
+      async () => {
+        await planned()
+        return run(['undo', folder], HOME)
+      }
+    ],
     // eval scores a whole fixture set against its expected.json: eight documents,
     // so this is the longest spinner of the lot and the one worth framing.
     ['ui-11-eval-progress', 0, 'stdout', async () => run(['eval', await testset()], HOME)],
@@ -115,6 +149,7 @@ try {
   ]
 
   for (const [name, code, stream, next] of cases) {
+    if (ONLY !== undefined && name !== ONLY) continue
     const r = await next()
     // A frame is evidence only if the run behind it is checked.
     if (r.code !== code) {
@@ -131,6 +166,41 @@ try {
     }
     const out = await frame(text, name)
     console.log(`${name}: exit ${r.code}, ${text.split('\n').length} line(s) -> ${out}`)
+  }
+
+  // ui-06 is the piped rendering; this is the frame a person on a terminal
+  // sees, on the 80 columns where the status cell used to push the Fireworks
+  // row to 117 cells, the terminal wrapped it, and every redraw landed a row
+  // low. Free: the signed-in store is seeded and no model is called.
+  if ((ONLY === undefined || ONLY === 'ui-13-login-picker-80') && hasPty) {
+    const t = makeTerminal(80, 24)
+    try {
+      const env: Record<string, string> = {}
+      for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
+      delete env.FIREWORKS_API_KEY
+      delete env.XDG_CONFIG_HOME
+      // The piped frames above run under NO_COLOR; a terminal frame does not.
+      delete env.NO_COLOR
+      env.HOME = signedIn
+      env.TERM = 'xterm-256color'
+      const r = await drive(t, [appBin, 'login'], [['Sign in to a provider', '\u001b']], {
+        cwd: repo,
+        env
+      })
+      if (r.code !== 0) throw new Error(`frames: ui-13-login-picker-80 exited ${String(r.code)}`)
+      const first = paints(r.output)[0]
+      if (first === undefined) throw new Error('frames: ui-13-login-picker-80 drew no picker frame')
+      for (const line of first.lines) {
+        const w = visibleWidth(line)
+        if (w > 80) {
+          throw new Error(`frames: ui-13-login-picker-80 drew ${String(w)} cells on 80: ${line}`)
+        }
+      }
+      const out = await frame(first.lines.join('\n'), 'ui-13-login-picker-80')
+      console.log(`ui-13-login-picker-80: exit 0, ${String(first.lines.length)} line(s) -> ${out}`)
+    } finally {
+      t.terminal.close()
+    }
   }
 } finally {
   cleanupScratch()
