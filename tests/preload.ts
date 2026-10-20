@@ -39,11 +39,35 @@ export async function ensureProviderKey(): Promise<void> {
  */
 export const MODEL_CALL_MS = 300000
 
+/**
+ * The one owner of the skip→named-message rule. A `Skipped` means the claim is not
+ * visible from the observation surface — a named hole, never a green — and the
+ * failure must name the FLOW, not only the step inside it. Two specs used to carry
+ * their own copy of this and five carried none, so an absent CLI read as a
+ * step-level error in some flows and as a named hole in others (F33).
+ */
+export function flowFailure(name: string, e: unknown): Error {
+  if ((e as { skip?: boolean } | null)?.skip) {
+    return new Error(`${name} not demonstrated: ${(e as Error).message}`)
+  }
+  return e as Error
+}
+
 ;(globalThis as unknown as { flow: (name: string, fn: unknown) => void }).flow = (
   name: string,
   fn: unknown
 ): void => {
   // A flow drives the real CLI end to end: Apple Vision OCR plus one paid model
   // call per document, run one file at a time. That is tens of seconds.
-  test(name, fn as () => void | Promise<unknown>, MODEL_CALL_MS)
+  test(
+    name,
+    async () => {
+      try {
+        await (fn as () => unknown)()
+      } catch (e) {
+        throw flowFailure(name, e)
+      }
+    },
+    MODEL_CALL_MS
+  )
 }

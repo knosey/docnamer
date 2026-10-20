@@ -37,21 +37,14 @@ import {
 
 flow('doc-renamer-pipeline I3: collision-safe unique naming', async () => {
   const s = new Session()
-  try {
-    await entry(s)
-    await render(s)
-    await collide(s)
-    await suffix(s)
-    await outcome(s, 'i3-render-collide-suffix')
-  } catch (e) {
-    // An absent `docnamer` CLI is not a named hole here: I3's outcome is a
-    // real, observable assertion, and with no plan there is no collision
-    // handling to observe. Report it as a failure, not a green.
-    if ((e as { skip?: boolean } | null)?.skip) {
-      throw new Error(`I3 outcome not demonstrated: ${(e as Error).message}`)
-    }
-    throw e
-  }
+  // An absent `docnamer` CLI is not a named hole here: I3's outcome is a real,
+  // observable assertion, and with no plan there is no collision handling to
+  // observe. The `flow` wrapper reports a `Skipped` as this flow's failure.
+  await entry(s)
+  await render(s)
+  await collide(s)
+  await suffix(s)
+  await outcome(s, 'i3-render-collide-suffix')
 
   // Disambiguation has to have fired on this fixture set: at least one row
   // carries the Finder-style suffix. Which pair collides is the model's

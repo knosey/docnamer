@@ -19,18 +19,11 @@ import { Session, entry, missTestset, run, score, outcome } from './doc-renamer-
 
 flow('doc-renamer-apply I4: score a test set with eval', async () => {
   const s = new Session()
-  try {
-    await entry(s, 'eval')
-    await run(s, await missTestset())
-    await score(s)
-    await outcome(s, 'i4-eval-score')
-  } catch (e) {
-    // An absent `docnamer` CLI is not a named hole here: I4's outcome is a real,
-    // observable assertion, and with no eval report there are no metrics or
-    // misses to observe. Report it as a failure, not a green.
-    if ((e as { skip?: boolean } | null)?.skip) {
-      throw new Error(`I4 outcome not demonstrated: ${(e as Error).message}`)
-    }
-    throw e
-  }
+  // An absent `docnamer` CLI is not a named hole here: I4's outcome is a real,
+  // observable assertion, and with no eval report there are no metrics or misses
+  // to observe. The `flow` wrapper reports a `Skipped` as this flow's failure.
+  await entry(s, 'eval')
+  await run(s, await missTestset())
+  await score(s)
+  await outcome(s, 'i4-eval-score')
 })
