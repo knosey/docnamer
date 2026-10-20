@@ -329,7 +329,7 @@ async function credentialCommand(
  * The wrapper's own flags, in one list so the parser cannot strip one and
  * dispatch another. Each carries a value, so stripping skips two tokens.
  */
-const DEVICE_FLAGS = ['--tty', '--cols', '--rows', '--exit-file']
+const DEVICE_FLAGS = ['--tty', '--cols', '--rows', '--exit-file', '--cwd']
 
 /** argv without the device flags, so the command after them still runs. */
 function stripDeviceFlags(argv: string[]): string[] {
@@ -489,6 +489,10 @@ function refusal(e: unknown): { what: string; help: string } | null {
 
 if (import.meta.main) {
   const device: DeviceArgs = parseDeviceArgs(Bun.argv.slice(2))
+  // A LaunchServices launch starts the app in "/", so a relative folder only
+  // means what the person typed if the directory the wrapper carried across is
+  // restored before any command reads it. Absolute paths do not care either way.
+  if (device.cwd !== null) process.chdir(device.cwd)
   try {
     process.exitCode = await main(Bun.argv.slice(2))
   } catch (e) {

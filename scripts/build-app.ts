@@ -71,7 +71,12 @@ run(
 //    shell, restored after, and the app's real exit code comes back through
 //    the exit file (default 1 when the app never wrote one). stty runs on
 //    stdin, which `tty` has already resolved to the device the app is handed:
-//    /dev/tty needs a controlling terminal and the wrapper has none.
+//    /dev/tty needs a controlling terminal and the wrapper has none. The
+//    wrapper also carries the caller's directory across, because LaunchServices
+//    starts the app in "/" and a relative folder would otherwise name the root
+//    volume (measured: `open -n`ing a probe app prints "/" whatever the shell's
+//    cwd is). `$PWD` is what the person sees, and the shell recomputes it when
+//    the inherited value does not match the directory it actually started in.
 await Bun.write(
   wrapper,
   `#!/bin/sh
@@ -81,7 +86,7 @@ EXIT_FILE=$(mktemp /tmp/docnamer-exit.XXXXXX)
 SAVED=$(stty -g)
 stty raw -echo
 COLS=$(tput cols); ROWS=$(tput lines)
-/usr/bin/open -n -W "$APP" --args --tty "$TTY" --cols "$COLS" --rows "$ROWS" --exit-file "$EXIT_FILE" "$@"
+/usr/bin/open -n -W "$APP" --args --tty "$TTY" --cols "$COLS" --rows "$ROWS" --exit-file "$EXIT_FILE" --cwd "$PWD" "$@"
 OPEN_CODE=$?
 stty "$SAVED"
 if [ $OPEN_CODE -ne 0 ]; then rm -f "$EXIT_FILE"; exit $OPEN_CODE; fi
