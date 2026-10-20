@@ -6,6 +6,7 @@ export const reference =
 // through its own asserted failure — a dynamic import error, an empty listing — never a throw at load.
 
 import { test, expect } from 'bun:test'
+import { base } from './plan-file.ts'
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
 const fixturesDir = `${repo}/tests/fixtures`
@@ -38,11 +39,6 @@ async function fixtureFiles(): Promise<string[]> {
     throw err
   }
   return out.sort()
-}
-
-function basename(p: string): string {
-  const parts = p.split('/')
-  return parts[parts.length - 1] ?? p
 }
 
 function withExt(files: string[], ext: string): string[] {
@@ -95,7 +91,7 @@ test('tests/fixtures holds the Stage 1 fixture set', async () => {
 
 test('tests/fixtures holds the byte-identical dup-invoice pair', async () => {
   const files = await fixtureFiles()
-  const dups = files.filter(f => /dup-invoice/i.test(basename(f)))
+  const dups = files.filter(f => /dup-invoice/i.test(base(f)))
   expect(dups.length).toBeGreaterThanOrEqual(2)
 
   const bodies = await Promise.all(dups.map(f => Bun.file(`${fixturesDir}/${f}`).text()))

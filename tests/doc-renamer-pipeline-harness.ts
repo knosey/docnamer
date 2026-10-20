@@ -17,7 +17,7 @@
 import { CONFIG_FILE } from '../src/config.ts'
 import { appBin } from './app-binary.ts'
 import { frame } from './frame.ts'
-import { planRows } from './plan-file.ts'
+import { assertPlanCovers, base, planRows } from './plan-file.ts'
 import { ensureProviderKey } from './preload.ts'
 
 export type PlanRow = {
@@ -49,11 +49,6 @@ export const repo = import.meta.dir.replace(/\/tests$/, '')
 
 /** The folder's own config: Stage 1 SKIPs it, so it is never a plan row. */
 export { CONFIG_FILE }
-
-function base(p: string): string {
-  const parts = p.split('/')
-  return parts[parts.length - 1] ?? p
-}
 
 /**
  * Two documents, byte-identical: same type and same extracted field values, so
@@ -246,10 +241,7 @@ export async function entry(s: Session): Promise<Session> {
 /** read: Stage 1 — every seeded file reached the plan as a row. */
 export async function read(s: Session): Promise<Session> {
   await ensure(s)
-  const seeded = [...s.originals.keys()].filter(n => n !== CONFIG_FILE)
-  const planned = new Set(s.plan.map(r => base(r.old)))
-  const missing = seeded.filter(n => !planned.has(n))
-  if (missing.length) throw new Error(`Stage 1 read missed files: ${missing.join(', ')}`)
+  assertPlanCovers(s.plan, s.originals.keys(), CONFIG_FILE)
   return s
 }
 

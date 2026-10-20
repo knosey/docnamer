@@ -26,11 +26,12 @@
  * `src/`, which the compiled binary ships.
  */
 import { chmod, mkdir, rm } from 'node:fs/promises'
+import { writePlan as persistPlan } from '../src/commands.ts'
 import { CONFIG_FILE } from '../src/config.ts'
 import { EXPECTED_FILE } from '../src/eval.ts'
 import { appBin } from './app-binary.ts'
 import { frame } from './frame.ts'
-import { planRows } from './plan-file.ts'
+import { assertPlanCovers, base, planRows } from './plan-file.ts'
 import { ensureProviderKey } from './preload.ts'
 
 export type Flow = 'apply' | 'undo' | 'review' | 'eval'
@@ -80,11 +81,6 @@ export { CONFIG_FILE }
  *  it and report it (R7/I1). Its name is exported so a flow can name it. */
 export const CHANGED_FILE = 'changed-since-plan.txt'
 
-function base(p: string): string {
-  const parts = p.split('/')
-  return parts[parts.length - 1] ?? p
-}
-
 /** Fixture documents seeded into every run's temp folder. */
 const SEED: Array<{ name: string; body: string }> = [
   {
@@ -117,8 +113,8 @@ export class Session {
   undoPath = ''
   /** Which flow `entry` started; `outcome` reads it to pick its terminal claim. */
   flow: Flow | null = null
-  /** The plan file's raw JSON envelope, so a write-back preserves its shape. */
-  planRaw: unknown = null
+  /** True once `runPlan` has run, so a step never re-plans over an edited file. */
+  planned = false
   /** Parsed plan rows. */
   plan: PlanRow[] = []
   /** Parsed undo record, once `load` has run. */
@@ -249,33 +245,28 @@ async function runCli(
   return res
 }
 
-/** `docnamer plan <folder>`, parsed, keeping the file's raw envelope. */
+/** `docnamer plan <folder>`, parsed, and proved to cover what the harness seeded.
+ *
+ *  The plan is the expectation every later step asserts against, so it has to earn
+ *  that trust first: a `plan` that silently dropped a seeded document would shrink
+ *  the expectation to whatever it did return, and every step downstream would then
+ *  check the product against a list the product itself produced (F6). */
 async function runPlan(s: Session): Promise<void> {
   const res = await runCli(s, ['plan', s.dir])
   if (res.code !== 0) {
     throw new Error(`docnamer plan exited ${res.code}\n${res.stderr}${res.stdout}`)
   }
   const parsed = JSON.parse(await Bun.file(s.planPath).text()) as unknown
-  s.planRaw = parsed
   s.plan = planRows<PlanRow>(parsed)
-}
-
-/** Write `s.plan` back into the plan file, preserving the envelope it arrived in. */
-async function writePlan(s: Session): Promise<void> {
-  const raw = s.planRaw
-  let out: unknown = s.plan
-  if (raw && !Array.isArray(raw)) {
-    if ('rows' in (raw as object)) out = { ...(raw as object), rows: s.plan }
-    else if ('files' in (raw as object)) out = { ...(raw as object), files: s.plan }
-  }
-  await Bun.write(s.planPath, JSON.stringify(out, null, 2))
+  s.planned = true
+  assertPlanCovers(s.plan, s.originals.keys(), CONFIG_FILE)
 }
 
 /** Boot and plan if a prior step has not already done so. */
 async function ensure(s: Session): Promise<void> {
   if (!s.booted) await boot(s)
   if (!s.cli) throw missingCli()
-  if (!s.planRaw) await runPlan(s)
+  if (!s.planned) await runPlan(s)
 }
 
 /** The latest `.docnamer-undo-<timestamp>.json` in the folder, or null. */
@@ -291,11 +282,16 @@ async function latestUndo(dir: string): Promise<string | null> {
   return found.length ? (found[found.length - 1] ?? null) : null
 }
 
-/** Plan the folder and accept every row — the state apply and undo both start from. */
+/** Plan the folder and accept every row — the state apply and undo both start from.
+ *
+ *  The accepted plan is written by the PRODUCT's own writer — `writePlan` in
+ *  `src/commands.ts`, the same one `review` persists through — so `apply` and
+ *  `undo` read a file the product produced, not one this harness hand-rolled from
+ *  an envelope it had guessed (F5). */
 async function acceptAll(s: Session): Promise<void> {
   await runPlan(s)
   for (const r of s.plan) r.status = 'accepted'
-  await writePlan(s)
+  await persistPlan(s.dir, s.plan)
 }
 
 /** Run `docnamer apply <folder>`, after mutating one accepted file post-plan. */
@@ -327,9 +323,10 @@ export async function entry(s: Session, flow: Flow = 'apply'): Promise<Session> 
     await acceptAll(s)
     await apply(s)
   } else if (flow === 'review') {
-    await acceptAll(s)
-    for (const r of s.plan) r.status = 'pending'
-    await writePlan(s)
+    // `plan` already writes every row pending (`commands.ts:156`) — the state the TUI
+    // acts on — so accepting and resetting them was a round trip to a file identical
+    // to the one the product had just written.
+    await runPlan(s)
   }
   return s
 }
