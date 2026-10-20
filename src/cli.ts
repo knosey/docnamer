@@ -22,8 +22,9 @@ import { plan, writePlan, apply, undo, PLAN_FILE } from './commands.ts'
 import { review } from './review.ts'
 import { evalTestset, formatEvalReport } from './eval.ts'
 import { renderTable } from './table.ts'
+import { parseDeviceArgs, type DeviceArgs } from './device.ts'
 import { pick, releaseStdin, type Option } from './prompt.ts'
-import { styleFrom, ui, type Style, type Ui } from './ui.ts'
+import { closeDevice, hasDevice, setDevice, styleFrom, ui, type Style, type Ui } from './ui.ts'
 
 /**
  * The folder's own config: one name, one location. A folder that does not carry
@@ -324,10 +325,32 @@ async function credentialCommand(
   return 0
 }
 
+/**
+ * The wrapper's own flags, in one list so the parser cannot strip one and
+ * dispatch another. Each carries a value, so stripping skips two tokens.
+ */
+const DEVICE_FLAGS = ['--tty', '--cols', '--rows', '--exit-file']
+
+/** argv without the device flags, so the command after them still runs. */
+function stripDeviceFlags(argv: string[]): string[] {
+  const kept: string[] = []
+  for (let i = 0; i < argv.length; i++) {
+    if (DEVICE_FLAGS.includes(argv[i] as string)) i += 1
+    else kept.push(argv[i] as string)
+  }
+  return kept
+}
+
 export async function main(argv: string[]): Promise<number> {
-  const style = styleFrom(process.env, process.stdout.isTTY === true)
+  // The wrapper's device flags name the terminal this process was launched
+  // away from; when they are present the device is the only way in and out.
+  const device = parseDeviceArgs(argv)
+  if (device.tty !== null) setDevice(device.tty)
+  // A device is always a tty of the size the wrapper measured, whatever the
+  // process's own fds are.
+  const style = styleFrom(process.env, hasDevice() || process.stdout.isTTY === true)
   const u = ui(style)
-  const [cmd, ...rest] = argv
+  const [cmd, ...rest] = stripDeviceFlags(argv)
 
   // The front door, answered before any command runs or any folder is read.
   if (cmd === '--help' || cmd === '-h') {
@@ -465,6 +488,7 @@ function refusal(e: unknown): { what: string; help: string } | null {
 }
 
 if (import.meta.main) {
+  const device: DeviceArgs = parseDeviceArgs(Bun.argv.slice(2))
   try {
     process.exitCode = await main(Bun.argv.slice(2))
   } catch (e) {
@@ -483,5 +507,10 @@ if (import.meta.main) {
     // Bun's stdin stream holds the event loop open, so a command that prompted
     // would print its result and then never return the prompt.
     await releaseStdin()
+    // Flush the last bytes to the device before the process can end, then
+    // leave the exit code where the wrapper waits for it: `open -W` always
+    // reports 0, so the file is the only channel the code can travel by.
+    await closeDevice()
+    if (device.exitFile !== null) await Bun.write(device.exitFile, String(process.exitCode ?? 0))
   }
 }

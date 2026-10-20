@@ -25,7 +25,7 @@
  * `for await` would consume a line the first had already buffered. `stdinLine`
  * is that single reader, and `src/auth.ts` prompts through it too.
  */
-import { ui, type Style } from './ui.ts'
+import { deviceStream, hasDevice, ui, type Style } from './ui.ts'
 
 const ESC = String.fromCharCode(27)
 const ERASE = `${ESC}[J`
@@ -200,7 +200,9 @@ const bytes = new TextDecoder()
 
 function readOnce(): Promise<Uint8Array | null> {
   if (inflight === null) {
-    if (reader === null) reader = Bun.stdin.stream().getReader()
+    // With a device registered, stdin is not a terminal at all: the keys
+    // arrive on the device path instead.
+    if (reader === null) reader = (deviceStream() ?? Bun.stdin.stream()).getReader()
     const r = reader
     inflight = r.read().then(read => {
       if (read.done === true) {
@@ -303,7 +305,10 @@ async function pickInteractive(
   io: PickerIo
 ): Promise<string | null> {
   const stdin = process.stdin
-  if (typeof stdin.setRawMode !== 'function') {
+  // A device terminal is already raw: the wrapper set it before launch, and
+  // this process has no fd to call setRawMode on anyway.
+  const raw = !hasDevice()
+  if (raw && typeof stdin.setRawMode !== 'function') {
     throw new Error('prompt: this terminal cannot be put in raw mode, so no picker can be drawn')
   }
   let cursor = 0
@@ -317,7 +322,7 @@ async function pickInteractive(
   // Raw mode alone starts the flow. `stdin.resume()` would instead hand the
   // stream to Bun's own consumer and LOCK it, so the reader below would throw
   // "ReadableStream is locked" on the first keystroke (verified on a real pty).
-  stdin.setRawMode(true)
+  if (raw) stdin.setRawMode(true)
   paint()
   try {
     for await (const key of stdinKeys()) {
@@ -340,7 +345,7 @@ async function pickInteractive(
     }
     return null
   } finally {
-    stdin.setRawMode(false)
+    if (raw) stdin.setRawMode(false)
     if (drawn > 0) io.out(`${ESC}[${drawn}A${ERASE}`)
   }
 }
@@ -401,7 +406,8 @@ export async function pick(
   const stream: PickerIo =
     io === undefined
       ? {
-          isTTY: process.stdin.isTTY === true,
+          // A device IS the terminal the wrapper prepared; stdin is a pipe.
+          isTTY: hasDevice() || process.stdin.isTTY === true,
           out: (text: string): void => {
             ui(style).raw(text)
           },

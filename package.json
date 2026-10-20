@@ -6,7 +6,7 @@
   "scripts": {
     "test": "bun test --path-ignore-patterns='**/*.red.spec.ts'",
     "test:e2e": "bun test",
-    "build": "mkdir -p ~/bin && bun build --compile --outfile ~/bin/docnamer src/cli.ts",
+    "build": "bun scripts/build-app.ts",
     "install": "bun run build"
   },
   "dependencies": {

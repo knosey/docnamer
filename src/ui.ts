@@ -15,6 +15,8 @@
  *    `!` marks the rows needing a decision, and a colour terminal must not be
  *    able to hide it from the reader or from a grep.
  */
+import { deviceReader, deviceWriter } from './device.ts'
+
 export type Style = {
   readonly colour: boolean
   readonly unicode: boolean
@@ -94,17 +96,56 @@ const INDENT = '  '
 const GAP = '  '
 const ERASE = `${ESC}[K`
 
+/**
+ * The terminal device the wrapper handed over, when it handed one.
+ *
+ * A LaunchServices-launched binary has no fd for the tty it was given, so the
+ * device path is the only way in and out: `cli.ts` registers it at startup and
+ * every byte below lands on it instead of the process's own stdout/stderr,
+ * while `prompt.ts` reads its keys from the same path. With no device nothing
+ * here changes.
+ */
+type Device = {
+  readonly writer: { write(chunk: string): unknown; end(): unknown }
+  readonly stream: ReadableStream<Uint8Array>
+}
+
+let active: Device | null = null
+
+/** Register the device path as this process's terminal. */
+export function setDevice(path: string): void {
+  active = { writer: deviceWriter(path), stream: deviceReader(path) }
+}
+
+/** Whether a device is the terminal — prompt reads it instead of stdin. */
+export function hasDevice(): boolean {
+  return active !== null
+}
+
+/** The device's byte source, or null on the direct path. */
+export function deviceStream(): ReadableStream<Uint8Array> | null {
+  return active === null ? null : active.stream
+}
+
+/** Flush the device writer; the bytes must be on the path before exit. */
+export async function closeDevice(): Promise<void> {
+  await active?.writer.end()
+}
+
 /** Every write goes through here, so a test can capture the exact bytes. */
 function write(text: string): void {
-  process.stdout.write(text)
+  if (active !== null) active.writer.write(text)
+  else process.stdout.write(text)
 }
 
 /**
  * The other half of the same chokepoint: a failure is a different stream, and
  * keeping it here is what stops a command from reaching for console.error.
+ * A device has one stream, so on a device a failure lands where success did.
  */
 function writeErr(text: string): void {
-  process.stderr.write(text)
+  if (active !== null) active.writer.write(text)
+  else process.stderr.write(text)
 }
 
 function pad(text: string, width: number): string {

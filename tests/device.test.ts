@@ -124,3 +124,14 @@ test('the runtime the device module runs on is the one the reference names', asy
     'src/device.ts is built on bun-only device IO; the reference names that bun'
   ).toBe(truth)
 })
+
+test('src/device.ts does its device IO through Bun.file', async () => {
+  const file = Bun.file(`${import.meta.dir}/../src/device.ts`)
+  const exists = await file.exists()
+  expect(exists, 'src/device.ts must exist').toBe(true)
+  const source = exists ? await file.text() : ''
+  expect(
+    /Bun\.file\(/.test(source),
+    'src/device.ts must reach the device path with Bun.file, not a node: stream'
+  ).toBe(true)
+})

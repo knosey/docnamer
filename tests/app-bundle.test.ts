@@ -1,9 +1,9 @@
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? "grep -rn node: src/"
+export const reference = process.env.GRAPH_REFERENCE ?? 'grep -rn node: src/'
 
 import { expect, test } from 'bun:test'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -49,13 +49,30 @@ function plistValue(key: string): string {
 /** An actual import of a node: built-in, as opposed to a comment that mentions one. */
 const NODE_IMPORT = /(?:from|import)\s*\(?\s*['"]node:|require\s*\(\s*['"]node:/
 
+/** The `node:` occurrences this test finds in the shipped sources for itself, in grep's shape: the reference must
+ *  report every one of them, which is what makes this suite's verdict follow its reference. */
+function foundInSources(): string[] {
+  const found: string[] = []
+  for (const rel of new Bun.Glob('src/*.ts').scanSync({ cwd: repo })) {
+    const lines = readFileSync(join(repo, rel), 'utf8').split('\n')
+    for (const [at, line] of lines.entries())
+      if (line.includes('node:')) found.push(`${rel}:${at + 1}:${line}`)
+  }
+  return found
+}
+
 test('the shipped sources import no node: built-ins (the reference is the scan)', () => {
   const reported = referenceOutput()
-  const offenders = reported.split('\n').filter(line => NODE_IMPORT.test(line))
+  const missed = foundInSources().filter(line => !reported.includes(line))
   expect(
-    offenders,
-    `node: built-ins reach the shipped sources:\n${offenders.join('\n')}`
+    missed,
+    'the reference reported none of these occurrences, so it is not the scan of the shipped sources:\n' +
+      missed.join('\n')
   ).toEqual([])
+  const offenders = reported.split('\n').filter(line => NODE_IMPORT.test(line))
+  expect(offenders, `node: built-ins reach the shipped sources:\n${offenders.join('\n')}`).toEqual(
+    []
+  )
 })
 
 test('the build script exists', () => {
@@ -98,4 +115,21 @@ test('the app bundle is signed, ad-hoc or with a real identity', () => {
       /Signature=adhoc/
     )
   }
+})
+
+/** The four folder kinds docnamer reads, each of which TCC gates on its own key. */
+const folderUsageKeys = [
+  'NSDesktopFolderUsageDescription',
+  'NSDocumentsFolderUsageDescription',
+  'NSDownloadsFolderUsageDescription',
+  'NSRemovableVolumesUsageDescription'
+]
+
+test('the bundle is a background agent that declares the folders it reads', () => {
+  expect(existsSync(infoPlist), `${infoPlist} is missing`).toBe(true)
+
+  expect(plistValue('LSUIElement'), 'LSUIElement keeps the agent out of the Dock').toBe('true')
+
+  const absent = folderUsageKeys.filter(key => plistValue(key) === '')
+  expect(absent, `Info.plist declares no usage description for: ${absent.join(', ')}`).toEqual([])
 })
