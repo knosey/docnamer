@@ -5,6 +5,12 @@
 # inherits what the tree already carried, so an old finding is never charged to
 # an unrelated change. `bun check` is the typecheck: bun 1.4 resolves
 # tsconfig.json and reports the whole tree's errors in one pass.
+#
+# `bun run test:free` is the files that make no paid model call. It is the test
+# gate: a commit hook runs on every commit and on a machine with no network, so a
+# suite that reached the model API from here would bill per commit and fail on a
+# plane. tests/build.test.ts is deliberately absent — it makes a real call and is
+# run by `bun run test:e2e`.
 set -e
 
 changed=$(git diff --cached --name-only --diff-filter=ACMR)
@@ -25,4 +31,5 @@ fi
 
 bun check
 bunx oxlint --deny-warnings
+bun run test:free
 bun run audit
