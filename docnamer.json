@@ -12,13 +12,14 @@
     "vision": "fireworks/accounts/fireworks/models/qwen3p8-max",
     "strong": "fireworks/accounts/fireworks/models/kimi-k3"
   },
+  "self": ["Knosey", "Once"],
   "types": {
     "invoice": {
       "describe": "A bill requesting payment for goods or services.",
-      "template": "{date} {issuer} invoice {number}",
+      "template": "{date} {party} invoice {number}",
       "fields": {
         "date": { "kind": "date", "required": true },
-        "issuer": { "kind": "entity", "required": true },
+        "party": { "kind": "entity", "required": true, "counterparty": true },
         "number": { "kind": "text", "required": true }
       }
     },
@@ -77,7 +78,7 @@
       "template": "{date} contract {party}",
       "fields": {
         "date": { "kind": "date", "required": true },
-        "party": { "kind": "entity", "required": true }
+        "party": { "kind": "entity", "required": true, "counterparty": true }
       }
     },
     "letter": {

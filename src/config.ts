@@ -4,6 +4,9 @@ export type FieldSpec = {
   kind: 'text' | 'date' | 'entity' | 'last4'
   required: boolean
   prompt?: string
+  /** An entity on the other side of the document from the person's own
+   *  companies (`self`): never one of them. */
+  counterparty?: boolean
 }
 
 export type DocType = {
@@ -25,6 +28,8 @@ export type Config = {
   models: { cheap: string; vision: string; strong: string }
   types: Record<string, DocType>
   entities: Record<string, string[]>
+  /** The person's own companies, by canonical entity name. */
+  self?: string[]
 }
 
 /**

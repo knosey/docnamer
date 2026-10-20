@@ -52,7 +52,7 @@ export type AnalysisSchema = Tool['parameters']
  * type, so `required` is enforced in `asAnalysis` against the chosen type.
  *
  * The flat superset is safe only because no two types declare the same field
- * name with a different kind (checked against the shipped roster: 15 types, 18
+ * name with a different kind (checked against the shipped roster: 16 types, 19
  * names — `date` is always a date, `last4` always a last4). A type that reused a
  * name for another kind makes this the line to revisit. A discriminated union
  * (`oneOf`, one branch per type) was tried and MEASURED BROKEN with the
@@ -62,18 +62,24 @@ export type AnalysisSchema = Tool['parameters']
  * `kind` is deliberately absent: it selects a normaliser in Stage 3 and is none
  * of the model's business. The model copies the value as the document states it.
  */
-export function buildSchema(types: Record<string, DocType>): AnalysisSchema {
+export function buildSchema(
+  types: Record<string, DocType>,
+  own: readonly string[] = []
+): AnalysisSchema {
   const properties: Record<string, unknown> = {}
   for (const t of Object.values(types)) {
-    for (const field of Object.keys(t.fields)) {
+    for (const [field, spec] of Object.entries(t.fields)) {
       if (Object.hasOwn(properties, field)) continue
+      // The rule rides on the value it governs: a line in the prompt alone was
+      // measured losing to the bill-to block on an invoice sent to Once.
+      const rule = spec.counterparty === true && own.length > 0 ? ` ${otherSide(own)}` : ''
       properties[field] = {
         type: 'object',
         required: ['value', 'evidence'],
         properties: {
           value: {
             type: ['string', 'null'],
-            description: 'The value exactly as the document states it, or null when absent.'
+            description: `The value exactly as the document states it, or null when absent.${rule}`
           },
           evidence: {
             type: ['string', 'null'],
@@ -139,14 +145,38 @@ export function resolveModel(ref: string): NonNullable<ModelRef> | null {
  * `strict: 'require'` throws and `'prefer'` resolves to plain function calling —
  * so `'prefer'` is what keeps them usable.
  */
-function analysisTool(types: Record<string, DocType>): Tool {
+function analysisTool(types: Record<string, DocType>, own: readonly string[]): Tool {
   return {
     name: TOOL_NAME,
     description:
       'Submit the classification of this document and the extracted fields of the chosen type.',
-    parameters: buildSchema(types),
+    parameters: buildSchema(types, own),
     constrainedSampling: { type: 'json_schema', strict: 'prefer' }
   }
+}
+
+/** Which side of a document a counterparty field names, decided by the side
+ *  the person's own companies are on. */
+function otherSide(own: readonly string[]): string {
+  return `Never one of the person's own companies (${own.join(', ')}): this is the side of the document that is not theirs. If one of them issued or sent it, the customer or recipient; if it is billed, addressed or sent to one of them, the issuer or sender.`
+}
+
+/**
+ * The line that keeps the person's own companies out of the fields that name the
+ * other side of a document, or '' when the config names no own companies. An
+ * invoice the person's company issued is named after the customer it bills.
+ */
+export function selfRule(config: Config): string {
+  const own = config.self ?? []
+  if (own.length === 0) return ''
+  const fields = new Map<string, string[]>()
+  for (const [type, t] of Object.entries(config.types)) {
+    for (const [name, spec] of Object.entries(t.fields)) {
+      if (spec.counterparty === true) fields.set(name, [...(fields.get(name) ?? []), type])
+    }
+  }
+  const named = [...fields].map(([name, types]) => `${name} (${types.join(', ')})`).join(', ')
+  return `The fields ${named} name the other side of the document. ${otherSide(own)}`
 }
 
 function buildPrompt(content: Content, fileName: string, config: Config): string {
@@ -159,6 +189,7 @@ function buildPrompt(content: Content, fileName: string, config: Config): string
     `Classify the document "${fileName}" into exactly one of the configured types and extract that type's fields.`,
     `Call ${TOOL_NAME}. Its schema has one branch per type; pick the branch whose enum matches the type, and name the fields exactly as that branch names them. The configured types and their fields: ${rosterLine(config.types)}`,
     `Known entities and their aliases: ${entities}`,
+    selfRule(config),
     `Dates use the format ${config.defaults.date_format}. ${dateOrder}`,
     'Every field value must come with its verbatim evidence line from the document; use null when absent.',
     `The summary is at most 20 words.`,
@@ -299,7 +330,7 @@ export async function analyse(
   const messages: Message[] = [{ role: 'user', content: blocks as never, timestamp: Date.now() }]
 
   // The schema depends only on the roster: build the tool once, not per attempt.
-  const tools = [analysisTool(config.types)]
+  const tools = [analysisTool(config.types, config.self ?? [])]
   let raw = ''
   let error = ''
   for (const attempt of ATTEMPTS) {

@@ -9,7 +9,7 @@
  * part on its own.
  */
 import type { Analysis } from './analyse.ts'
-import type { Config } from './config.ts'
+import type { Config, FieldSpec } from './config.ts'
 import type { Content } from './read.ts'
 
 export type Checked = Analysis & { flags: string[] }
@@ -88,10 +88,63 @@ export function canonicalEntity(value: string, aliases: Record<string, string[]>
   )
 }
 
+/** The own company `entity` is, when it is one. Both sides go through
+ *  `canonicalEntity`, so an alias or a legal suffix matches its company. */
+function ownCompany(entity: string, config: Config): string | null {
+  const lower = entity.toLowerCase()
+  for (const own of config.self ?? []) {
+    if (canonicalEntity(own, config.entities).toLowerCase() === lower) return own
+  }
+  return null
+}
+
 /** Reduce a card/account reference to its last four digits. */
 export function reduceLast4(value: string): string {
   const digits = value.replace(/\D/g, '')
   return digits.slice(-4)
+}
+
+/** A date as ISO, or null when it cannot be read; an implausible year is
+ *  kept and flagged. */
+function dateValue(name: string, value: string, config: Config, flags: string[]): string | null {
+  const parsed = parseDate(value, config.defaults.date_order)
+  if (parsed === null) {
+    flags.push(`field ${name}: unparseable date "${value}"`)
+    return null
+  }
+  const year = +parsed.slice(0, 4)
+  if (year < MIN_YEAR || year > new Date().getFullYear() + 1) {
+    flags.push(`field ${name}: implausible date ${parsed}`)
+  }
+  return parsed
+}
+
+/** An entity as its canonical name; a counterparty that is one of the
+ *  person's own companies is flagged. */
+function entityValue(
+  name: string,
+  value: string,
+  spec: FieldSpec,
+  config: Config,
+  flags: string[]
+): string {
+  const entity = canonicalEntity(value, config.entities)
+  const own = spec.counterparty === true ? ownCompany(entity, config) : null
+  if (own !== null) flags.push(`field ${name}: names your own company ${own}`)
+  return entity
+}
+
+/** One field's value normalised by its kind, with the flags that raises. */
+function normalise(
+  name: string,
+  value: string,
+  spec: FieldSpec | undefined,
+  config: Config,
+  flags: string[]
+): string | null {
+  if (spec?.kind === 'date') return dateValue(name, value, config, flags)
+  if (spec?.kind === 'entity') return entityValue(name, value, spec, config, flags)
+  return spec?.kind === 'last4' ? reduceLast4(value) : value
 }
 
 /** Normalise every field by kind, cross-check evidence against the document
@@ -106,28 +159,9 @@ export function validate(a: Analysis, content: Content, config: Config): Checked
   }
 
   for (const [name, field] of Object.entries(a.fields)) {
-    let value = field.value
-    const kind = spec?.fields[name]?.kind
-
-    if (value !== null) {
-      if (kind === 'date') {
-        const parsed = parseDate(value, config.defaults.date_order)
-        if (parsed === null) {
-          flags.push(`field ${name}: unparseable date "${value}"`)
-          value = null
-        } else {
-          const year = +parsed.slice(0, 4)
-          if (year < MIN_YEAR || year > new Date().getFullYear() + 1) {
-            flags.push(`field ${name}: implausible date ${parsed}`)
-          }
-          value = parsed
-        }
-      } else if (kind === 'entity') {
-        value = canonicalEntity(value, config.entities)
-      } else if (kind === 'last4') {
-        value = reduceLast4(value)
-      }
-    }
+    const fieldSpec = spec?.fields[name]
+    const value =
+      field.value === null ? null : normalise(name, field.value, fieldSpec, config, flags)
 
     if (
       field.evidence !== null &&
@@ -137,7 +171,7 @@ export function validate(a: Analysis, content: Content, config: Config): Checked
       flags.push(`field ${name}: evidence not found in document`)
     }
 
-    if (value === null && spec?.fields[name]?.required) {
+    if (value === null && fieldSpec?.required) {
       flags.push(`missing required field ${name}`)
     }
 
