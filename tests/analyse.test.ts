@@ -2,16 +2,11 @@ import { expect, test } from 'bun:test'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
- * T3 — Stage 2: classify-and-extract model call (R3, R6).
+ * src/analyse.ts is loaded INSIDE each check with a dynamic import, never at the top of the file, so a
+ * module that is missing or fails to load is a failed check this suite reports — not a throw at load.
  *
- * `src/analyse.ts` is the work under test. It is loaded INSIDE each check with a
- * dynamic import, never at the top of the file, so a module that is missing or
- * fails to load is a failed check this suite reports — not an uncaught throw
- * while the file loads, and not a missing command or a crash.
- *
- * The model call is exercised for real against the configured provider (R6, and
- * the "real call, not a fake" mitigation in the BRIEF). When the provider cannot
- * be reached — no credential, for instance — `analyse` is expected to return a
+ * The model call is exercised for real against the configured provider, never a fake. When the
+ * provider cannot be reached — no credential, for instance — `analyse` is expected to return a
  * `Failed`, and this suite names that reason as its failure rather than skipping.
  */
 
@@ -28,8 +23,7 @@ type Analyser = {
   isFailed: (r: Analysis | Failed) => r is Failed
 }
 
-// Consumed shapes, declared here so this suite loads with no `src/` module
-// present (the same names T1/T2 produce; bun strips the types at run time).
+// Declared here so this suite loads with no `src/` module present; bun strips the types at run time.
 type FieldSpec = { kind: 'text' | 'date' | 'entity' | 'last4'; required: boolean }
 type DocType = {
   describe: string

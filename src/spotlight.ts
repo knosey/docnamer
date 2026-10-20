@@ -1,19 +1,18 @@
 /**
- * T1 Spotlight extras (R5, R6): Finder tags, Finder comments and the OCR
- * text layer that lets Spotlight find a renamed scan by its content.
+ * Spotlight extras: Finder tags, Finder comments and the OCR text layer that lets
+ * Spotlight find a renamed scan by its content.
  *
  * Finder tags are the binary plist in the com.apple.metadata:_kMDItemUserTags
- * xattr; the plist bytes are built and read through plutil, which ships with
- * macOS like xattr and osascript, so the CLI stays native (D2). The OCR text
- * layer is a sidecar `<file>.ocr.txt` written next to the document, carrying
- * the same Vision OCR text Stage 1's read ladder produces.
+ * xattr, built and read through plutil, which ships with macOS like xattr and
+ * osascript, so the CLI stays native. The OCR text layer is a sidecar
+ * `<file>.ocr.txt` written next to the document.
  */
 
 import { ocrPages } from './read.ts'
 
 const TAG_XATTR = 'com.apple.metadata:_kMDItemUserTags'
 
-// --- Tag plist codec -----------------------------------------------------------
+// --- Tag plist codec ----------------------------------------------------------
 
 /** Encode Finder tags as the binary plist the _kMDItemUserTags xattr stores. */
 export function encodeTagPlist(tags: string[]): Uint8Array {
@@ -58,7 +57,7 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;')
 }
 
-// --- Finder tags ----------------------------------------------------------------
+// --- Finder tags --------------------------------------------------------------
 
 /** Every Finder tag on the file; [] when the xattr is absent. */
 export async function readFinderTags(file: string): Promise<string[]> {
@@ -83,13 +82,11 @@ export async function setFinderTag(file: string, tag: string): Promise<void> {
   }
 }
 
-// --- Finder comment ---------------------------------------------------------------
+// --- Finder comment -----------------------------------------------------------
 
-/**
- * Set Finder comments via Finder itself, so they land in the .DS_Store store.
- * The batch is one osascript process for the whole apply run — one spawn per
- * file would pay a Finder round-trip for every renamed document.
- */
+/** Set Finder comments via Finder itself, so they land in the .DS_Store store.
+ *  The batch is one osascript process for the whole apply run: one spawn per file
+ *  would pay a Finder round-trip for every renamed document. */
 export async function setFinderComments(pairs: { file: string; comment: string }[]): Promise<void> {
   if (pairs.length === 0) return
   const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
@@ -112,14 +109,12 @@ export async function setFinderComments(pairs: { file: string; comment: string }
 export function setFinderComment(file: string, comment: string): Promise<void> {
   return setFinderComments([{ file, comment }])
 }
-
-// --- OCR text layer -----------------------------------------------------------------
+// --- OCR text layer -----------------------------------------------------------
 
 /**
- * OCR the document with the same mac-ocr Vision path Stage 1 uses and write
- * the text to a `<file>.ocr.txt` sidecar, so Spotlight has a text layer to
- * index for a scan that carries none. Returns the bytes written and the
- * sidecar path.
+ * OCR the document with the same mac-ocr Vision path Stage 1 uses and write the
+ * text to a `<file>.ocr.txt` sidecar, so Spotlight has a text layer to index for
+ * a scan that carries none. Returns the bytes written and the sidecar path.
  */
 export async function addOcrTextLayer(file: string): Promise<{ bytes: number; sidecar: string }> {
   const ocr = await ocrPages([file])

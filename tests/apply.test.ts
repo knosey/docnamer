@@ -1,19 +1,14 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
+// The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`ls tests/fixtures`
 
 import { expect, test } from 'bun:test'
 
 /**
- * T2 — Apply and undo with the backup record (R2, R3, R7, I1, I2).
- * `src/commands.ts` is the work under test. It is loaded INSIDE each check with
- * a dynamic import, never at the top of the file, so a module whose `apply` or
- * `undo` export is missing is a failed check this suite reports — not an
- * uncaught throw while the file loads.
+ * src/commands.ts is loaded INSIDE each check with a dynamic import, never at the top of the file, so
+ * a missing `apply` or `undo` export is a failed check this suite reports — not a throw at load.
  *
- * The reference `ls tests/fixtures` is the truth: the set of fixture documents
- * the folder is seeded with, and therefore the exact set the folder must hold
- * again once `apply` has renamed them and `undo` has restored them.
+ * `ls tests/fixtures` is the truth: the fixture documents the folder is seeded with, and therefore the
+ * exact set it must hold again once `apply` has renamed them and `undo` has restored them.
  */
 
 // --- consumed shapes (structural mirrors of the interfaces T2 consumes) -----

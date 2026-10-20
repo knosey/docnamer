@@ -1,17 +1,11 @@
 /**
- * The plan table (I1's Outcome: "prints the old→new table with flagged rows
- * first").
+ * The plan table: the old→new name for every row, flagged rows first.
  *
- * A person reads this before anything is renamed, so the two columns that
- * decide are the widest: what the file is called now and what it will be called.
- * Rows needing a decision are printed first and carry a `!` in the margin —
- * the reader's eye lands on what needs them, not on the rows that are already
- * fine.
- *
- * This is a column layout, not a second layout engine: every line is built by
- * `ui.row`, so the widths, the gap and the trailing-space rule live in one
- * place. The `!` is that row's MARGIN, emitted before any styling, which is why
- * `line.startsWith('!')` holds on a colour terminal too.
+ * A person reads this before anything is renamed, so the two columns that decide
+ * are the widest, and a row needing a decision carries a `!` in its margin.
+ * Every line is built by `ui.row`, so the widths, the gap and the
+ * trailing-space rule live in one place; the margin goes out before any styling,
+ * which is why `line.startsWith('!')` holds on a colour terminal too.
  */
 import type { PlanRow } from './commands.ts'
 import { ui, type Style } from './ui.ts'

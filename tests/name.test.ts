@@ -1,17 +1,14 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
+// The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`getconf NAME_MAX /`
 
 import { expect, test } from 'bun:test'
 
 /**
- * T5 — Stage 4 naming (R9, R10, R11). `src/name.ts` is the work under test. It
- * is loaded INSIDE each check with a dynamic import, never at the top of the
- * file, so a module that is missing or fails to load is a failed check this
- * suite reports — not an uncaught throw while the file loads.
+ * src/name.ts is loaded INSIDE each check with a dynamic import, never at the top of the file, so a
+ * module that is missing or fails to load is a failed check this suite reports — not a throw at load.
  *
- * The reference `getconf NAME_MAX /` is the filesystem truth a naming step must
- * respect: no rendered name may exceed it.
+ * `getconf NAME_MAX /` is the filesystem truth a naming step must respect: no rendered name may exceed
+ * it.
  */
 
 // --- consumed shapes (structural mirrors of the interfaces T5 consumes) -----

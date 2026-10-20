@@ -1,12 +1,8 @@
 /**
- * Stage 4 naming (R9, R10, R11, I3).
- *
- * buildName() renders the type's template with the checked field values,
- * sanitises the result for the filesystem, clamps it to the configured
- * maximum length and disambiguates collisions with a Finder-style " (2)"
- * suffix. Two documents with the same type and field values render to the
- * same name before disambiguation; the `planned` set is what makes them
- * unique (I3). Nothing is renamed here — names only (R11).
+ * Stage 4 naming: render the type's template with the checked field values,
+ * sanitise the result, clamp it to the configured length and disambiguate
+ * collisions with a Finder-style " (2)". Two documents that render the same
+ * name are made unique by the caller's `planned` set. Nothing is renamed here.
  */
 import type { Config } from './config.ts'
 import type { Checked } from './validate.ts'
@@ -14,8 +10,8 @@ import type { Checked } from './validate.ts'
 /** Substitute {field} placeholders; unknown or null fields become empty. */
 export function renderTemplate(t: string, fields: Record<string, string>): string {
   // SAFE: a template may name a field the type never declared, or one the model
-  // did not extract; an empty substitution is exactly what the template asked
-  // for, and validate() flags a missing required field separately.
+  // did not extract; an empty substitution is what the template asked for, and
+  // validate() flags a missing required field separately.
   return t.replace(/\{(\w+)\}/g, (_m, name: string) => fields[name] ?? '')
 }
 
@@ -28,11 +24,8 @@ export function sanitise(s: string): string {
     .replace(/^[\s.]+|[\s.]+$/g, '')
 }
 
-/**
- * Render the document's new filename (with `file.ext`), unique within
- * `planned`. The final name is added to `planned`; collision checks
- * case-fold, so the set's own casing does not matter.
- */
+/** Render the document's new filename (with `file.ext`), unique within
+ *  `planned`, which the new name is added to. */
 export async function buildName(
   checked: Checked,
   config: Config,

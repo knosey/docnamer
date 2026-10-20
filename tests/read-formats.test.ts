@@ -115,8 +115,8 @@ test('read() extracts slide text from pptx', async () => {
   expect(c.text).toContain('Quarterly forecast review')
 })
 
-// A slide the archive lists but cannot extract is not an empty slide: returning
-// '' for it dropped a whole deck's text into a silent, unflagged "other".
+// A slide the archive lists but cannot extract is not an empty slide: returning '' would drop a whole
+// deck's text into a silent, unflagged "other".
 test('read() throws naming the slide a pptx lists but cannot extract', async () => {
   await expect(read(fixtures.pptxBad)).rejects.toThrow(/ppt\/slides\/slide1\.xml/)
 })

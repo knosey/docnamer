@@ -1,14 +1,9 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
+// The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference =
   process.env.GRAPH_REFERENCE ?? String.raw`./node_modules/.bin/mac-ocr --version`
 
-// --- T2: Stage 1 read ladder and fixtures ------------------------------------
-//
-// Covers R4, R5, I2. The program under test is src/read.ts; the fixtures are
-// tests/fixtures/. Both are absent before the build, so every check below reaches
-// them through its OWN failure — a dynamic import whose error is asserted on, a
-// file listing whose emptiness is asserted on — never an uncaught throw at load.
+// src/read.ts and tests/fixtures/ are both absent before the build, so every check below reaches them
+// through its own asserted failure — a dynamic import error, an empty listing — never a throw at load.
 
 import { test, expect } from 'bun:test'
 
@@ -28,9 +23,9 @@ async function importSrc(rel: string): Promise<any> {
  * Every file under tests/fixtures/, relative paths; [] when the directory is absent.
  *
  * The guard cannot be `Bun.file(dir).exists()`: in Bun 1.4.2 that is FALSE for a
- * directory (while `.size` still reads it), so it reported an absent directory for
- * a present one and emptied this list. The scan is its own check — it throws
- * ENOENT exactly when the directory is missing, and nothing else when it is there.
+ * directory, so it reported an absent directory for a present one and emptied this
+ * list. The scan is its own check — it throws ENOENT exactly when the directory is
+ * missing, and nothing else when it is there.
  */
 async function fixtureFiles(): Promise<string[]> {
   const out: string[] = []
@@ -54,11 +49,8 @@ function withExt(files: string[], ext: string): string[] {
   return files.filter(f => f.toLowerCase().endsWith(ext))
 }
 
-// --- The reference -----------------------------------------------------------
-
-// Stage 1's OCR engine is mac-ocr (src/read.ts, the Vision wrapper): the tool
-// that does the recognising is the truth this suite is anchored to, and the OCR
-// test below cannot pass without it.
+// Stage 1's OCR engine is mac-ocr (src/read.ts): the tool that does the recognising is the truth this
+// suite is anchored to, and the OCR test below cannot pass without it.
 test('reference is the truth this suite is anchored to', async () => {
   const [cmd, ...args] = reference.trim().split(/\s+/)
   let code = -1

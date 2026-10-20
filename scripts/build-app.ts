@@ -1,9 +1,8 @@
 /**
  * Build docnamer as its own macOS app: compile the binary into
  * ~/Applications/docnamer.app, write its Info.plist (the TCC identity and the
- * folder-usage descriptions), sign it — ad-hoc, or with a real codesigning
- * identity when one exists — and install ~/bin/docnamer as the shell wrapper a
- * person actually runs.
+ * folder-usage descriptions), sign it, and install ~/bin/docnamer as the shell
+ * wrapper a person actually runs.
  */
 
 const home = Bun.env.HOME
@@ -67,16 +66,13 @@ run(
     : ['codesign', '--force', '--sign', '-', app]
 )
 
-// 4. The wrapper: `open -n -W` always exits 0, so the tty is set raw by the
-//    shell, restored after, and the app's real exit code comes back through
-//    the exit file (default 1 when the app never wrote one). stty runs on
-//    stdin, which `tty` has already resolved to the device the app is handed:
-//    /dev/tty needs a controlling terminal and the wrapper has none. The
-//    wrapper also carries the caller's directory across, because LaunchServices
-//    starts the app in "/" and a relative folder would otherwise name the root
-//    volume (measured: `open -n`ing a probe app prints "/" whatever the shell's
-//    cwd is). `$PWD` is what the person sees, and the shell recomputes it when
-//    the inherited value does not match the directory it actually started in.
+// 4. The wrapper, which exists because `open -n -W` always exits 0 and because
+//    the app's real code has to come back some other way: the exit file. Raw mode
+//    is the shell's job — /dev/tty needs a controlling terminal and the wrapper
+//    has none, so stty runs on stdin, which `tty` has already resolved to the
+//    device the app is handed. LaunchServices starts the app in "/", so the
+//    caller's directory is carried across as `$PWD` (measured: `open -n`ing a
+//    probe app prints "/" whatever the shell's cwd is).
 await Bun.write(
   wrapper,
   `#!/bin/sh

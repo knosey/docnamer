@@ -1,17 +1,13 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
+// The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun --version`
 
 /**
- * T3 — Review TUI and its CLI wiring (R4, I3).
+ * Exercises the produced surface of src/review.ts and src/cli.ts: applyAction(rows, index, action,
+ * value, config) applies one ReviewAction to a plan row and returns the updated rows, and the CLI
+ * dispatches `plan`, `apply`, `undo` and `review`.
  *
- * Exercises the produced surface of src/review.ts and src/cli.ts:
- *   - applyAction(rows, index, action, value, config) applies one ReviewAction
- *     to a plan row and returns the updated rows.
- *   - the CLI dispatches `plan`, `apply`, `undo` and `review`.
- *
- * Missing modules and missing exports are failed checks this test PRINTS, not
- * load-time throws, so a red run is the absence of the work and nothing else.
+ * Missing modules and missing exports are failed checks this test PRINTS, not load-time throws, so a
+ * red run is the absence of the work and nothing else.
  */
 import { describe, expect, test } from 'bun:test'
 import type { Config } from '../src/config.ts'

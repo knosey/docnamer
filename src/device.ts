@@ -13,10 +13,9 @@ export type DeviceArgs = {
   rows: number | null
   exitFile: string | null
   /**
-   * The directory the person was standing in when they typed the command. A
-   * LaunchServices launch starts the app in "/", so a relative folder argument
-   * (`.` , `sub`) means the root volume unless the shell that ran the wrapper
-   * says otherwise. Absolute arguments are unaffected either way.
+   * A LaunchServices launch starts the app in "/", so a relative folder
+   * argument (`.`, `sub`) means the root volume unless the shell that ran the
+   * wrapper says otherwise. Absolute arguments are unaffected either way.
    */
   cwd: string | null
 }

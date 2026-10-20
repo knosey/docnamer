@@ -1,19 +1,11 @@
 /**
- * The presentation layer: the one owner of every byte docnamer writes.
+ * The one owner of every byte docnamer writes: a command asks for a line and
+ * this decides what it looks like, so the ASCII fallback and the
+ * no-colour-on-a-pipe rule hold everywhere at once.
  *
- * Nothing else in the codebase calls console.log. A command asks for a line and
- * this decides what it looks like, which is what makes the ASCII fallback and
- * the no-colour-on-a-pipe rule hold everywhere at once instead of in the places
- * somebody remembered.
- *
- * Two rules here are load-bearing for other suites, not cosmetic:
- *
- *  - Colour off means ZERO escape sequences. tests/frame.ts rasterises PIPED
- *    stdout to build the frame the visual review reads; a stray ANSI code in
- *    that text corrupts the evidence rather than the appearance.
- *  - The margin of a row is emitted RAW, before any styling. The plan table's
- *    `!` marks the rows needing a decision, and a colour terminal must not be
- *    able to hide it from the reader or from a grep.
+ * Colour off must emit ZERO escape sequences: tests/frame.ts rasterises piped
+ * stdout into the frame the visual review reads, so a stray ANSI code corrupts
+ * the evidence rather than the appearance.
  */
 import { deviceReader, deviceWriter } from './device.ts'
 
@@ -25,11 +17,8 @@ export type Style = {
 
 const ESC = String.fromCharCode(27)
 
-/**
- * Locale is a precedence chain, not a default: LC_ALL wins over LC_CTYPE wins
- * over LANG. A locale that is unset is not a missing value to paper over — it
- * is the common case on macOS, where the terminal is UTF-8 regardless.
- */
+/** LC_ALL, then LC_CTYPE, then LANG. An unset locale means UTF-8, not ASCII:
+ *  that is the macOS terminal's own encoding. */
 function locale(env: Record<string, string | undefined>): string | undefined {
   if (env.LC_ALL !== undefined && env.LC_ALL !== '') return env.LC_ALL
   if (env.LC_CTYPE !== undefined && env.LC_CTYPE !== '') return env.LC_CTYPE
@@ -96,15 +85,10 @@ const INDENT = '  '
 const GAP = '  '
 const ERASE = `${ESC}[K`
 
-/**
- * The terminal device the wrapper handed over, when it handed one.
- *
- * A LaunchServices-launched binary has no fd for the tty it was given, so the
- * device path is the only way in and out: `cli.ts` registers it at startup and
- * every byte below lands on it instead of the process's own stdout/stderr,
- * while `prompt.ts` reads its keys from the same path. With no device nothing
- * here changes.
- */
+/** The terminal the wrapper handed over. A LaunchServices-launched binary has
+ *  no fd for its tty, so the path is the only way in and out: `cli.ts`
+ *  registers it at startup, every byte below lands on it, and `prompt.ts` reads
+ *  its keys from the same path. With no device nothing here changes. */
 type Device = {
   readonly writer: { write(chunk: string): unknown; end(): unknown }
   readonly stream: ReadableStream<Uint8Array>
@@ -138,11 +122,8 @@ function write(text: string): void {
   else process.stdout.write(text)
 }
 
-/**
- * The other half of the same chokepoint: a failure is a different stream, and
- * keeping it here is what stops a command from reaching for console.error.
- * A device has one stream, so on a device a failure lands where success did.
- */
+/** The other half of the chokepoint, so a command never reaches for
+ *  console.error. A device has one stream: a failure lands where success did. */
 function writeErr(text: string): void {
   if (active !== null) active.writer.write(text)
   else process.stderr.write(text)
@@ -155,11 +136,8 @@ function pad(text: string, width: number): string {
 export type Row = readonly string[]
 export type Spinner = {
   update(text: string): void
-  /**
-   * Ends the frame. `text` is the result line to leave behind, and is left out
-   * when there is no result: a command that threw has none, and the frame it
-   * drew still has to come off the line.
-   */
+  /** `text` is the result line to leave behind. A command that threw has none,
+   *  and the frame it drew still has to come off the line. */
   stop(text?: string): void
 }
 
@@ -176,21 +154,16 @@ export type Ui = {
   warn(text: string): string
   fail(what: string, help?: string): string
   spinner(label: string): Spinner
-  /** A frame that positions the cursor writes its own bytes, and still does it here. */
+  /** For a frame that positions the cursor itself; still routed through here. */
   raw(text: string): void
   log(line: string): void
   err(line: string): void
 }
 
-/**
- * The frame sitting on the terminal's line, if one is.
- *
- * There is one terminal and one line, so this belongs to the module and not to
- * a `Ui`: cli.ts builds a second `Ui` to report a failure with, and it is that
- * instance which has to take the frame off — while `stop` runs on the success
- * path only, so a command that threw would otherwise leave its last frame for
- * the error to land on.
- */
+/** The frame sitting on the terminal's line, if one is. There is one terminal
+ *  and one line, so this is the module's and not a `Ui`'s: `cli.ts` builds a
+ *  second `Ui` to report a failure with, and that instance has to take the frame
+ *  off, or a command that threw leaves it for the error to land on. */
 let drawn: Spinner | null = null
 
 export function ui(style: Style): Ui {
@@ -205,14 +178,9 @@ export function ui(style: Style): Ui {
   const red = (text: string): string => tint('31', text)
   const cyan = (text: string): string => tint('36', text)
 
-  /**
-   * The shared layout primitive, and the only place a row is assembled. The
-   * margin is a literal prefix emitted verbatim and FIRST, before any styling:
-   * the plan table's `!` marks the rows needing a decision, and a colour
-   * terminal must not be able to hide it from the reader or from a grep. Cells
-   * are padded to `widths` when the caller has measured them, which is what
-   * makes a column line up down the page rather than only across it.
-   */
+  /** The only place a row is assembled. The margin goes out verbatim and FIRST,
+   *  before any styling, so the plan table's `!` cannot be hidden by colour from
+   *  the reader or from a grep. `widths` aligns a column down the page. */
   function row(margin: string, cells: Row, widths?: readonly number[]): string {
     if (widths !== undefined && widths.length !== cells.length) {
       throw new Error(`ui.row: ${cells.length} cell(s) against ${widths.length} width(s)`)

@@ -166,12 +166,10 @@ test('login stores the key it was given, owner-only, and auth then finds it', as
 })
 
 /*
- * The picker. `docnamer login` with no provider used to be a usage error, which
- * is not a sign-in flow at all: the list of providers a person may sign in to is
- * the catalog, and choosing one is the first step of the flow rather than a
- * mistake to be corrected. The same goes for `logout`, which can only ever
- * remove docnamer's OWN credential and must say so instead of reporting a
- * success it did not perform.
+ * The picker. `docnamer login` with no provider is a sign-in flow, not a usage error: the list of
+ * providers a person may sign in to is the catalog, and choosing one is the first step of the flow
+ * rather than a mistake to be corrected. The same goes for `logout`, which can only ever remove
+ * docnamer's OWN credential and must say so instead of reporting a success it did not perform.
  */
 
 test('a bare `login` offers the catalog instead of a usage error', async () => {

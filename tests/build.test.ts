@@ -1,5 +1,4 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
+// The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun --version`
 
 import { expect, test } from 'bun:test'
@@ -10,24 +9,18 @@ import { appBin, wrapper } from './app-binary.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
- * T5 — Compile to one standalone binary and install it (R1).
+ * `package.json` (the `build`/`install` scripts) and `src/read.ts` (`macOcrBinary()` reaching the
+ * mac-ocr copy embedded in the binary) are reached through the built artifact and the reference
+ * command, never through a top-of-file import, so a missing script, a missing binary or a degraded
+ * plan is a failed check this suite reports — not a throw at load.
  *
- * `package.json` (the `build`/`install` scripts) and `src/read.ts`
- * (`macOcrBinary()` reaching the mac-ocr copy embedded in the binary) are the
- * work under test. The test reaches that work through the built artifact and
- * the reference command, never through a top-of-file import, so a missing
- * script, a missing binary or a degraded plan is a failed check this suite
- * reports — not an uncaught throw while the file loads.
+ * `bun --version` prints the version the compiled binary must reproduce under `BUN_BE_BUN=1`, which
+ * makes a compiled Bun binary answer as Bun itself; it is the truth this build is measured against.
  *
- * The reference `bun --version` prints the version the compiled binary must
- * reproduce under `BUN_BE_BUN=1`, which makes a compiled Bun binary answer as
- * Bun itself; it is the truth this build is measured against.
- *
- * Which artifact each check drives comes from tests/app-binary.ts: the wrapper
- * for the install check, the binary inside the bundle for everything else. The
- * wrapper resolves its tty with `tty` and refuses without one, so a non-pty
- * flow can only ever drive the binary — tests/wrapper-pty.test.ts drives the
- * wrapper itself, on a real pty.
+ * Which artifact each check drives comes from tests/app-binary.ts: the wrapper for the install check,
+ * the binary inside the bundle for everything else. The wrapper resolves its tty with `tty` and
+ * refuses without one, so a non-pty flow can only ever drive the binary — tests/wrapper-pty.test.ts
+ * drives the wrapper itself, on a real pty.
  */
 
 const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')

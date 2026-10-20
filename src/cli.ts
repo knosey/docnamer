@@ -1,9 +1,9 @@
 /**
- * docnamer CLI entry (D3). `docnamer plan <folder>` is the entire integration
+ * docnamer CLI entry. `docnamer plan <folder>` is the entire integration
  * surface: it writes `<folder>/.docnamer-plan.json` and touches nothing else.
  *
- * Nothing here writes a byte itself. Every line goes through `ui`, which owns
- * the glyph set, the colour and the ASCII fallback, so a command cannot print
+ * Nothing here writes a byte itself. Every line goes through `ui`, which owns the
+ * glyph set, the colour and the ASCII fallback, so a command cannot print
  * something the rest of the program would not.
  */
 import pkg from '../package.json'
@@ -28,8 +28,7 @@ import { closeDevice, hasDevice, setDevice, styleFrom, ui, type Style, type Ui }
 
 /**
  * The folder's own config: one name, one location. A folder that does not carry
- * it is planned by the roster the binary was built from — a stale config under
- * any other name is not a config location and is never read.
+ * it is planned by the roster the binary was built from.
  */
 export async function configFor(folder: string): Promise<Config> {
   const path = `${folder}/${CONFIG_FILE}`
@@ -37,10 +36,8 @@ export async function configFor(folder: string): Promise<Config> {
   return BUILTIN_CONFIG
 }
 
-/**
- * Every flag the parser accepts, in one place so a command's help cannot
- * advertise one the parser would not understand.
- */
+/** Every flag the parser accepts, in one place so a command's help cannot
+ *  advertise one the parser would not understand. */
 const OPTIONS = {
   recursive: ['--recursive, -r', 'Include documents in subfolders'],
   run: ['--run <file>', 'Undo a specific run file instead of the most recent'],
@@ -161,19 +158,18 @@ const BARE_USAGE =
 /**
  * The code for an invocation this program REFUSED: a command it does not have,
  * an argument it cannot accept, a folder it was never given. It is not the same
- * as 1, which is an invocation it accepted and then failed at — no credential,
- * an unreadable folder, a model that errored. A script can only act on that
- * difference if the code carries it, so every refusal returns this one and no
- * refusal invents its own.
+ * as 1, which is an invocation it accepted and then failed at. A script can only
+ * act on that difference if the code carries it, so every refusal returns this
+ * one and no refusal invents its own.
  */
 const USAGE_EXIT = 2
 
 /**
- * One aligned name column, never narrower than the longest name plus two
- * spaces. The help text is built to a contract `tests/cli-help.test.ts` parses
- * with plain string work: a section heading sits alone on its line, and every
- * line beneath it begins with two spaces, a name, then at least two spaces
- * before its description.
+ * One aligned name column, never narrower than the longest name plus two spaces.
+ * The help text is built to a contract `tests/cli-help.test.ts` parses with plain
+ * string work: a section heading sits alone on its line, and every line beneath
+ * it begins with two spaces, a name, then at least two spaces before its
+ * description.
  */
 function column(rows: readonly Example[]): string {
   const width = Math.max(...rows.map(([name]) => name.length)) + 2
@@ -215,10 +211,10 @@ function helpText(cmd?: Command): string {
 }
 
 /**
- * The catalog as a list to choose from. The list a person picks a sign-in from
- * is the whole catalog, not the providers the shipped config happens to use —
- * and each row says where a credential it already holds lives, because the file
- * is the thing `docnamer auth` and `logout` answer about.
+ * The catalog as a list to choose from: the whole catalog, not the providers the
+ * shipped config happens to use — and each row says where a credential it already
+ * holds lives, because the file is the thing `docnamer auth` and `logout` answer
+ * about.
  */
 async function catalogOptions(): Promise<Option[]> {
   const models = docnamerModels()
@@ -245,9 +241,9 @@ async function catalogOptions(): Promise<Option[]> {
 }
 
 /**
- * The credential list for `logout`. Only docnamer's OWN store can be written,
- * so a credential that is pi's is never offered — a choice the command cannot
- * carry out is not a choice.
+ * The credential list for `logout`. Only docnamer's OWN store can be written, so
+ * a credential that is pi's is never offered — a choice the command cannot carry
+ * out is not a choice.
  */
 function ownedOptions(owned: readonly { providerId: string; type: string }[]): Option[] {
   return owned
@@ -325,10 +321,8 @@ async function credentialCommand(
   return 0
 }
 
-/**
- * The wrapper's own flags, in one list so the parser cannot strip one and
- * dispatch another. Each carries a value, so stripping skips two tokens.
- */
+/** The wrapper's own flags, in one list so the parser cannot strip one and
+ *  dispatch another. Each carries a value, so stripping skips two tokens. */
 const DEVICE_FLAGS = ['--tty', '--cols', '--rows', '--exit-file', '--cwd']
 
 /** argv without the device flags, so the command after them still runs. */
@@ -422,7 +416,7 @@ export async function main(argv: string[]): Promise<number> {
   const config = await configFor(folder)
   if (cmd === 'eval') {
     // The argument is a test set, not a folder to touch: eval scores it against
-    // its expected.json and renames nothing (R8, I4).
+    // its expected.json and renames nothing.
     const spinner = u.spinner(`scoring ${folder} against its expected.json`)
     const report = await evalTestset(folder, config)
     spinner.stop(`scored ${report.files} file(s)`)
@@ -434,8 +428,8 @@ export async function main(argv: string[]): Promise<number> {
     const rows = await plan(folder, { recursive, applyUnflagged: false }, config)
     await writePlan(folder, rows)
     spinner.stop(`planned ${rows.length} document(s)`)
-    // The table is what a person reads before anything is renamed (I1): the
-    // count alone never showed which name a file would get.
+    // The table is what a person reads before anything is renamed: the count
+    // alone never showed which name a file would get.
     u.log(renderTable(rows, style))
     u.log(u.note(`plan written to ${folder}/${PLAN_FILE} \u2014 run \`docnamer review\``))
     return 0
@@ -459,7 +453,7 @@ export async function main(argv: string[]): Promise<number> {
     spinner.update(`${done} of ${total} \u2014 ${file}`)
   })
   spinner.stop(`restored ${report.restored.length} file(s)`)
-  // The names, not a count (I2): after an operation whose whole point is
+  // The names, not a count: after an operation whose whole point is
   // reversibility, a person has to see which file is sitting at which name.
   for (const name of report.restored) u.log(u.ok(`restored ${name}`))
   for (const s of report.skipped) u.log(u.warn(`skipped ${s.file}: ${s.reason}`))
@@ -469,12 +463,12 @@ export async function main(argv: string[]): Promise<number> {
 /**
  * The report for a refusal the OS made, or null when the error is not one.
  *
- * A bare `EACCES: permission denied, open '…'` names the errno and no way
- * forward — and the folders a person points docnamer at first, Downloads,
- * Desktop and Documents, are exactly the ones macOS protects, so this is the
- * one place that knows what the reader can do about it. Bun's glob error
- * carries `code` and `path` (verified against a chmod 000 folder), so the
- * folder is read off the error rather than parsed out of its message.
+ * A bare `EACCES: permission denied, open '…'` names the errno and no way forward
+ * — and the folders a person points docnamer at first, Downloads, Desktop and
+ * Documents, are exactly the ones macOS protects, so this is the one place that
+ * knows what the reader can do about it. Bun's glob error carries `code` and
+ * `path` (verified against a chmod 000 folder), so the folder is read off the
+ * error rather than parsed out of its message.
  */
 function refusal(e: unknown): { what: string; help: string } | null {
   if (typeof e !== 'object' || e === null) return null
@@ -507,13 +501,13 @@ if (import.meta.main) {
     )
     process.exitCode = 1
   } finally {
-    // Hand stdin back before the process is allowed to end. A reader left on
+    // Hand stdin back before the process is allowed to end: a reader left on
     // Bun's stdin stream holds the event loop open, so a command that prompted
     // would print its result and then never return the prompt.
     await releaseStdin()
-    // Flush the last bytes to the device before the process can end, then
-    // leave the exit code where the wrapper waits for it: `open -W` always
-    // reports 0, so the file is the only channel the code can travel by.
+    // Flush the last bytes to the device, then leave the exit code where the
+    // wrapper waits for it: `open -W` always reports 0, so the file is the only
+    // channel the code can travel by.
     await closeDevice()
     if (device.exitFile !== null) await Bun.write(device.exitFile, String(process.exitCode ?? 0))
   }

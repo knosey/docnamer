@@ -1,8 +1,8 @@
 /**
- * Stage 5 review (R4, I3): a person walks the plan rows before apply, and
- * every row ends up accepted, skipped or left pending. `docnamer review
- * <folder>` prints each row's old name, proposed new name, type, flags,
- * evidence and summary, and takes one key per decision:
+ * Stage 5 review: a person walks the plan rows before apply, and every row ends
+ * up accepted, skipped or left pending. `docnamer review <folder>` prints each
+ * row's old name, proposed new name, type, flags, evidence and summary, and takes
+ * one key per decision:
  *
  *   Enter — accept this row
  *   s — skip this row
@@ -13,7 +13,7 @@
  *   q — stop; the plan file keeps whatever was decided so far
  *
  * Every decision is written back to `<folder>/.docnamer-plan.json` when the
- * review ends (EOF or q). Nothing is renamed here — statuses only (R4).
+ * review ends (EOF or q). Nothing is renamed here — statuses only.
  */
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
@@ -25,8 +25,8 @@ import type { Ui } from './ui.ts'
 export type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
 
 /**
- * Apply one review decision to the rows and return the updated array. Pure
- * apart from retype's name render: the plan file is the caller's to persist.
+ * Apply one review decision to the rows and return the updated array. Pure apart
+ * from retype's name render: the plan file is the caller's to persist.
  */
 export async function applyAction(
   rows: PlanRow[],
@@ -55,8 +55,8 @@ export async function applyAction(
       if (!value) throw new Error('applyAction: retype needs the type as its value')
       if (!config.types[value]) throw new Error(`applyAction: config has no type "${value}"`)
       row.type = value
-      // Re-render the name from the new type's template; the other rows'
-      // names occupy the namespace so the render cannot collide with them.
+      // Re-render the name from the new type's template; the other rows' names
+      // occupy the namespace so the render cannot collide with them.
       // SAFE: the plan format writes "no evidence" as an empty string, so a row
       // read back from it legitimately has none; only `value` reaches the template.
       const checked: Checked = {
@@ -85,10 +85,10 @@ export async function applyAction(
   return out
 }
 
-/** One row rendered for the person deciding on it (I3). The flags are the
- *  reason the row needs a person at all, so they carry the warning colour.
- *  `at`/`of` are the row's place in the review, not its index in the plan: a
- *  plan index tells the person nothing about how much is left. */
+/** One row rendered for the person deciding on it. The flags are the reason the
+ *  row needs a person at all, so they carry the warning colour. `at`/`of` are the
+ *  row's place in the review, not its index in the plan: a plan index tells the
+ *  person nothing about how much is left. */
 function renderRow(row: PlanRow, at: number, of: number, u: Ui): string {
   const lines = [
     `${u.dim(`[${at}/${of}]`)} ${u.bold(row.old)}`,
@@ -107,10 +107,10 @@ function renderRow(row: PlanRow, at: number, of: number, u: Ui): string {
 }
 
 /**
- * Review the plan file of `folder`: present every pending row (flagged first,
- * I3), apply the keys read from stdin and write the updated plan back. Keys
- * are consumed as they arrive; `e` and `t` take the rest of the line as their
- * value. EOF ends the review.
+ * Review the plan file of `folder`: present every pending row, flagged first,
+ * apply the keys read from stdin and write the updated plan back. Keys are
+ * consumed as they arrive; `e` and `t` take the rest of the line as their value.
+ * EOF ends the review.
  */
 export async function review(folder: string, config: Config, u: Ui): Promise<void> {
   const planPath = `${folder}/${PLAN_FILE}`
@@ -118,7 +118,7 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
     throw new Error(`review: no plan file at ${planPath} — run docnamer plan first`)
   }
   let rows = JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
-  // Flagged rows are where a person is needed; they go first (I3).
+  // Flagged rows are where a person is needed; they go first.
   const order = rows
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => row.status === 'pending')
@@ -158,8 +158,8 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
           // takes one, and past the last row there is none, so 0 stands in.
           rows = await applyAction(rows, item?.index ?? 0, 'accept-unflagged', null, config)
         } else if (item) {
-          // Enter accepts the row on screen (R4/I3). A raw-mode terminal sends
-          // CR; a piped line sends LF. Both are Enter, and neither is a skip.
+          // Enter accepts the row on screen. A raw-mode terminal sends CR; a
+          // piped line sends LF. Both are Enter, and neither is a skip.
           if (ch === '\r' || ch === '\n') {
             rows = await applyAction(rows, item.index, 'accept', null, config)
             cursor++

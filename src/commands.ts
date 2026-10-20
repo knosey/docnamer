@@ -1,11 +1,8 @@
 /**
- * Stage 4 plan command (R9, R10, R11).
- *
- * plan() walks a folder, runs each document through Stage 1 read, Stage 2
- * analyse and Stage 3 validate, then renders a unique new name with Stage 4.
- * It renames, moves and rewrites nothing (R11): its only output is the row
- * set, and writePlan() persists that set as plain JSON in
- * `<folder>/.docnamer-plan.json`.
+ * Stage 4 plan command: walk a folder, run each document through Stage 1 read,
+ * Stage 2 analyse and Stage 3 validate, then render a unique new name with
+ * Stage 4. It renames, moves and rewrites nothing — its only output is the row
+ * set, which writePlan() persists as plain JSON in `<folder>/.docnamer-plan.json`.
  */
 import { analyse, isFailed, type Analysis } from './analyse.ts'
 import type { Config } from './config.ts'
@@ -19,9 +16,9 @@ export type PlanRow = {
   new: string
   type: string
   /**
-   * Which rung of Stage 1's ladder produced the content Stage 2 classified
-   * (I2): a usable text layer, OCR above the confidence threshold, or the
-   * vision model when OCR came back weak. Null when the read itself failed.
+   * Which rung of Stage 1's ladder produced the content Stage 2 classified: a
+   * usable text layer, OCR above the confidence threshold, or the vision model
+   * when OCR came back weak. Null when the read itself failed.
    */
   method: 'text' | 'ocr' | 'vision' | null
   fields: Record<string, string>
@@ -75,11 +72,11 @@ export async function plan(
 ): Promise<PlanRow[]> {
   const rels = await scan(folder, opts.recursive)
   const planned = new Set<string>()
-  // Names already on disk are occupied too: no row may propose one (I3).
+  // Names already on disk are occupied too: no row may propose one.
   for (const rel of rels) planned.add(base(rel).toLowerCase())
 
-  // Stages 1-3 are independent per file — one model call each (R6) — so they
-  // run concurrently; Stage 4 below is serial because it mutates `planned`.
+  // Stages 1-3 are independent per file — one model call each — so they run
+  // concurrently; Stage 4 below is serial because it mutates `planned`.
   const examined = await Promise.all(
     rels.map(async rel => {
       const path = `${folder}/${rel}`
@@ -90,8 +87,8 @@ export async function plan(
       try {
         const content = await read(path)
         // Stage 1 SKIPped the file (unsupported type): it is not a document, so
-        // it gets no row at all. The folder's own docnamer.json is the case in
-        // point — a row for it would propose its own name back at it and collide.
+        // it gets no row. The folder's own docnamer.json is the case in point —
+        // a row for it would propose its own name back at it and collide.
         if (content === null) return null
         method = content.method
         let result: Analysis | { failed: true; reason: string } = await analyse(
@@ -101,7 +98,7 @@ export async function plan(
         )
         // A reply the tool contract could not read is the one case worth a
         // second, stronger look: hand the first page's image to the strong seat
-        // and take whatever name it returns (R4, I2).
+        // and take whatever name it returns.
         const images = isFailed(result as never) ? pageImages(path) : []
         if (images.length > 0) {
           result = await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
@@ -115,7 +112,7 @@ export async function plan(
         failedReason = e instanceof Error ? e.message : String(e)
       }
       // A row nothing could analyse still gets a name: its own stem, which
-      // Stage 4 renders unique against the names already on disk (I3).
+      // Stage 4 renders unique against the names already on disk.
       checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
       return { rel, old, checked, failedReason, method }
     })
@@ -138,10 +135,10 @@ export async function plan(
     const flags = [...checked.flags]
     if (failedReason !== null) flags.push(`analysis failed: ${failedReason}`)
 
-    // EVERY row goes through Stage 4, a failed one included. A row that kept
-    // its own name would propose a name already on disk by definition, and I3
-    // forbids that. buildName seeds `planned` with every name on disk, so the
-    // failed row lands on the stem plus a Finder-style " (2)" (I3).
+    // EVERY row goes through Stage 4, a failed one included: a row that kept
+    // its own name would propose a name already on disk by definition. buildName
+    // seeds `planned` with every name on disk, so the failed row lands on the
+    // stem plus a Finder-style " (2)".
     const name = await buildName(checked, config, { dir: folder, ext: extOf(old) }, planned)
 
     const f = Bun.file(`${folder}/${rel}`)
@@ -162,12 +159,12 @@ export async function plan(
   return rows
 }
 
-/** Persist the plan as plain JSON in the folder (R11). */
+/** Persist the plan as plain JSON in the folder. */
 export async function writePlan(folder: string, rows: PlanRow[]): Promise<void> {
   await Bun.write(`${folder}/${PLAN_FILE}`, JSON.stringify(rows, null, 2) + '\n')
 }
 
-// --- Stage 5: apply and undo (R2, R3, R7, I1, I2) ------------------------------
+// --- Stage 5: apply and undo --------------------------------------------------
 
 export type UndoEntry = {
   old: string
@@ -223,9 +220,9 @@ function undoStamp(d: Date): string {
 /**
  * Apply the accepted rows of `<folder>/.docnamer-plan.json`: rename each in
  * place, tag and comment it per the config, and record every change in a
- * timestamped undo file before deleting the plan (R2, R3, I1). A row whose
- * file changed size or mtime since planning — or whose new name is taken — is
- * skipped and reported, never renamed (R7).
+ * timestamped undo file before deleting the plan. A row whose file changed size
+ * or mtime since planning — or whose new name is taken — is skipped and
+ * reported, never renamed.
  */
 export async function apply(
   folder: string,
@@ -306,9 +303,9 @@ async function latestUndoFile(folder: string): Promise<string | null> {
 }
 
 /**
- * Undo a run: rename every recorded entry back to its original name, in
- * reverse order, never overwriting (R3, I2). `run` names the undo file;
- * null takes the latest. The undo file is deleted once restored.
+ * Undo a run: rename every recorded entry back to its original name, in reverse
+ * order, never overwriting. `run` names the undo file; null takes the latest.
+ * The undo file is deleted once restored.
  */
 export async function undo(
   folder: string,

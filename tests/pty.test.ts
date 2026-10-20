@@ -152,17 +152,15 @@ test.skipIf(!hasPty)(
 )
 
 /**
- * The frame a failure used to be glued to.
+ * The frame a failure must not be glued to.
  *
- * `stop` clears the spinner's line with a carriage return and an erase, and it
- * ran only when the work returned — so a command that threw left its last frame
- * on the line and the error was written straight onto the end of it:
+ * `stop` clears the spinner's line with a carriage return and an erase, so a command that throws must
+ * stop the spinner before the error is written or the error lands on the end of the frame:
  *
  *   ⠋ reading . and asking the modeldocnamer: EPERM: operation not permitted, open '.'
  *
- * A pipe cannot show this: with no line to return to the spinner writes the
- * label once and the error follows on its own line, which is why the assertion
- * lives here, on a real terminal, where the reader met it.
+ * A pipe cannot show this: with no line to return to the spinner writes the label once and the error
+ * follows on its own line, which is why the assertion lives here, on a real terminal.
  */
 test.skipIf(!hasPty)(
   'a failure under a spinner lands on its own line, not on the frame',

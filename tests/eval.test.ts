@@ -1,5 +1,4 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
+// The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`ls tests/fixtures`
 
 import { expect, test } from 'bun:test'
@@ -7,16 +6,12 @@ import { loadConfig } from '../src/config.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
- * T4 — the eval command and the scored test set (R8, I4).
+ * src/eval.ts is loaded INSIDE each check with a dynamic import, never at the top of the file, so a
+ * missing `evalTestset` or `formatEvalReport` export is a failed check this suite reports — not a
+ * throw at load.
  *
- * `src/eval.ts` is the work under test. It is loaded INSIDE each check with a
- * dynamic import, never at the top of the file, so a module whose `evalTestset`
- * or `formatEvalReport` export is missing is a failed check this suite reports —
- * not an uncaught throw while the file loads.
- *
- * The reference `ls tests/fixtures` is the truth: the set of graded documents
- * `tests/testset/` is seeded with, and therefore the exact set `evalTestset`
- * must score. Nothing is renamed: eval observes, it does not act.
+ * `ls tests/fixtures` is the truth: the graded documents `tests/testset/` is seeded with, and
+ * therefore the exact set `evalTestset` must score. Nothing is renamed: eval observes, it does not act.
  */
 
 // --- consumed shapes (structural mirrors of the interfaces T4 consumes) ------

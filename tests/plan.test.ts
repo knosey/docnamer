@@ -1,5 +1,4 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
+// The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`getconf NAME_MAX /`
 
 import { expect, test } from 'bun:test'
@@ -9,14 +8,12 @@ import { join } from 'node:path'
 import { MODEL_CALL_MS } from './preload.ts'
 
 /**
- * T5 — Stage 4 plan command and CLI entry (R9, R10, R11, I1, I3).
- * `src/commands.ts` and `src/cli.ts` are the work under test. They are loaded
- * INSIDE each check with a dynamic import, never at the top of the file, so a
- * module that is missing or fails to load is a failed check this suite reports
- * — not an uncaught throw while the file loads.
+ * src/commands.ts and src/cli.ts are loaded INSIDE each check with a dynamic import, never at the top
+ * of the file, so a module that is missing or fails to load is a failed check this suite reports — not
+ * a throw at load.
  *
- * The reference `getconf NAME_MAX /` is the filesystem truth a naming step must
- * respect: no planned name may exceed it.
+ * `getconf NAME_MAX /` is the filesystem truth a naming step must respect: no planned name may exceed
+ * it.
  */
 
 // --- consumed shapes (structural mirrors of the interfaces T5 consumes) -----
@@ -198,8 +195,8 @@ test('T5 writePlan writes .docnamer-plan.json in the folder', async () => {
   expect(readFileSync(p, 'utf8')).toContain('invoice-acme.txt')
 })
 
-// `--run` with no value is a truncated command, not "undo the latest": the
-// parser's fallback turned it into a destructive undo of a run nobody named.
+// `--run` with no value is a truncated command, not "undo the latest": the parser's fallback would
+// turn it into a destructive undo of a run nobody named.
 test('T5 CLI main refuses `undo --run` with no value', async () => {
   const cli = await loadCli()
   const dir = mkdtempSync(join(tmpdir(), 'docnamer-run-'))

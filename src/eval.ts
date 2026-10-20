@@ -1,12 +1,11 @@
 /**
- * T4 — the eval command (R8, I4).
+ * The eval command.
  *
- * evalTestset() runs the same Stage 1-4 pipeline `plan` runs against every
- * graded file in a test set and scores the rows against the set's
- * expected.json: type accuracy, per-field exact match, full-name match, the
- * share of files that needed the vision model, and time per file. It renames,
- * moves and rewrites nothing — eval observes, it does not act — and it writes
- * no plan file: the rows live only inside the report.
+ * evalTestset() runs the same Stage 1-4 pipeline `plan` runs against every graded
+ * file in a test set and scores the rows against the set's expected.json: type
+ * accuracy, per-field exact match, full-name match, the share of files that
+ * needed the vision model, and time per file. It renames, moves and rewrites
+ * nothing, and it writes no plan file: the rows live only inside the report.
  */
 import { plan, type PlanRow } from './commands.ts'
 import type { Config } from './config.ts'
@@ -61,10 +60,10 @@ export async function evalTestset(testset: string, config: Config): Promise<Eval
   const misses: EvalMiss[] = []
 
   for (const [file, exp] of Object.entries(expected)) {
-    // SAFE: eval scores the plan against the expectation file, so "the plan has
-    // no row for this file" is a measurement, not an error — it is recorded as a
-    // miss below, with `(none)` in the message. An expectation may also omit
-    // `type`, `name` or `fields`, which means that part is not being scored.
+    // SAFE: a miss is a measurement, not a failure. "The plan has no row for
+    // this file" is recorded below with `(none)` in the message, and an
+    // expectation may omit `type`, `name` or `fields` to leave that part
+    // unscored.
     const row = byOld.get(file)
     const gotType = row?.type ?? ''
     const gotName = row?.new ?? ''
@@ -117,7 +116,7 @@ export async function evalTestset(testset: string, config: Config): Promise<Eval
     visionShare: ratio(vision, files),
     secondsPerFile: files === 0 ? 0 : elapsedSeconds / files,
     // plan() does not surface per-call token usage, so a dollar figure cannot be
-    // computed honestly here; the report carries the field as 0 rather than a guess.
+    // computed honestly; the report carries the field as 0 rather than a guess.
     costPerFile: 0,
     misses
   }

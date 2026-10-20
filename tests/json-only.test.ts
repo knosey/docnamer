@@ -85,7 +85,7 @@ test('evalTestset refuses a truth file that is not JSON, rather than scoring it 
   await expect(evalTestset(dir, BUILTIN_CONFIG)).rejects.toThrow(SyntaxError)
 })
 
-test('eval --help points at the JSON truth file, not the YAML one it used to read', async () => {
+test('eval --help points at the JSON truth file', async () => {
   const argv = await resolveCli()
   if (argv === null) {
     throw new Error('no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`')

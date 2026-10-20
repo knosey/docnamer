@@ -11,10 +11,9 @@
  *
  * xml:space="preserve" keeps the padding BETWEEN columns, which is what makes a
  * table legible. It does NOT keep the indent that STARTS a line: sips strips a
- * text run's leading whitespace regardless. That is why the "!" rows used to
- * render two characters right of the rest — the marked rows kept their margin
- * while every other row lost it. A line's leading indent is therefore emitted as
- * geometry (the run's x) and the run itself is left-trimmed.
+ * text run's leading whitespace regardless, which would render the marked rows
+ * two characters right of the rest. A line's leading indent is therefore emitted
+ * as geometry (the run's x) and the run itself is left-trimmed.
  *
  * The judge reads every .png under .audit/screenshots/ (the graph's capture node
  * clears and counts that directory), so the frame lands there and nowhere else.

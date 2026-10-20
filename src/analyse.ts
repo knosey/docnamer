@@ -1,30 +1,18 @@
 /**
- * Stage 2 classify-and-extract model call (R3, R6).
+ * Stage 2 classify-and-extract model call.
  *
- * analyse() classifies the document into one of the configured types and
- * extracts that type's fields, each with its verbatim evidence. The contract is
- * declared as a TOOL rather than as prose in the prompt: the reply then arrives
- * as already-parsed arguments instead of text to be scraped, which a chatty or
- * fenced answer defeats.
+ * The contract is declared as a TOOL, not as prose in the prompt: the reply then
+ * arrives as already-parsed arguments instead of text to be scraped, which a
+ * chatty or fenced answer defeats. Neither configured model advertises
+ * `compat.supportsStrictMode`, so the provider does NOT enforce the schema and
+ * `asAnalysis` is the enforcement: a reply that names a field its type does not
+ * declare, or omits a required one, is rejected, and the repair turn quotes that
+ * rejection back at the model.
  *
- * The contract is a DISCRIMINATED UNION, one branch per type: each branch pins
- * its own type with a single-value enum and names exactly that type's fields, so
- * there is no free-form object anywhere in it. A flat schema cannot express this
- * — which fields apply depends on which type is chosen, so a flat `fields` is
- * free-form and the model invents its own names (measured: 0 of 8 runs used the
- * declared names, and validate() then normalised nothing, because it looks every
- * name up in the roster).
- *
- * Neither configured model advertises `compat.supportsStrictMode`, so the
- * provider does NOT enforce the schema and `strict: 'prefer'` degrades to plain
- * function calling. `asAnalysis` is therefore the enforcement: a reply that names
- * a field its type does not declare, or omits a required one, is rejected, and
- * the repair turn quotes that rejection back at the model.
- *
- * Text handed to the model is capped at 4000 characters (R4); page images, when
- * Stage 1 produced them, go along in the same call. A call that cannot complete
- * — unknown model, no credential, two unusable replies — is a `Failed`, never a
- * throw and never a fabricated Analysis (R6).
+ * Text handed to the model is capped at 4000 characters; page images, when Stage
+ * 1 produced them, go along in the same call. A call that cannot complete —
+ * unknown model, no credential, two unusable replies — is a `Failed`, never a
+ * throw and never a fabricated Analysis.
  */
 import { getModel, getProviders } from '@earendil-works/pi-ai/compat'
 import type { AssistantMessage, Message, Tool, ToolCall } from '@earendil-works/pi-ai/compat'
@@ -45,13 +33,11 @@ export function isFailed(r: Analysis | Failed): r is Failed {
   return (r as Failed).failed === true
 }
 
-/** Text handed to a model is capped at 4000 characters (R4). */
 const TEXT_CAP = 4000
 
-/** The tool the model calls to submit its classification. */
 const TOOL_NAME = 'submit_analysis'
 
-/** How many model calls one document may cost: the ask and one repair. */
+/** One document costs at most two calls: the ask and one repair. */
 const ATTEMPTS = [0, 1] as const
 
 /** The JSON-schema shape of an analysis, as pi-ai's tool layer wants it. */
@@ -60,26 +46,21 @@ export type AnalysisSchema = Tool['parameters']
 /**
  * The contract: a flat object that NAMES EVERY FIELD the roster declares.
  *
- * `fields` carries one declared property per field name used by any type, and
- * `additionalProperties: false`, so no name outside the roster is expressible —
- * the model cannot invent `invoice_number`, because the schema has no such
- * property and forbids undeclared ones. Which of those names a given document
- * must supply depends on its type, so `required` is left off the schema and
- * enforced in `asAnalysis` against the chosen type.
+ * `additionalProperties: false` on `fields` means no name outside the roster is
+ * expressible — the model cannot invent `invoice_number`, because the schema has
+ * no such property. Which of those names a document must supply depends on its
+ * type, so `required` is enforced in `asAnalysis` against the chosen type.
  *
- * A superset works because no two types declare the same field name with
- * different kinds (checked against the shipped roster: 15 types, 18 names,
- * `date` is always a date, `number` is always text, `last4` is always a
- * last4). Should a type ever reuse a name for a different kind, this is the
- * line to revisit.
- *
- * A discriminated union (`oneOf`, one branch per type) was tried and MEASURED
- * BROKEN with the configured provider: the model returned empty arguments
- * (`{}`) on 8 of 8 runs, the schema having grown past what it would read.
+ * The flat superset is safe only because no two types declare the same field
+ * name with a different kind (checked against the shipped roster: 15 types, 18
+ * names — `date` is always a date, `last4` always a last4). A type that reused a
+ * name for another kind makes this the line to revisit. A discriminated union
+ * (`oneOf`, one branch per type) was tried and MEASURED BROKEN with the
+ * configured provider: the model returned empty arguments (`{}`) on 8 of 8 runs,
+ * the schema having grown past what it would read.
  *
  * `kind` is deliberately absent: it selects a normaliser in Stage 3 and is none
- * of the model's business. The model's job is to copy the value as the document
- * states it.
+ * of the model's business. The model copies the value as the document states it.
  */
 export function buildSchema(types: Record<string, DocType>): AnalysisSchema {
   const properties: Record<string, unknown> = {}
@@ -128,7 +109,6 @@ export function buildSchema(types: Record<string, DocType>): AnalysisSchema {
   } as AnalysisSchema
 }
 
-/** The field names of each type, as one line of the prompt. */
 function rosterLine(types: Record<string, DocType>): string {
   return Object.entries(types)
     .map(([name, t]) => `${name}: ${Object.keys(t.fields).join(', ')}`)
@@ -153,13 +133,11 @@ export function resolveModel(ref: string): NonNullable<ModelRef> | null {
 }
 
 /**
- * The contract as a tool. `strict: 'prefer'` buys provider-side constrained
- * sampling where the model advertises it and degrades to an ordinary tool call
- * where it does not — measured on the two configured models, both of which
- * report `compat.supportsStrictMode` absent, where `strict: 'require'` throws
- * ("requires JSON-schema constrained sampling, but strict tools are unsupported")
- * and `'prefer'` resolves to plain function calling. `'prefer'` is what keeps
- * both configured models usable.
+ * `strict: 'prefer'` buys provider-side constrained sampling where the model
+ * advertises it and degrades to an ordinary tool call where it does not. Both
+ * configured models report `compat.supportsStrictMode` absent, where
+ * `strict: 'require'` throws and `'prefer'` resolves to plain function calling —
+ * so `'prefer'` is what keeps them usable.
  */
 function analysisTool(types: Record<string, DocType>): Tool {
   return {
@@ -224,11 +202,10 @@ function readCall(
 /**
  * Check submitted arguments against the contract. Returns the reason it was
  * refused rather than throwing: the caller turns an unusable reply into a repair
- * turn and, if that also fails, into a `Failed` (R6, and spec Stage 2's "if
- * still invalid"). The reason names the offending fields, because the repair
- * turn quotes it verbatim.
+ * turn and, if that also fails, into a `Failed`. The reason names the offending
+ * fields, because the repair turn quotes it verbatim.
  *
- * The field-name check is the one that matters. The provider does not enforce
+ * The field-name check is the one that matters: the provider does not enforce
  * the schema, so this is what stops an invented `invoice_number` from reaching
  * validate(), where it would be looked up in the roster, found nowhere, and
  * silently dropped — leaving every template slot empty.
@@ -282,7 +259,7 @@ function asAnalysis(
   return { type, type_confidence: confidence, fields, summary }
 }
 
-/** Page images ride along in the same call as the text (spec Stage 2). */
+/** Page images ride along in the same call as the text. */
 async function imageBlocks(images: string[]): Promise<unknown[]> {
   const blocks: unknown[] = []
   for (const img of images) {
@@ -301,7 +278,7 @@ export async function analyse(
   seat?: 'cheap' | 'vision' | 'strong'
 ): Promise<Analysis | Failed> {
   // A call carrying page images goes to the vision model; text-only stays cheap,
-  // and the caller names a seat when it wants a specific one (spec Stage 2).
+  // and the caller names a seat when it wants a specific one.
   // SAFE: `seat` is optional by signature — undefined means "choose for me", which
   // is the documented default, not a missing value.
   const key = seat ?? (content.images.length > 0 ? 'vision' : 'cheap')
@@ -344,8 +321,8 @@ export async function analyse(
     raw = result.raw
     error = result.error
 
-    // One repair turn, carrying the model's own reply and the error it must fix
-    // (spec Stage 2). The last attempt leaves `error` naming why we gave up.
+    // One repair turn, carrying the model's own reply and the error it must fix.
+    // The last attempt leaves `error` naming why we gave up.
     if (attempt < ATTEMPTS.length - 1) {
       messages.push(msg, {
         role: 'user',

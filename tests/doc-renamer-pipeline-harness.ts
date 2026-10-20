@@ -1,21 +1,18 @@
 /**
- * Shared e2e harness for the doc-renamer-pipeline feature.
- *
- * One exported function per node of INTERACTIONS.md's digraphs. A flow test is
- * its digraph's steps called in order plus the assertion of its Outcome:
+ * Shared e2e harness for the doc-renamer-pipeline feature: one exported function per node of
+ * INTERACTIONS.md's digraphs, so a flow test is its digraph's steps in order plus its Outcome:
  *
  *   const s = new Session();
  *   await entry(s); await read(s); await analyse(s); await name(s); await outcome(s);
  *
- * Each run is self-contained: a fresh temp folder, seeded fixture documents, and
- * the `docnamer` CLI resolved per run. Nothing is written into the repo.
+ * Each run is self-contained: a fresh temp folder, seeded fixture documents, and the `docnamer` CLI
+ * resolved per run. Nothing is written into the repo.
  *
- * The only integration surface is the CLI subprocess (decision D3): the steps
- * drive `docnamer plan <folder>` and observe `.docnamer-plan.json` and the
- * originals on disk. A step whose claim is not observable from that surface
- * throws `Skipped` — a machine-readable, non-green hole — rather than passing.
+ * The only integration surface is the CLI subprocess: the steps drive `docnamer plan <folder>` and
+ * observe `.docnamer-plan.json` and the originals on disk. A step whose claim that surface cannot
+ * show throws `Skipped` — a machine-readable, non-green hole — rather than passing.
  *
- * Native Bun APIs only; no `node:` built-ins (D2).
+ * Native Bun APIs only; no `node:` built-ins.
  */
 import { CONFIG_FILE } from '../src/config.ts'
 import { appBin } from './app-binary.ts'
@@ -150,8 +147,7 @@ async function listFiles(dir: string): Promise<string[]> {
 }
 
 /** Boot the isolated environment: temp folder, seeded fixtures, resolved CLI.
- *  Exported for the smoke test, which proves the harness boots a run and stays
- *  out of the repo without the program under test existing yet. */
+ *  Exported for the smoke test, which proves the harness boots a run and stays out of the repo. */
 export async function boot(s: Session): Promise<void> {
   if (s.booted) return
   await ensureProviderKey()
@@ -212,13 +208,9 @@ export async function boot(s: Session): Promise<void> {
 
 /** Run `docnamer plan <folder>` and parse the plan file. */
 /**
- * THE PROGRAM UNDER TEST IS ABSENT, which is the RIGHT reason for a flow test to
- * be red. tests-red.ts RUN_EACH counts exit 0 as green, so a `Skipped` here made
- * every flow test "GREEN BEFORE THE BUILD" and the run died three children
- * later (ship-feature-f3bae4). The gate says it outright: "If that 126/127 is
- * your own program-under-test missing (the RIGHT reason to be red), the test
- * must SAY so and exit 1 itself". Only a claim the observation surface cannot
- * see is a `Skipped`; an unbuilt CLI is a failure.
+ * The program under test being absent is the RIGHT reason for a flow test to be red, so this is a
+ * failure and not a `Skipped`: only a claim the observation surface cannot see is a `Skipped`, an
+ * unbuilt CLI is a failure.
  */
 const missingCli = (): Error =>
   new Error(
@@ -293,12 +285,9 @@ function carries(name: string, value: string): boolean {
 /** name: Stage 4 — each row proposes a non-empty, filesystem-safe name that
  *  carries the values it extracted.
  *
- *  The value assertion is the regression guard for the whole feature. Without
- *  it a name can be well-formed and still empty of content: when the tool
- *  schema stopped naming the per-type fields, the model invented
- *  `invoice_number` / `vendor` / `total_amount`, validate() found none of them
- *  in the roster, normalised nothing, and every template slot rendered empty —
- *  a bare date. Stage 4's claim is the rendered VALUES, not the shape. */
+ *  The value assertion is the regression guard for the whole feature. Without it a name can be
+ *  well-formed and still empty of content — every template slot rendering empty, a bare date — so
+ *  Stage 4's claim is the rendered VALUES, not the shape. */
 export async function name(s: Session): Promise<Session> {
   await ensure(s)
   for (const r of s.plan) {
@@ -321,11 +310,8 @@ export async function name(s: Session): Promise<Session> {
  * outcome: plan written with pending rows, the old->new table PRINTED with
  * flagged rows first, and the originals unchanged.
  *
- * The table is half of I1's Outcome sentence and it was the half nobody built:
- * the CLI wrote the plan and printed a count, so the run's vision judge was
- * handed `shows` = "the old->new name table printed by docnamer plan" and no
- * such table existed to look at. An Outcome claim that is not asserted here is
- * a claim no node can be held to.
+ * The table is half of I1's Outcome sentence, and an Outcome claim not asserted here is a claim no
+ * node can be held to.
  */
 export async function outcome(s: Session, name: string): Promise<Session> {
   await ensure(s)

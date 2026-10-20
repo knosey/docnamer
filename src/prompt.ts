@@ -1,29 +1,25 @@
 /**
  * The interactive layer: the provider picker a bare `docnamer login` opens.
  *
- * There is no TUI dependency here on purpose. A picker is a list, a cursor and
- * four keys, and the three measured traps in reading those keys are the whole
- * difficulty — none of which a framework would have hidden:
+ * No TUI dependency here on purpose: a picker is a list, a cursor and four keys,
+ * and the difficulty is entirely in reading the keys, which a framework would not
+ * have hidden —
  *
  *  - a sequence arrives SPLIT: a lone ESC in one read and `[A` in the next must
  *    still be one Up, so the decoder holds a trailing partial sequence;
  *  - arrows arrive as SS3 (`ESC O B`) or CSI (`ESC [ B`) depending on the
  *    terminal's cursor-key mode, and matching only one silently ignores every
  *    arrow;
- *  - the mirror of the first: `ESC [ A ESC [ B` may arrive as ONE read, so a
- *    chunk is a queue of keys and never a single key.
+ *  - the mirror of that: `ESC [ A ESC [ B` may arrive as ONE read, so a chunk is
+ *    a queue of keys and never a single key.
  *
- * `keyDecoder`, `filter`, `nextCursor` and `pickerFrame` are pure and take
- * bytes or plain values, so all of that is asserted directly instead of through
- * a terminal. A pty gives a byte stream rather than a screen, and grepping raw
- * redraw bytes is how a working UI gets called broken
- * (`.agents/skills/driving-hard/pty-and-tui.md`).
+ * `keyDecoder`, `filter`, `nextCursor` and `pickerFrame` are pure and take bytes
+ * or plain values, so the traps are asserted directly rather than through a
+ * terminal — a pty gives a byte stream, not a screen.
  *
- * THIS MODULE OWNS STDIN. The picker's answer and the login flow's answer are
- * the same byte stream, so they share one reader: a second `getReader()` over
- * `Bun.stdin.stream()` throws on the lock the first one holds, and a second
- * `for await` would consume a line the first had already buffered. `stdinLine`
- * is that single reader, and `src/auth.ts` prompts through it too.
+ * THIS MODULE OWNS STDIN: the picker's answer and the login flow's answer are the
+ * same byte stream, and a second `getReader()` over `Bun.stdin.stream()` throws
+ * on the lock the first one holds.
  */
 import { deviceStream, hasDevice, ui, type Style } from './ui.ts'
 
@@ -61,8 +57,8 @@ export type Decoder = {
 }
 
 /**
- * A stateful byte decoder, because a keypress is not a chunk: one keypress can
- * arrive in two reads and one read can carry several keypresses.
+ * A stateful byte decoder: one keypress can arrive in two reads, and one read can
+ * carry several keypresses.
  */
 export function keyDecoder(): Decoder {
   const decoder = new TextDecoder()
@@ -188,13 +184,14 @@ export function pickerFrame(o: Frame): string[] {
 }
 
 /**
- * stdin as bytes, read at most once at a time. The in-flight read is kept, not
- * discarded, so the idle timer below can give up on a partial escape sequence
- * without throwing away the bytes that arrive just after it.
+ * stdin as bytes, read at most once at a time, with the in-flight read kept
+ * rather than discarded so the idle timer below can give up on a partial escape
+ * sequence without throwing away the bytes that arrive just after it.
+ *
+ * The reader is named structurally because Bun's stdin stream and a device file
+ * stream are declared by two different `ReadableStream` types; these are the only
+ * members ever touched.
  */
-/** The slice of a byte-stream reader this module uses. Bun's stdin stream and a
- * device file stream are declared by two different `ReadableStream` types, so
- * the reader is named structurally: these are the only members ever touched. */
 type ByteReader = {
   read(): Promise<{ done: boolean; value?: Uint8Array }>
   cancel(): Promise<void>
@@ -225,10 +222,10 @@ function readOnce(): Promise<Uint8Array | null> {
 /** Release the reader that pulled from stdin.
  *
  * Bun's stdin stream keeps the process ALIVE until the reader over it is
- * cancelled — there is no end of input on a terminal to reach, so a command
- * that read a keystroke and finished would print its success line and then
- * never give the prompt back. Cancelling drops the fd interest that held it.
- * Only for the end of a command: a later prompt would find the stream closed. */
+ * cancelled — there is no end of input on a terminal to reach, so a command that
+ * read a keystroke and finished would print its success line and then never give
+ * the prompt back. Only for the end of a command: a later prompt would find the
+ * stream closed. */
 export async function releaseStdin(): Promise<void> {
   if (reader === null) return
   const held = reader

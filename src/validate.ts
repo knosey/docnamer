@@ -1,16 +1,12 @@
 /**
- * Stage 3 validation and normalisers (R7, R8).
- *
- * validate() takes the model's Analysis and the document Content, normalises
- * every extracted field by its kind (dates to ISO, entities to their canonical
- * name, last4 to four digits) and cross-checks
- * each field's evidence against the document text. Problems become flags on
- * the returned Checked value — never throws, never silently rewrites.
+ * Stage 3 validation: normalise every extracted field by its kind (dates to ISO,
+ * entities to their canonical name, last4 to four digits) and cross-check each
+ * field's evidence against the document text. Problems become flags on the
+ * returned Checked — never a throw, never a silent rewrite.
  *
  * A missing required field is FLAGGED, never a reason to change the type: the
  * type the model read is the type the file is, and the template drops the empty
- * part on its own. Retargeting to `other` used to throw away every value the
- * model did extract — a statement with no account number became a bare date.
+ * part on its own.
  */
 import type { Analysis } from './analyse.ts'
 import type { Config } from './config.ts'
@@ -45,10 +41,8 @@ const iso = (y: number, m: number, d: number): string | null => {
   return `${y}-${mm}-${dd}`
 }
 
-/**
- * Parse a date string to ISO YYYY-MM-DD. Ambiguous slashed/dotted dates are
- * read by `order` (day-first by default — R8). Returns null on nonsense.
- */
+/** Parse a date string to ISO YYYY-MM-DD, reading ambiguous slashed/dotted
+ *  dates by `order`. Returns null on nonsense. */
 export function parseDate(value: string, order: 'day-first' | 'month-first'): string | null {
   const v = value.trim()
 
@@ -72,14 +66,11 @@ export function parseDate(value: string, order: 'day-first' | 'month-first'): st
 
 const LEGAL_SUFFIX = /\b(ltd|limited|plc|llp|llc|inc|gmbh|uk)\b\.?/gi
 
-/** Title-case each word of a name. */
 const titleCase = (s: string): string =>
   s.replace(/\b\w+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase())
 
-/**
- * Resolve an entity string to its canonical roster name via the alias map;
- * unknown names are tidied (legal suffixes dropped, title-cased).
- */
+/** Canonical roster name for an entity string; unknown names are tidied
+ *  (legal suffixes dropped, title-cased). */
 export function canonicalEntity(value: string, aliases: Record<string, string[]>): string {
   const v = value.trim()
   const lower = v.toLowerCase()
@@ -103,10 +94,8 @@ export function reduceLast4(value: string): string {
   return digits.slice(-4)
 }
 
-/**
- * Normalise every extracted field by kind, cross-check evidence against the
- * document text, and collect flags.
- */
+/** Normalise every field by kind, cross-check evidence against the document
+ *  text, and collect the flags. */
 export function validate(a: Analysis, content: Content, config: Config): Checked {
   const flags: string[] = []
   const fields: Analysis['fields'] = {}

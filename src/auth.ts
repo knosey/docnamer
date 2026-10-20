@@ -1,41 +1,19 @@
 /**
- * Where docnamer's model credential comes from (D4).
+ * Where docnamer's model credential comes from: pi's own
+ * `~/.pi/agent/auth.json` first, then `~/.config/docnamer/credentials.json`,
+ * then the environment as pi-ai's own last resort — a stored credential owns the
+ * provider and the environment answers only when neither store holds one, which
+ * is what keeps CI working without making the variable necessary.
  *
- * Until now the credential was `FIREWORKS_API_KEY` and nothing else. `analyse()`
- * called `completeSimple` from `@earendil-works/pi-ai/compat`, and that module
- * resolves a key from the ENVIRONMENT alone (`dist/compat.js`, `getEnvApiKey`).
- * No login could ever satisfy it, so the variable was load-bearing and the
- * program had no way to be signed in. `compat.d.ts` says as much itself: new
- * code uses `createModels()`.
+ * pi's file is READ ONLY: it belongs to pi. A refresh of a credential pi holds
+ * therefore lands in docnamer's own store, beside pi's file rather than inside
+ * it, and `modify`'s `current` is the composite read, so a refresh still sees
+ * the credential it is refreshing.
  *
- * This module owns the collection `analyse()` calls instead — `builtinModels({
- * credentials })`, the catalog of every provider pi-ai knows — and the
- * credential store behind it, in this order:
- *
- *   1. pi's own `~/.pi/agent/auth.json`, when pi holds a login. That file is
- *      already a `Record<providerId, Credential>` — `fireworks` is
- *      `{type:'api_key', key}`, an OAuth provider is
- *      `{type:'oauth', access, refresh, expires, accountId}` — so it satisfies
- *      `CredentialStore.read` as it stands, with no translation. READ ONLY:
- *      pi's file belongs to pi, and docnamer never writes it.
- *   2. `~/.config/docnamer/credentials.json`, docnamer's own store, written by
- *      `docnamer login` and removed by `docnamer logout`.
- *
- * Reads are the composite; WRITES ARE ALWAYS DOCNAMER'S OWN FILE. A refresh of a
- * credential pi holds therefore lands beside pi's file rather than inside it,
- * and `modify`'s `current` is the composite read, so a refresh still sees the
- * credential it is refreshing.
- *
- * Environment variables still answer as a LAST resort, which is pi-ai's own
- * precedence: a stored credential owns the provider, and the environment is
- * consulted only when neither store holds one. That is what keeps CI working
- * without making the variable necessary — which is the whole difference between
- * the old behaviour and this one.
- *
- * Types are derived from the public entrypoints rather than imported by name:
- * `@earendil-works/pi-ai/auth/*` is not in the package's `exports` map, and
- * every one of these names appears in a public signature, so deriving them
- * cannot drift from the shipped version.
+ * The types below are derived from the public entrypoints rather than imported
+ * by name: `@earendil-works/pi-ai/auth/*` is not in the package's `exports`
+ * map, and every one of these names appears in a public signature, so deriving
+ * them cannot drift from the shipped version.
  */
 import type { CreateModelsOptions, MutableModels } from '@earendil-works/pi-ai/models'
 import { builtinModels } from '@earendil-works/pi-ai/providers/all'
@@ -87,7 +65,7 @@ type StoreFile = Record<string, Credential>
 
 /** A store file that does not exist yet is empty, not an error; one that exists
  *  and does not parse THROWS, because a corrupt credential file that reads as
- *  empty is a login that silently stops working (R2). */
+ *  empty is a login that silently stops working. */
 async function readStore(path: string): Promise<StoreFile> {
   const file = Bun.file(path)
   if (!(await file.exists())) return {}
@@ -255,13 +233,11 @@ function prompter(next: () => Promise<string>, u: Ui): (prompt: AuthPrompt) => P
 }
 
 /**
- * Sign in to one provider and store what comes back. The flow itself belongs to
- * the provider — an API key prompt for most, a browser or device flow for an
- * OAuth provider — and the credential is persisted through `modify`, which is
- * `CredentialStore`'s only write path.
- *
- * `type` is the provider's own preference: an OAuth arm is used when the
- * provider has one and `'oauth'` is asked for, otherwise the api-key arm.
+ * Sign in to one provider and store what comes back. The flow belongs to the
+ * provider — an API key prompt for most, a browser or device flow for an OAuth
+ * provider — and the credential is persisted through `modify`, the store's only
+ * write path. `type` is the provider's own preference: the OAuth arm when it has
+ * one and `'oauth'` was asked for, otherwise the api-key arm.
  */
 export async function login(
   providerId: string,

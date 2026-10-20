@@ -1,11 +1,11 @@
 /**
- * Stage 1 read ladder (R4, R5, I2).
+ * Stage 1 read ladder.
  *
- * read() extracts a document's content by the cheapest faithful route:
- * a usable text layer first ("text"), macOS Vision OCR over page images
- * next ("ocr"), and — when OCR comes back weak — the page images ride along
- * as "vision" for Stage 2's model call, which is the only stage that looks
- * at them. Text handed onward is capped at 4000 characters (R4).
+ * read() extracts a document's content by the cheapest faithful route: a usable
+ * text layer first ("text"), macOS Vision OCR over page images next ("ocr"), and
+ * — when OCR comes back weak — the page images ride along as "vision" for Stage
+ * 2's model call, the only stage that looks at them. Text handed onward is capped
+ * at 4000 characters.
  */
 
 export type Content = {
@@ -16,9 +16,8 @@ export type Content = {
   pages: number
 }
 
-/** Text handed to a model is capped at 4000 characters (R4). */
 const TEXT_CAP = 4000
-/** Mean OCR confidence below which the ladder falls back to vision (I2). */
+/** Mean OCR confidence below which the ladder falls back to vision. */
 const OCR_MIN_CONFIDENCE = 0.8
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif'])
@@ -30,12 +29,12 @@ function extOf(file: string): string {
 
 function tmpPath(name: string): string {
   // `Bun.env.TMPDIR` is the sanctioned spelling here: src/ may not import a
-  // node: built-in (R1, D2), so the platform temp dir is read from the
-  // environment with /tmp as the only fallback.
+  // node: built-in, so the platform temp dir is read from the environment with
+  // /tmp as the only fallback.
   return `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-${name}`
 }
 
-/** Pull a locally-evicted iCloud file back down before reading it (R5). */
+/** Pull a locally-evicted iCloud file back down before reading it. */
 export async function downloadICloud(file: string): Promise<void> {
   const f = Bun.file(file)
   if (await f.exists()) return
@@ -47,16 +46,16 @@ export async function downloadICloud(file: string): Promise<void> {
   }
 }
 
-// --- macOS Vision OCR (mac-ocr) ----------------------------------------------
+// --- macOS Vision OCR (mac-ocr) --------------------------------------------
 // mac-ocr wraps VNRecognizeTextRequest in a prebuilt MIT binary shipped as a
 // project dependency, so the CLI depends on neither a global install nor a
-// first-run swiftc compile. Native Bun + platform frameworks only (D2).
+// first-run swiftc compile.
 
-/** Resolve mac-ocr from this project's own install only — never PATH (R5). */
+/** Resolve mac-ocr from this project's own install only, never PATH. */
 import macOcr from '../node_modules/mac-ocr/bin/mac-ocr' with { type: 'file' }
 import macOcrPkg from '../node_modules/mac-ocr/package.json'
 
-/** sha256 of node_modules/mac-ocr/bin/mac-ocr, pinned so the embedded copy is the only mac-ocr ever exec'd. */
+/** sha256 of the embedded mac-ocr binary, pinned so the copy shipped in node_modules is the only mac-ocr ever exec'd. */
 const MAC_OCR_SHA256 = '1817fff474a88706104167f8f47983ecea93a3b41cd10fa6b8585c026ffd7668'
 
 let macOcrPromise: Promise<string> | null = null
@@ -127,7 +126,7 @@ export async function ocrPages(
   return { text, chars: text.length, meanConfidence }
 }
 
-// --- Text-layer extraction ---------------------------------------------------
+// --- Text-layer extraction -------------------------------------------------
 
 function unescapePdfString(s: string): string {
   return s.replace(/\\([\\()nrtbf]|[0-7]{1,3})/g, (_m, g: string) => {
@@ -183,8 +182,8 @@ function pdfToPng(file: string): string {
 }
 
 /**
- * Page images for a vision call (I2). macOS ships no CLI that extracts page N>1
- * of a PDF as an image — sips writes page 1 only — so a vision fallback sees the
+ * Page images for a vision call. macOS ships no CLI that extracts page N>1 of a
+ * PDF as an image — sips writes page 1 only — so a vision fallback sees the
  * document's first page, which carries its issuer, date and reference.
  */
 export function pageImages(file: string): string[] {
@@ -194,10 +193,10 @@ export function pageImages(file: string): string[] {
   return []
 }
 
-// --- OOXML / iWork extraction (R4) -----------------------------------------------
+// --- OOXML / iWork extraction ---------------------------------------------
 // xlsx and pptx are zip archives of XML; a .pages document is a zip whose only
 // readable text is the embedded QuickLook preview PDF. `unzip` ships with macOS,
-// like sips and textutil, so extraction stays native (D2).
+// like sips and textutil, so extraction stays native.
 
 /** One entry of a zip archive as text; null when the archive lacks the entry. */
 function zipEntry(file: string, entry: string): string | null {
@@ -221,7 +220,7 @@ function xmlTexts(xml: string, tag: string): string[] {
   return [...xml.matchAll(re)].map(m => unescapeXml(m[1]))
 }
 
-/** Direct text extraction for xlsx, pptx and pages (R4). */
+/** Direct text extraction for xlsx, pptx and pages. */
 async function officeText(file: string, ext: string): Promise<string> {
   if (ext === '.xlsx') {
     const shared = zipEntry(file, 'xl/sharedStrings.xml')
@@ -262,7 +261,7 @@ async function officeText(file: string, ext: string): Promise<string> {
   return pdfTextLayer(raw)
 }
 
-// --- The ladder -----------------------------------------------------------------
+// --- The ladder ------------------------------------------------------------
 
 /**
  * Reads one document. `null` is Stage 1's SKIP: a type the ladder cannot read is
