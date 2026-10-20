@@ -14,19 +14,37 @@ import type { Content } from './read.ts'
 
 export type Checked = Analysis & { flags: string[] }
 
-const MONTHS: Record<string, number> = {
-  january: 1,
-  february: 2,
-  march: 3,
-  april: 4,
-  may: 5,
-  june: 6,
-  july: 7,
-  august: 8,
-  september: 9,
-  october: 10,
-  november: 11,
-  december: 12
+/** Month names in English and Dutch, the languages this paperwork is written
+ *  in. An abbreviation is any prefix of three letters or more (`Sept`, `okt`). */
+const MONTH_NAMES: readonly (readonly string[])[] = [
+  ['january', 'januari'],
+  ['february', 'februari'],
+  ['march', 'maart', 'mrt'],
+  ['april'],
+  ['may', 'mei'],
+  ['june', 'juni'],
+  ['july', 'juli'],
+  ['august', 'augustus'],
+  ['september'],
+  ['october', 'oktober'],
+  ['november'],
+  ['december']
+]
+
+/** The month a word names, 1-12, or null when it names none. */
+function monthOf(word: string): number | null {
+  const w = word.toLowerCase().replace(/\.$/, '')
+  if (w.length < 3) return null
+  const at = MONTH_NAMES.findIndex(names => names.some(n => n === w || n.startsWith(w)))
+  return at < 0 ? null : at + 1
+}
+
+/** A printed year as four digits: a two-digit year is this century's unless
+ *  that would put it more than a year ahead. */
+function fullYear(printed: string): number {
+  const n = +printed
+  if (printed.length === 4) return n
+  return n + (n > (new Date().getFullYear() % 100) + 1 ? 1900 : 2000)
 }
 
 /** Years outside this band are implausible for scanned paperwork. */
@@ -41,26 +59,66 @@ const iso = (y: number, m: number, d: number): string | null => {
   return `${y}-${mm}-${dd}`
 }
 
+/** One way of printing a date: a pattern and how its groups make the date. */
+type DateForm = {
+  readonly pattern: RegExp
+  read(m: RegExpExecArray, order: 'day-first' | 'month-first'): string | null
+}
+
+const ORDINAL = '(?:st|nd|rd|th|e)?'
+
+/**
+ * The ways paperwork prints a date, tried in turn. None is anchored: a value
+ * copied off the page often carries the place it was signed (`Baambrugge,
+ * 8 april 2026`) or its label (`Datum: 21 juni 2026`).
+ */
+const DATE_FORMS: readonly DateForm[] = [
+  // 2026-04-08, 2026/04/08, 2026.04.08
+  {
+    pattern: /(?:^|\D)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)/,
+    read: m => iso(+m[1]!, +m[2]!, +m[3]!)
+  },
+  // 08/04/2026, 08.04.26, 03-04-2026: day or month first by the config
+  {
+    pattern: /(?:^|\D)(\d{1,2})[-/.](\d{1,2})[-/.](\d{4}|\d{2})(?!\d)/,
+    read: (m, order) => {
+      const [a, b, y] = [+m[1]!, +m[2]!, fullYear(m[3]!)]
+      return order === 'day-first' ? iso(y, b, a) : iso(y, a, b)
+    }
+  },
+  // 8 april 2026, 3rd October 2026, 3 okt. 2026, 8-apr-2026
+  {
+    pattern: new RegExp(
+      `(?:^|[^\\p{L}\\d])(\\d{1,2})${ORDINAL}[\\s-]+(\\p{L}+)\\.?,?[\\s-]+(\\d{4})(?!\\d)`,
+      'u'
+    ),
+    read: m => {
+      const month = monthOf(m[2]!)
+      return month === null ? null : iso(+m[3]!, month, +m[1]!)
+    }
+  },
+  // October 3, 2026
+  {
+    pattern: new RegExp(
+      `(?:^|[^\\p{L}])(\\p{L}+)\\.?\\s+(\\d{1,2})${ORDINAL},?\\s+(\\d{4})(?!\\d)`,
+      'u'
+    ),
+    read: m => {
+      const month = monthOf(m[1]!)
+      return month === null ? null : iso(+m[3]!, month, +m[2]!)
+    }
+  }
+]
+
 /** Parse a date string to ISO YYYY-MM-DD, reading ambiguous slashed/dotted
- *  dates by `order`. Returns null on nonsense. */
+ *  dates by `order`. Returns null on nonsense: a month it does not know is
+ *  never guessed. */
 export function parseDate(value: string, order: 'day-first' | 'month-first'): string | null {
-  const v = value.trim()
-
-  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v)
-  if (m) return iso(+m[1], +m[2], +m[3])
-
-  m = /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/.exec(v)
-  if (m) {
-    const [a, b, y] = [+m[1], +m[2], +m[3]]
-    return order === 'day-first' ? iso(y, b, a) : iso(y, a, b)
+  for (const form of DATE_FORMS) {
+    const m = form.pattern.exec(value)
+    const date = m === null ? null : form.read(m, order)
+    if (date !== null) return date
   }
-
-  m = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(v)
-  if (m) {
-    const month = MONTHS[m[2].toLowerCase()]
-    if (month) return iso(+m[3], month, +m[1])
-  }
-
   return null
 }
 

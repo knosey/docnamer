@@ -196,6 +196,33 @@ test('T4 parseDate accepts ISO, dotted and month-name dates, and rejects nonsens
   expect(v.parseDate('not a date', 'day-first')).toBeNull()
 })
 
+// A date the parser cannot read leaves the name with no date at all. Paperwork
+// writes dates in Dutch as often as English, abbreviates months, puts the month
+// first, uses dashes and two-digit years, and prefixes the place it was signed.
+test('T4 parseDate reads the dates real paperwork prints', async () => {
+  const v = await loadValidate()
+  const cases: [string, string][] = [
+    ['12 mei 2026', '2026-05-12'],
+    ['3 maart 2026', '2026-03-03'],
+    ['1 oktober 2026', '2026-10-01'],
+    ['14 Sept 2026', '2026-09-14'],
+    ['3 Oct 2026', '2026-10-03'],
+    ['3 okt. 2026', '2026-10-03'],
+    ['October 3, 2026', '2026-10-03'],
+    ['3rd October 2026', '2026-10-03'],
+    ['03-04-2026', '2026-04-03'],
+    ['2026/04/08', '2026-04-08'],
+    ['8-apr-2026', '2026-04-08'],
+    ['Baambrugge, 8 april 2026', '2026-04-08'],
+    ['08.04.26', '2026-04-08'],
+    ['Datum: 21 juni 2026', '2026-06-21']
+  ]
+  for (const [text, want] of cases) expect(v.parseDate(text, 'day-first'), text).toBe(want)
+  expect(v.parseDate('31 februari 2026', 'day-first'), 'a day the month lacks').toBe(null)
+  expect(v.parseDate('Invoice 2026', 'day-first'), 'a year alone is not a date').toBe(null)
+  expect(v.parseDate('12 mayo 2026', 'day-first'), 'an unknown month is not guessed').toBe(null)
+})
+
 test('T4 canonicalEntity resolves aliases and tidies legal suffixes', async () => {
   const v = await loadValidate()
   expect(v.canonicalEntity('BARCLAYS', CONFIG.entities)).toBe('Barclays')
