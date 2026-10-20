@@ -30,6 +30,7 @@ import { CONFIG_FILE } from '../src/config.ts'
 import { EXPECTED_FILE } from '../src/eval.ts'
 import { appBin } from './app-binary.ts'
 import { frame } from './frame.ts'
+import { planRows } from './plan-file.ts'
 import { ensureProviderKey } from './preload.ts'
 
 export type Flow = 'apply' | 'undo' | 'review' | 'eval'
@@ -200,15 +201,13 @@ export async function boot(s: Session): Promise<void> {
   s.planPath = `${dir}/.docnamer-plan.json`
   for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
 
-  // A real fixture set, when one exists, is copied in beside the seed files.
+  // Every fixture, copied in beside the seed files. A missing tests/fixtures is a
+  // broken run, not a degraded one: swallowing the ENOENT left the flow testing the
+  // hand-seeded files alone and calling it a pipeline.
   const fixtures = `${repo}/tests/fixtures`
-  try {
-    for await (const rel of new Bun.Glob('**/*').scan({ cwd: fixtures, onlyFiles: true })) {
-      const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
-      await Bun.write(`${dir}/${base(rel)}`, bytes)
-    }
-  } catch (err) {
-    if ((err as { code?: string }).code !== 'ENOENT') throw err
+  for await (const rel of new Bun.Glob('**/*').scan({ cwd: fixtures, onlyFiles: true })) {
+    const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
+    await Bun.write(`${dir}/${base(rel)}`, bytes)
   }
 
   // The folder's own config. docnamer.json is read from the FOLDER being planned
@@ -253,11 +252,7 @@ async function runPlan(s: Session): Promise<void> {
   }
   const parsed = JSON.parse(await Bun.file(s.planPath).text()) as unknown
   s.planRaw = parsed
-  s.plan = Array.isArray(parsed)
-    ? (parsed as PlanRow[])
-    : ((parsed as { rows?: PlanRow[]; files?: PlanRow[] }).rows ??
-      (parsed as { files?: PlanRow[] }).files ??
-      [])
+  s.plan = planRows<PlanRow>(parsed)
 }
 
 /** Write `s.plan` back into the plan file, preserving the envelope it arrived in. */
@@ -457,10 +452,7 @@ export async function act(s: Session, keys = 'A'): Promise<Session> {
   ])
   s.last = { code, stdout, stderr }
   if (code !== 0) throw new Error(`docnamer review exited ${code}\n${stderr}${stdout}`)
-  const parsed = JSON.parse(await Bun.file(s.planPath).text()) as unknown
-  s.plan = Array.isArray(parsed)
-    ? (parsed as PlanRow[])
-    : ((parsed as { rows?: PlanRow[] }).rows ?? [])
+  s.plan = planRows<PlanRow>(JSON.parse(await Bun.file(s.planPath).text()) as unknown)
   return s
 }
 

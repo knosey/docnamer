@@ -28,6 +28,16 @@ const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g')
 
 const hasPty = typeof Bun.Terminal === 'function'
 
+// A required gate treats SKIP as failure. Three of this file's tests are
+// `skipIf(!hasPty)`, so on a runtime without Bun.Terminal the file empties itself
+// and the suite stays green with the arrow picker, its raw mode and its redraw all
+// unproven. This is the assertion that makes that a red instead.
+test('Bun.Terminal is present, so the pty tests below run rather than skip', () => {
+  expect(hasPty, 'Bun.Terminal is absent; every pty test below would skip and stay green').toBe(
+    true
+  )
+})
+
 /** A throwaway home with nothing signed in, one per test: a credential written
  *  by one test must never be visible to the next. */
 async function freshHome(): Promise<string> {

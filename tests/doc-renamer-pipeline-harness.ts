@@ -17,6 +17,7 @@
 import { CONFIG_FILE } from '../src/config.ts'
 import { appBin } from './app-binary.ts'
 import { frame } from './frame.ts'
+import { planRows } from './plan-file.ts'
 import { ensureProviderKey } from './preload.ts'
 
 export type PlanRow = {
@@ -157,17 +158,13 @@ export async function boot(s: Session): Promise<void> {
   s.planPath = `${dir}/.docnamer-plan.json`
   for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
 
-  // A real fixture set, when one exists, is copied in beside the seed files.
-  // Bun.file(dir).exists() is false for a DIRECTORY (Bun 1.4.3), so the scan is
-  // the existence check: ENOENT means there is no fixture set to copy.
+  // Every fixture, copied in beside the seed files. A missing tests/fixtures is a
+  // broken run, not a degraded one: swallowing the ENOENT left the flow testing the
+  // hand-seeded files alone and calling it a pipeline.
   const fixtures = `${repo}/tests/fixtures`
-  try {
-    for await (const rel of new Bun.Glob('**/*').scan({ cwd: fixtures, onlyFiles: true })) {
-      const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
-      await Bun.write(`${dir}/${base(rel)}`, bytes)
-    }
-  } catch (err) {
-    if ((err as { code?: string }).code !== 'ENOENT') throw err
+  for await (const rel of new Bun.Glob('**/*').scan({ cwd: fixtures, onlyFiles: true })) {
+    const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
+    await Bun.write(`${dir}/${base(rel)}`, bytes)
   }
 
   // The folder's own config. docnamer.json is read from the FOLDER being planned
@@ -224,8 +221,8 @@ async function runPlan(s: Session): Promise<void> {
   if (res.code !== 0) {
     throw new Error(`docnamer plan exited ${res.code}\n${res.stderr}${res.stdout}`)
   }
-  const parsed = JSON.parse(await Bun.file(s.planPath).text())
-  s.plan = Array.isArray(parsed) ? parsed : (parsed.rows ?? parsed.files ?? [])
+  const parsed = JSON.parse(await Bun.file(s.planPath).text()) as unknown
+  s.plan = planRows<PlanRow>(parsed)
 }
 
 /** Boot and plan if a prior step has not already done so. */
@@ -271,15 +268,46 @@ function flat(s: string): string {
 
 /**
  * Does the rendered name CARRY this extracted value? Not a substring test: the
- * name is sanitised, and a date is reformatted rather than copied, so compare
- * the value's longest token against the flattened name. Tokens over 20
- * characters are skipped — Stage 4 may have shortened them away.
+ * name is sanitised, and a date is reformatted rather than copied, so compare the
+ * value's LONGEST token against the flattened name — the longest, because a
+ * one-character token matches almost any name and would make the guard vacuous.
+ *
+ * `null` means the value holds nothing alphanumeric to look for (a dash, a slash),
+ * so no claim can be made about it. It used to return `true` for that case AND for
+ * every token over 20 characters, which waived the guard for the class of value the
+ * feature exists to preserve; the caller counts those waivers and fails on them.
  */
-function carries(name: string, value: string): boolean {
+function carries(name: string, value: string): boolean | null {
   let longest = ''
   for (const t of value.split(/[^A-Za-z0-9]+/)) if (t.length > longest.length) longest = t
-  if (!longest || longest.length > 20) return true
+  if (!longest) return null
   return flat(name).includes(flat(longest))
+}
+
+/** The extracted values of one row that the rendered name does NOT carry. Throws on
+ *  the first one it finds: a name that drops a value it extracted is the regression
+ *  this stage exists to catch.
+ *
+ *  Values with nothing alphanumeric in them are RETURNED rather than thrown — the
+ *  caller reports them as holes, because a guard that silently passes on the values
+ *  it cannot look for is the guard that was missing. */
+function fieldsDropped(r: PlanRow): string[] {
+  const waived: string[] = []
+  // `date` is excluded: the template REFORMATS it (03/04/2026 -> 2026-04-03),
+  // so its tokens need not survive verbatim.
+  for (const [field, value] of Object.entries(r.fields)) {
+    if (!value || field === 'date') continue
+    const carried = carries(r.new, value)
+    if (carried === true) continue
+    if (carried === null) {
+      waived.push(`${field} ${JSON.stringify(value)}`)
+      continue
+    }
+    throw new Error(
+      `Stage 4 name drops ${r.old}'s ${field} ${JSON.stringify(value)}: ${JSON.stringify(r.new)}`
+    )
+  }
+  return waived
 }
 
 /** name: Stage 4 — each row proposes a non-empty, filesystem-safe name that
@@ -290,18 +318,18 @@ function carries(name: string, value: string): boolean {
  *  Stage 4's claim is the rendered VALUES, not the shape. */
 export async function name(s: Session): Promise<Session> {
   await ensure(s)
+  const waived: string[] = []
   for (const r of s.plan) {
     if (!r.new) throw new Error(`Stage 4 produced no name for ${r.old}`)
     if (/[/\\:*?"<>|]/.test(r.new)) throw new Error(`Stage 4 name not sanitised: ${r.new}`)
-    // `date` is excluded: the template REFORMATS it (03/04/2026 -> 2026-04-03),
-    // so its tokens need not survive verbatim.
-    for (const [field, value] of Object.entries(r.fields)) {
-      if (!value || field === 'date') continue
-      if (carries(r.new, value)) continue
-      throw new Error(
-        `Stage 4 name drops ${r.old}'s ${field} ${JSON.stringify(value)}: ${JSON.stringify(r.new)}`
-      )
-    }
+    for (const hole of fieldsDropped(r)) waived.push(`${r.old} ${hole}`)
+  }
+  // A waived field is a hole, not a pass: it is named and it is red, never counted
+  // as green. The old code returned true here and said nothing at all.
+  if (waived.length) {
+    throw new Error(
+      `Stage 4 could not check ${waived.length} extracted value(s) for content — nothing alphanumeric to look for: ${waived.join('; ')}`
+    )
   }
   return s
 }
