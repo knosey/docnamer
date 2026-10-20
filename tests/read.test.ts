@@ -6,6 +6,7 @@ export const reference =
 // through its own asserted failure — a dynamic import error, an empty listing — never a throw at load.
 
 import { test, expect } from 'bun:test'
+import { runChild } from './child.ts'
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
 const fixturesDir = `${repo}/tests/fixtures`
@@ -48,17 +49,14 @@ function withExt(files: string[], ext: string): string[] {
 // suite is anchored to, and the OCR test below cannot pass without it.
 test('reference is the truth this suite is anchored to', async () => {
   const [cmd, ...args] = reference.trim().split(/\s+/)
-  let code = -1
-  let stdout = ''
+  let run: { code: number; stdout: string }
   try {
-    const p = Bun.spawn([cmd, ...args], { stdout: 'pipe', stderr: 'pipe' })
-    stdout = await new Response(p.stdout).text()
-    code = await p.exited
+    run = await runChild([cmd as string, ...args], { timeoutMs: 30000 })
   } catch (err) {
     throw new Error(`reference command did not run: ${String(err)}`)
   }
-  expect(code).toBe(0)
-  expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
+  expect(run.code).toBe(0)
+  expect(run.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
 })
 
 // --- The read ladder (R4, R5) and vision fallback (I2) ------------------------

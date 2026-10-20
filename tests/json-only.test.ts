@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { runChild } from './child.ts'
 import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
 import { BUILTIN_CONFIG } from '../src/config.ts'
 import { evalTestset } from '../src/eval.ts'
@@ -51,8 +52,7 @@ test('eval --help points at the JSON truth file', async () => {
   if (argv === null) {
     throw new Error('no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`')
   }
-  const p = Bun.spawn([...argv, 'eval', '--help'], { stdout: 'pipe', stderr: 'pipe', cwd: repo })
-  const [stdout, code] = await Promise.all([new Response(p.stdout).text(), p.exited])
-  expect(code, `eval --help exited ${code}`).toBe(0)
-  expect(stdout, 'eval --help does not name the truth file it reads').toContain('expected.json')
+  const r = await runChild([...argv, 'eval', '--help'], { cwd: repo })
+  expect(r.code, `eval --help exited ${r.code}: ${r.stderr}`).toBe(0)
+  expect(r.stdout, 'eval --help does not name the truth file it reads').toContain('expected.json')
 })

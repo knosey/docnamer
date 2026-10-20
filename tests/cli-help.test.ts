@@ -4,6 +4,7 @@ export const reference =
   process.env.GRAPH_REFERENCE ?? String.raw`plutil -extract version raw package.json`
 
 import { expect, test } from 'bun:test'
+import { runChild } from './child.ts'
 import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
 
 /**
@@ -37,18 +38,16 @@ async function cli(...args: string[]): Promise<{ code: number; stdout: string; s
   if (argv === null) {
     throw new Error('no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`')
   }
-  const p = Bun.spawn([...argv, ...args], { stdout: 'pipe', stderr: 'pipe', cwd: repo })
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(p.stdout).text(),
-    new Response(p.stderr).text(),
-    p.exited
-  ])
-  return { code, stdout, stderr }
+  return runChild([...argv, ...args], { cwd: repo })
 }
 
 /** What the reference command prints — the manifest's version. */
 function referenceOutput(): string {
-  const proc = Bun.spawnSync(reference.split(/\s+/).filter(Boolean), { cwd: repo })
+  const proc = Bun.spawnSync(reference.split(/\s+/).filter(Boolean), {
+    cwd: repo,
+    timeout: 30000,
+    killSignal: 'SIGTERM'
+  })
   return proc.stdout.toString().trim()
 }
 

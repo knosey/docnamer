@@ -2,7 +2,8 @@ import { expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { artifactsAt } from './app-binary.ts'
+import { BUILD_MS, artifactsAt } from './app-binary.ts'
+import { runChild } from './child.ts'
 
 /**
  * S3 — Ship docnamer as its own macOS app: the bundle, its signing, and the
@@ -38,13 +39,14 @@ function plistValue(key: string): string {
   return proc.stdout.toString().trim()
 }
 
-test('bun run build assembles ~/Applications/docnamer.app around the compiled binary', () => {
-  const build = Bun.spawnSync(['bun', 'run', 'build'], {
+test('bun run build assembles ~/Applications/docnamer.app around the compiled binary', async () => {
+  const build = await runChild(['bun', 'run', 'build'], {
     cwd: repo,
-    env: { ...Bun.env, DOCNAMER_APP_HOME: root }
+    env: { ...Bun.env, DOCNAMER_APP_HOME: root },
+    timeoutMs: BUILD_MS
   })
-  const buildOutput = `${build.stdout.toString()}${build.stderr.toString()}`
-  expect(build.exitCode, `bun run build failed:\n${buildOutput}`).toBe(0)
+  const buildOutput = `${build.stdout}${build.stderr}`
+  expect(build.code, `bun run build failed:\n${buildOutput}`).toBe(0)
 
   expect(existsSync(appPath), `${appPath} was not created by bun run build`).toBe(true)
   expect(existsSync(infoPlist), `${infoPlist} is missing`).toBe(true)

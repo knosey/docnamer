@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { runChild } from './child.ts'
 import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
 
 /**
@@ -71,25 +72,7 @@ async function cliAsTyping(
   // docnamer's own store at the real one and make this machine-dependent.
   delete env.XDG_CONFIG_HOME
   env.HOME = home
-  const p = Bun.spawn([...argv, ...args], {
-    stdin: input === undefined ? 'inherit' : 'pipe',
-    stdout: 'pipe',
-    stderr: 'pipe',
-    cwd: repo,
-    env
-  })
-  if (input !== undefined) {
-    const sink = p.stdin
-    if (sink === undefined) throw new Error('auth: spawn gave no stdin sink')
-    await sink.write(input)
-    await sink.end()
-  }
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(p.stdout).text(),
-    new Response(p.stderr).text(),
-    p.exited
-  ])
-  return { code, stdout, stderr }
+  return runChild([...argv, ...args], { cwd: repo, env, input })
 }
 
 test('auth resolves a credential from pi when the environment carries no key', async () => {

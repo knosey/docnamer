@@ -5,7 +5,8 @@ import { beforeAll, expect, test } from 'bun:test'
 import { copyFileSync, existsSync, mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { artifactsAt } from './app-binary.ts'
+import { BUILD_MS, artifactsAt } from './app-binary.ts'
+import { runChild } from './child.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
@@ -41,15 +42,13 @@ function referenceOutput(): string {
 }
 
 /** Build once, into `root`, before anything asserts on the artifact. */
-beforeAll(() => {
-  const build = Bun.spawnSync(['bun', 'run', 'build'], {
+beforeAll(async () => {
+  const build = await runChild(['bun', 'run', 'build'], {
     cwd: repo,
-    env: { ...Bun.env, DOCNAMER_APP_HOME: root }
+    env: { ...Bun.env, DOCNAMER_APP_HOME: root },
+    timeoutMs: BUILD_MS
   })
-  expect(
-    build.exitCode,
-    `bun run build failed:\n${build.stdout.toString()}${build.stderr.toString()}`
-  ).toBe(0)
+  expect(build.code, `bun run build failed:\n${build.stdout}${build.stderr}`).toBe(0)
 })
 
 test('bun run build installs an executable wrapper beside the app', () => {
@@ -95,7 +94,12 @@ test(
     // docnamer.json is one relative path away, so a binary that read its config
     // off disk would pass here without carrying one at all. From the bare folder
     // there is nothing to read, and only an inlined roster can produce a type.
-    const proc = Bun.spawnSync([at.appBin, 'plan', dir], { cwd: dir, env: { ...Bun.env } })
+    const proc = Bun.spawnSync([at.appBin, 'plan', dir], {
+      cwd: dir,
+      env: { ...Bun.env },
+      timeout: MODEL_CALL_MS,
+      killSignal: 'SIGTERM'
+    })
     expect(proc.exitCode, `plan failed:\n${proc.stderr.toString()}`).toBe(0)
 
     const planPath = join(dir, '.docnamer-plan.json')

@@ -20,6 +20,11 @@ export type Artifacts = {
   wrapper: string
 }
 
+/** The budget `bun run build` gets: compiling the binary and signing the bundle
+ *  is the slowest thing the suite does, and a wedged build must fail with the
+ *  command and the budget named rather than hold the file open. */
+export const BUILD_MS = 180_000
+
 /** The four paths scripts/build-app.ts writes under one install root. */
 export function artifactsAt(root: string): Artifacts {
   const appDir = `${root}/Applications/docnamer.app`

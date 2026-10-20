@@ -8,6 +8,7 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { runChild } from './child.ts'
 import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
 
 /** A plan row as the plan file stores it; only review's own fields matter. */
@@ -43,21 +44,7 @@ async function cliAsTyping(
   // docnamer's own store at the real one and make this machine-dependent.
   delete env.XDG_CONFIG_HOME
   env.HOME = home
-  const p = Bun.spawn([...argv, ...args], {
-    stdin: 'pipe',
-    stdout: 'pipe',
-    stderr: 'pipe',
-    cwd: repo,
-    env
-  })
-  await p.stdin.write(input)
-  await p.stdin.end()
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(p.stdout).text(),
-    new Response(p.stderr).text(),
-    p.exited
-  ])
-  return { code, stdout, stderr }
+  return runChild([...argv, ...args], { cwd: repo, env, input })
 }
 
 test('review numbers each row by its place in the review, not by its plan index', async () => {

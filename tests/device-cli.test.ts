@@ -3,6 +3,7 @@
 export const reference = process.env.GRAPH_REFERENCE ?? 'echo 0'
 
 import { expect, test } from 'bun:test'
+import { runChild } from './child.ts'
 
 /**
  * S2 — the CLI's chokepoints route through a terminal DEVICE, not through the
@@ -23,10 +24,11 @@ const repo = new URL('..', import.meta.url).pathname
 
 /** The code the reference run leaves: the truth the exit file is compared to. */
 async function referenceOutput(): Promise<string> {
-  const proc = Bun.spawn(['/bin/sh', '-c', reference], { stdout: 'pipe', stderr: 'pipe' })
-  const out = await new Response(proc.stdout).text()
-  await proc.exited
-  return out.trim()
+  const proc = Bun.spawnSync(['/bin/sh', '-c', reference], {
+    timeout: 30000,
+    killSignal: 'SIGTERM'
+  })
+  return proc.stdout.toString().trim()
 }
 
 /** A throwaway directory per test: a run must never inherit the last one's
@@ -51,18 +53,11 @@ type Run = { code: number; out: string; err: string }
 /** The CLI as the wrapper launches it: the source through bun, so the suite
  *  needs no compiled binary. */
 async function runCli(args: string[], environment: Record<string, string>): Promise<Run> {
-  const proc = Bun.spawn([process.execPath, 'src/cli.ts', ...args], {
+  const run = await runChild([process.execPath, 'src/cli.ts', ...args], {
     cwd: repo,
-    env: environment,
-    stdout: 'pipe',
-    stderr: 'pipe'
+    env: environment
   })
-  const [out, err] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text()
-  ])
-  const code = await proc.exited
-  return { code, out, err }
+  return { code: run.code, out: run.stdout, err: run.stderr }
 }
 
 /** The bytes a file holds, or null when the program never created it — a

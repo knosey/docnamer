@@ -103,8 +103,11 @@ async function slaveDevice(t: Term, ms = 5000): Promise<string> {
       await Bun.sleep(50)
     }
   } finally {
+    // The probe is done with. Its exit is raced rather than awaited: a `sleep 30`
+    // that outlives the SIGTERM would otherwise hold this test file open, and the
+    // pty is closed by the caller either way.
     probe.kill()
-    await probe.exited
+    await Promise.race([probe.exited, Bun.sleep(2000)])
   }
 }
 

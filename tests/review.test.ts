@@ -7,6 +7,7 @@
  * red run is the absence of the work and nothing else.
  */
 import { describe, expect, test } from 'bun:test'
+import { runChild } from './child.ts'
 import type { Config } from '../src/config.ts'
 import { loadConfig } from '../src/config.ts'
 import { MODEL_CALL_MS } from './preload.ts'
@@ -120,18 +121,11 @@ describe('T3 review() and the CLI wiring', () => {
     await Bun.write(`${dir}/.docnamer-plan.json`, JSON.stringify(rows, null, 2))
 
     const bun = Bun.which('bun') ?? 'bun'
-    const p = Bun.spawn([bun, `${repo}/src/cli.ts`, 'review', dir], {
-      stdin: new Blob(['A']),
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: { ...Bun.env }
+    const run = await runChild([bun, `${repo}/src/cli.ts`, 'review', dir], {
+      input: 'A',
+      timeoutMs: MODEL_CALL_MS
     })
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(p.stdout).text(),
-      new Response(p.stderr).text(),
-      p.exited
-    ])
-    expect(code, `review must exit 0\n${stderr}${stdout}`).toBe(0)
+    expect(run.code, `review must exit 0\n${run.stderr}${run.stdout}`).toBe(0)
 
     const after = JSON.parse(await Bun.file(`${dir}/.docnamer-plan.json`).text()) as Row[]
     expect(after[0]?.status).toBe('accepted')
@@ -147,19 +141,12 @@ describe('T3 review() and the CLI wiring', () => {
     await Bun.write(`${dir}/.docnamer-plan.json`, JSON.stringify(rows, null, 2))
 
     const bun = Bun.which('bun') ?? 'bun'
-    const p = Bun.spawn([bun, `${repo}/src/cli.ts`, 'review', dir], {
-      stdin: new Blob(['\r']),
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: { ...Bun.env }
+    const run = await runChild([bun, `${repo}/src/cli.ts`, 'review', dir], {
+      input: '\r',
+      timeoutMs: MODEL_CALL_MS
     })
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(p.stdout).text(),
-      new Response(p.stderr).text(),
-      p.exited
-    ])
-    expect(code, `review must exit 0\n${stderr}${stdout}`).toBe(0)
-    expect(stdout, 'the key list must name Enter as the accept key').toContain('Enter accept')
+    expect(run.code, `review must exit 0\n${run.stderr}${run.stdout}`).toBe(0)
+    expect(run.stdout, 'the key list must name Enter as the accept key').toContain('Enter accept')
 
     const after = JSON.parse(await Bun.file(`${dir}/.docnamer-plan.json`).text()) as Row[]
     expect(after[0]?.status, 'Enter must accept the row on screen').toBe('accepted')
