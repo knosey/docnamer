@@ -29,8 +29,11 @@ const run = (cmd: string[]): void => {
   }
 }
 
-// 1. Compile the binary into the bundle.
-run(['mkdir', '-p', macos, `${app}/Contents/Resources`, `${home}/bin`])
+// 1. Compile the binary into the bundle. The bundle is assembled from scratch:
+//    a leftover file from an earlier build is sealed by `codesign` below and then
+//    left behind as a modified resource, which fails `codesign --verify`.
+run(['rm', '-rf', app])
+run(['mkdir', '-p', macos, `${home}/bin`])
 run(['bun', 'build', '--compile', '--outfile', `${macos}/docnamer`, 'src/cli.ts'])
 
 // 2. The Info.plist is the TCC identity: folder prompts name this bundle.
@@ -113,8 +116,12 @@ run(['chmod', '+x', wrapper])
 //    never ran. The record is the tree and the moment, and
 //    tests/wrapper-pty.test.ts refuses that pass when the tree has moved since
 //    (tests/doc-renamer-apply-harness.ts, `staleInstall`).
+//    It sits BESIDE the bundle, never inside it: `codesign` seals the bundle's
+//    resources, and the moment this file records differs on every build — so
+//    inside, it made `codesign --verify` report a modified resource and changed
+//    the CDHash each time, which is the identity the TCC grant is keyed to.
 await Bun.write(
-  `${app}/Contents/Resources/install.json`,
+  `${home}/Applications/docnamer.install.json`,
   JSON.stringify({ repo: process.cwd(), at: Date.now() })
 )
 

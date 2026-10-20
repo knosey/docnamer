@@ -18,8 +18,8 @@ export type Artifacts = {
   appBin: string
   appPlist: string
   /** What the build recorded about the tree it came from — see `staleInstall`
-   *  in tests/doc-renamer-apply-harness.ts. Inside the bundle, so it is removed
-   *  with the artifact it describes. */
+   *  in tests/doc-renamer-apply-harness.ts. BESIDE the bundle, not inside it: a
+   *  per-build file inside would change the CDHash the TCC grant is keyed to. */
   installRecord: string
   wrapper: string
 }
@@ -36,7 +36,7 @@ export function artifactsAt(root: string): Artifacts {
     appDir,
     appBin: `${appDir}/Contents/MacOS/docnamer`,
     appPlist: `${appDir}/Contents/Info.plist`,
-    installRecord: `${appDir}/Contents/Resources/install.json`,
+    installRecord: `${root}/Applications/docnamer.install.json`,
     wrapper: `${root}/bin/docnamer`
   }
 }
