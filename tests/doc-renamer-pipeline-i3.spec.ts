@@ -69,12 +69,20 @@ flow('doc-renamer-pipeline I3: collision-safe unique naming', async () => {
 
 flow('doc-renamer-pipeline I3: a failed analysis still proposes a free name', async () => {
   const s = new Session()
-  const unknown = 'no-such-provider/no-such-model'
 
   // Boot first, so the folder's config can be replaced BEFORE plan runs:
   // entry() boots and plans in one step, and boot() returns early once booted.
   await boot(s)
+  await swapModelRefs(s)
+  await entry(s)
 
+  assertFailedBeforeAnyModel(s)
+  assertFreeNames(s)
+})
+
+/** Point every model ref in the folder's config at a model that cannot resolve. */
+async function swapModelRefs(s: Session): Promise<void> {
+  const unknown = 'no-such-provider/no-such-model'
   const rewritten = (await Bun.file(`${repo}/${CONFIG_FILE}`).text())
     .replace(/^(\s*"cheap":\s*)"[^"]*"(,?)$/m, `$1"${unknown}"$2`)
     .replace(/^(\s*"vision":\s*)"[^"]*"(,?)$/m, `$1"${unknown}"$2`)
@@ -90,17 +98,16 @@ flow('doc-renamer-pipeline I3: a failed analysis still proposes a free name', as
     )
   }
   await Bun.write(`${s.dir}/${CONFIG_FILE}`, rewritten)
+}
 
-  await entry(s)
-
+/** Every row failed BEFORE any model call. An unresolvable ref is refused by
+ *  resolveModel() (src/analyse.ts), so the flag names the model ref rather than a
+ *  reply — which is also the proof that no model was called, and so that the
+ *  config rewrite took effect. */
+function assertFailedBeforeAnyModel(s: Session): void {
   if (!s.plan.length) {
     throw new Error('I3 failed-analysis: the plan has no rows, so nothing was observed')
   }
-
-  // Every row must have failed BEFORE any model call. An unresolvable ref is
-  // refused by resolveModel() (src/analyse.ts), so the flag names the model ref
-  // rather than a reply. That is also the proof no model was called, and so
-  // that the config rewrite took effect.
   for (const r of s.plan) {
     const failure = r.flags.find(f => f.startsWith('analysis failed:'))
     if (!failure) {
@@ -117,8 +124,11 @@ flow('doc-renamer-pipeline I3: a failed analysis still proposes a free name', as
       )
     }
   }
+}
 
-  // I3's outcome, on the rows nothing could analyse.
+/** I3's outcome, on the rows nothing could analyse: every name is sanitised,
+ *  free on disk, and unique within the plan. */
+function assertFreeNames(s: Session): void {
   const onDisk = new Set([...s.originals.keys()].map(n => n.toLowerCase()))
   const seen = new Map<string, string>()
   for (const r of s.plan) {
@@ -135,4 +145,4 @@ flow('doc-renamer-pipeline I3: a failed analysis still proposes a free name', as
     }
     seen.set(r.new.toLowerCase(), r.old)
   }
-})
+}
