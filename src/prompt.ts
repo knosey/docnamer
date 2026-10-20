@@ -111,9 +111,10 @@ export function keyDecoder(): Decoder {
       // this decoder as bytes and must end the answer themselves.
       else if (ch === '\u0003' || ch === '\u0004') keys.push({ type: 'cancel' })
       else if (ch === '\u007f' || ch === '\b') keys.push({ type: 'backspace' })
-      // Every other control byte is dropped: it is not filter text, and a filter
+      // Every other control byte is dropped: it is not text, and a filter
       // holding an invisible character matches nothing and reads as a hang.
-      else if (ch > ' ') keys.push({ type: 'char', char: ch })
+      // A space is text: a file name holds them.
+      else if (ch >= ' ') keys.push({ type: 'char', char: ch })
       i += 1
     }
     return keys
@@ -129,7 +130,8 @@ export function keyDecoder(): Decoder {
 }
 
 export function filter(options: readonly Option[], query: string): Option[] {
-  const needle = query.trim().toLowerCase()
+  // No provider id holds a space, so a typed one would only empty the list.
+  const needle = query.replace(/\s/g, '').toLowerCase()
   if (needle === '') return [...options]
   return options.filter(
     o => o.id.toLowerCase().includes(needle) || o.label.toLowerCase().includes(needle)
@@ -389,6 +391,54 @@ async function pickInteractive(
     if (raw) stdin.setRawMode(false)
     if (drawn > 0) io.out(`${ESC}[${drawn}A${ERASE}`)
   }
+}
+
+/**
+ * One line typed on a terminal the caller already holds raw, starting from
+ * `initial` so an edit begins with what is there. Raw mode does not echo, so
+ * the line is redrawn on every key; a line wider than the terminal shows its
+ * end, because a wrapped line would leave the `\r` redraw one row short.
+ * Enter returns the line and leaves it on screen; Esc or Ctrl-C erases it and
+ * returns null. `ahead` is what arrived in the same read as the key that opened
+ * the line: typed before the line was drawn, but typed into it all the same.
+ */
+export async function editLine(
+  label: string,
+  initial: string,
+  out: (text: string) => void,
+  ahead = ''
+): Promise<string | null> {
+  let line = initial
+  const room = terminalWidth() - visibleWidth(label) - 1
+  const paint = (): void => {
+    let shown = line
+    if (visibleWidth(shown) > room) {
+      const chars = Array.from(line)
+      while (visibleWidth(`\u2026${chars.join('')}`) > room) chars.shift()
+      shown = `\u2026${chars.join('')}`
+    }
+    out(`\r${ERASE}${label}${shown}`)
+  }
+  paint()
+  for await (const key of keysAfter(ahead)) {
+    if (key.type === 'cancel') break
+    if (key.type === 'enter') {
+      out('\n')
+      return line
+    }
+    if (key.type === 'backspace') line = Array.from(line).slice(0, -1).join('')
+    else if (key.type === 'char') line += key.char
+    paint()
+  }
+  out(`\r${ERASE}`)
+  return null
+}
+
+/** The keys in `ahead`, then the keys the terminal delivers after it. */
+async function* keysAfter(ahead: string): AsyncGenerator<Key> {
+  const decode = keyDecoder()
+  yield* [...decode(new TextEncoder().encode(ahead)), ...decode.flush()]
+  yield* stdinKeys()
 }
 
 async function pickNumbered(

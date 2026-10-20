@@ -6,21 +6,23 @@
  *
  *   Enter — accept this row
  *   s — skip this row
- *   e — edit the new name (rest of the line is the name), then accept
- *   t — re-type the row (rest of the line is the type), re-render the name,
- *       then accept
+ *   e — edit the new name, then accept
+ *   t — re-type the row, re-render the name, then accept
  *   A — accept every flag-free row; flagged rows stay pending
  *   q — stop; the plan file keeps whatever was decided so far
+ *
+ * On a terminal `e` and `t` open the row's name or type for editing, and Esc
+ * leaves the row as it was; on a pipe the rest of the line is the value.
  *
  * Every decision is written back to `<folder>/.docnamer-plan.json` when the
  * review ends (EOF or q). Nothing is renamed here — statuses only.
  */
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
-import { nextStdinChunk } from './prompt.ts'
+import { editLine, nextStdinChunk } from './prompt.ts'
 import { extOf, PLAN_FILE, writePlan, type PlanRow } from './commands.ts'
 import type { Checked } from './validate.ts'
-import type { Ui } from './ui.ts'
+import { hasDevice, type Ui } from './ui.ts'
 
 export type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
 
@@ -100,24 +102,130 @@ function renderRow(row: PlanRow, at: number, of: number, u: Ui): string {
     ]),
     u.row('    ', [u.dim('summary:'), row.summary])
   ]
+  // Evidence is quoted from the document and can span its lines; one field is
+  // one line here, or the next field starts in the wrong column.
   for (const [k, v] of Object.entries(row.evidence)) {
-    if (v) lines.push(u.row('    ', [u.dim(`evidence ${k}:`), v]))
+    if (v) lines.push(u.row('    ', [u.dim(`evidence ${k}:`), v.replace(/\s+/g, ' ')]))
   }
   return lines.join('\n')
 }
 
 /**
+ * The value `e` or `t` carries, or null when none was given. A pipe sends it on
+ * the line after the key; a terminal sends the key alone, so the value is typed
+ * into a line that starts from what the row holds now.
+ */
+async function valueFor(
+  action: 'edit' | 'retype',
+  row: PlanRow,
+  rest: string,
+  terminal: boolean,
+  u: Ui
+): Promise<string | null> {
+  const end = rest.search(/[\r\n]/)
+  const typed =
+    terminal && end < 0
+      ? await editLine(
+          u.dim(`    ${action === 'edit' ? 'new name' : 'type'}: `),
+          action === 'edit' ? row.new : row.type,
+          text => u.raw(text),
+          rest
+        )
+      : end < 0
+        ? rest
+        : rest.slice(0, end)
+  const value = typed?.trim() ?? ''
+  return value === '' ? null : value
+}
+
+/** Where a review is: the rows as decided so far and the row on screen. */
+type Session = {
+  rows: PlanRow[]
+  cursor: number
+  readonly order: readonly { row: PlanRow; index: number }[]
+  readonly terminal: boolean
+  readonly config: Config
+  readonly u: Ui
+}
+
+/** Show the row under the cursor; past the last row there is nothing to show. */
+function show(s: Session): void {
+  const item = s.order[s.cursor]
+  if (item) s.u.log(renderRow(item.row, s.cursor + 1, s.order.length, s.u))
+}
+
+/** Decide the row on screen and move to the next one. */
+async function decide(
+  s: Session,
+  action: ReviewAction,
+  value: string | null = null
+): Promise<void> {
+  const item = s.order[s.cursor]
+  if (!item) return
+  s.rows = await applyAction(s.rows, item.index, action, value, s.config)
+  s.cursor++
+  show(s)
+}
+
+/** `e` or `t`: the row is decided once a usable value is given, and stays on
+ *  screen, with the reason said, when none is. False when no row is on screen,
+ *  so nothing after the key was taken as its value. */
+async function editRow(s: Session, action: 'edit' | 'retype', rest: string): Promise<boolean> {
+  const item = s.order[s.cursor]
+  if (!item) return false
+  const value = await valueFor(action, item.row, rest, s.terminal, s.u)
+  if (value === null) {
+    s.u.log(s.u.dim('    unchanged'))
+  } else if (action === 'retype' && !s.config.types[value]) {
+    s.u.log(
+      s.u.warn(`    no type "${value}" \u2014 one of ${Object.keys(s.config.types).join(', ')}`)
+    )
+  } else {
+    await decide(s, action, value)
+  }
+  return true
+}
+
+/** The keys that decide the row on screen outright. Enter accepts it: a
+ *  raw-mode terminal sends CR and a piped line sends LF, and neither is a skip. */
+const DECISIONS: Record<string, ReviewAction> = { '\r': 'accept', '\n': 'accept', s: 'skip' }
+
+/** The keys that take a value before they decide the row. */
+const EDITS: Record<string, 'edit' | 'retype'> = { e: 'edit', t: 'retype' }
+
+/**
+ * One key of the review, with `rest` the bytes after it in the same read.
+ * 'stop' ends the review, 'line' says the key took the rest of the read as its
+ * value, and 'key' says the next byte is the next key.
+ */
+async function onKey(s: Session, ch: string, rest: string): Promise<'stop' | 'line' | 'key'> {
+  if (ch === 'q') return 'stop'
+  const edit = EDITS[ch]
+  if (edit !== undefined) return (await editRow(s, edit, rest)) ? 'line' : 'key'
+  const decision = DECISIONS[ch]
+  if (decision !== undefined) await decide(s, decision)
+  // SAFE: 'accept-unflagged' sweeps every pending unflagged row and never
+  // reads the index; the cursor's row is passed only because applyAction
+  // takes one, and past the last row there is none, so 0 stands in.
+  else if (ch === 'A') {
+    const at = s.order[s.cursor]?.index ?? 0
+    s.rows = await applyAction(s.rows, at, 'accept-unflagged', null, s.config)
+  }
+  return 'key'
+}
+
+/**
  * Review the plan file of `folder`: present every pending row, flagged first,
  * apply the keys read from stdin and write the updated plan back. Keys are
- * consumed as they arrive; `e` and `t` take the rest of the line as their value.
- * EOF ends the review.
+ * consumed as they arrive; `e` and `t` take a value as well. EOF ends the
+ * review.
  */
 export async function review(folder: string, config: Config, u: Ui): Promise<void> {
   const planPath = `${folder}/${PLAN_FILE}`
   if (!(await Bun.file(planPath).exists())) {
     throw new Error(`review: no plan file at ${planPath} — run docnamer plan first`)
   }
-  let rows = JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
+  const rows = JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
   // Flagged rows are where a person is needed; they go first.
   const order = rows
     .map((row, index) => ({ row, index }))
@@ -130,70 +238,33 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
   )
 
   const stdin = process.stdin
-  if (stdin.isTTY && typeof stdin.setRawMode === 'function') stdin.setRawMode(true)
+  const raw = stdin.isTTY && typeof stdin.setRawMode === 'function'
+  const s: Session = { rows, cursor: 0, order, terminal: hasDevice() || raw, config, u }
+  if (raw) stdin.setRawMode(true)
   try {
-    let cursor = 0
-    const show = () => {
-      const item = order[cursor]
-      if (item) u.log(renderRow(item.row, cursor + 1, order.length, u))
-    }
-    show()
+    show(s)
     const decoder = new TextDecoder()
     // The same reader the picker and the prompts use: a second consumer of
     // Bun's stdin stream takes the lock the first one holds and throws.
-    for (;;) {
+    let ended = false
+    while (!ended) {
       const chunk = await nextStdinChunk()
       if (chunk === null) break
       const text = decoder.decode(chunk)
-      let stop = false
-      for (let i = 0; i < text.length && !stop; i++) {
+      for (let i = 0; i < text.length; i++) {
         // charAt returns '' past the end, which the loop bound already excludes.
-        const ch = text.charAt(i)
-        const item = order[cursor]
-        if (ch === 'q') {
-          stop = true
-        } else if (ch === 'A') {
-          // SAFE: 'accept-unflagged' sweeps every pending unflagged row and never
-          // reads the index; the cursor's row is passed only because applyAction
-          // takes one, and past the last row there is none, so 0 stands in.
-          rows = await applyAction(rows, item?.index ?? 0, 'accept-unflagged', null, config)
-        } else if (item) {
-          // Enter accepts the row on screen. A raw-mode terminal sends CR; a
-          // piped line sends LF. Both are Enter, and neither is a skip.
-          if (ch === '\r' || ch === '\n') {
-            rows = await applyAction(rows, item.index, 'accept', null, config)
-            cursor++
-            show()
-          } else if (ch === 's') {
-            rows = await applyAction(rows, item.index, 'skip', null, config)
-            cursor++
-            show()
-          } else if (ch === 'e' || ch === 't') {
-            const rest = text.slice(i + 1)
-            const end = rest.search(/[\r\n]/)
-            const value = (end < 0 ? rest : rest.slice(0, end)).trim()
-            i = text.length // value runs to the chunk's end of line
-            rows = await applyAction(
-              rows,
-              item.index,
-              ch === 'e' ? 'edit' : 'retype',
-              value,
-              config
-            )
-            cursor++
-            show()
-          }
-        }
+        const took = await onKey(s, text.charAt(i), text.slice(i + 1))
+        ended = took === 'stop'
+        if (took !== 'key') break
       }
-      if (stop) break
     }
   } finally {
-    if (stdin.isTTY && typeof stdin.setRawMode === 'function') stdin.setRawMode(false)
+    if (raw) stdin.setRawMode(false)
   }
 
-  await writePlan(folder, rows)
-  const accepted = rows.filter(r => r.status === 'accepted').length
-  const skipped = rows.filter(r => r.status === 'skipped').length
-  const pending = rows.filter(r => r.status === 'pending').length
+  await writePlan(folder, s.rows)
+  const accepted = s.rows.filter(r => r.status === 'accepted').length
+  const skipped = s.rows.filter(r => r.status === 'skipped').length
+  const pending = s.rows.filter(r => r.status === 'pending').length
   u.log(u.ok(`review done: ${accepted} accepted, ${skipped} skipped, ${pending} pending`))
 }

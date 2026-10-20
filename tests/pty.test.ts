@@ -253,3 +253,76 @@ test.skipIf(!hasPty)(
   },
   20000
 )
+
+/**
+ * `e` on the review screen is a keypress on a terminal: it arrives alone, with
+ * no name after it. Review read the name off the rest of that same chunk — the
+ * shape a pipe delivers — so a person pressing `e` got
+ * "applyAction: edit needs the new name as its value" and lost the review. On a
+ * terminal `e` opens the row's name for editing; Esc leaves the row as it was.
+ */
+test.skipIf(!hasPty)(
+  'e on the review screen edits the name in place on a real pty',
+  async () => {
+    const cli = await cliOrThrow()
+    const home = await freshHome()
+    const folder = scratch('docnamer-pty-review')
+    const planRow = (old: string) => ({
+      old,
+      new: `2024-03-12 ${old}`,
+      type: 'receipt',
+      method: 'text',
+      fields: { date: '2024-03-12' },
+      evidence: { date: 'Date 12 March 2024' },
+      flags: [],
+      summary: `A receipt named ${old}.`,
+      size: 10,
+      mtime: 0,
+      status: 'pending'
+    })
+    await Bun.write(
+      `${folder}/.docnamer-plan.json`,
+      JSON.stringify([planRow('a-receipt.pdf'), planRow('b-receipt.pdf')], null, 2)
+    )
+    const t = makeTerminal()
+    try {
+      // Four backspaces take ".pdf" off the name it starts from; the space is
+      // part of the name, not a key to drop.
+      const run = await drive(
+        t,
+        [...cli, 'review', folder],
+        [
+          ['[1/2]', 'e'],
+          ['new name:', '\x7f\x7f\x7f\x7f fixed.pdf\r'],
+          // One write: the Esc reaches the review in the read that carried
+          // the `e`, before the line it cancels was drawn.
+          ['[2/2]', 'e\x1b'],
+          ['unchanged', 'q']
+        ],
+        { cwd: repo, env: cleanEnv(home), ms: 8000 }
+      )
+      const seen = run.output.replace(ANSI, '')
+      expect(
+        run.exited,
+        `review must return — the terminal showed ${JSON.stringify(seen.slice(-400))}`
+      ).toBe(true)
+      expect(
+        run.code,
+        `review exits 0 — the terminal showed ${JSON.stringify(seen.slice(-400))}`
+      ).toBe(0)
+
+      const after: { new: string; status: string }[] = JSON.parse(
+        await Bun.file(`${folder}/.docnamer-plan.json`).text()
+      )
+      expect(after[0], 'the edited name is the one stored, and the row is accepted').toEqual(
+        expect.objectContaining({ new: '2024-03-12 a-receipt fixed.pdf', status: 'accepted' })
+      )
+      expect(after[1], 'an edit cancelled with Esc changes nothing').toEqual(
+        expect.objectContaining({ new: '2024-03-12 b-receipt.pdf', status: 'pending' })
+      )
+    } finally {
+      t.terminal.close()
+    }
+  },
+  20000
+)
