@@ -82,6 +82,11 @@ run(
 //    device the app is handed. LaunchServices starts the app in "/", so the
 //    caller's directory is carried across as `$PWD` (measured: `open -n`ing a
 //    probe app prints "/" whatever the shell's cwd is).
+//    The exit file decides the exit code, and `open`'s own code is only the
+//    fallback for when the app never wrote one: `open -W` also fails when it
+//    loses the race to block on an app that has already exited — measured, run 7
+//    of 12 of `--version` — and taking its 1 there reported a finished run as
+//    failed. 1 means "accepted, then failed"; only a missing file means that.
 await Bun.write(
   wrapper,
   `#!/bin/sh
@@ -94,10 +99,11 @@ COLS=$(tput cols); ROWS=$(tput lines)
 /usr/bin/open -n -W "$APP" --args --tty "$TTY" --cols "$COLS" --rows "$ROWS" --exit-file "$EXIT_FILE" --cwd "$PWD" "$@"
 OPEN_CODE=$?
 stty "$SAVED"
-if [ $OPEN_CODE -ne 0 ]; then rm -f "$EXIT_FILE"; exit $OPEN_CODE; fi
 CODE=$(cat "$EXIT_FILE" 2>/dev/null)
 rm -f "$EXIT_FILE"
-exit "\${CODE:-1}"
+if [ -n "$CODE" ]; then exit "$CODE"; fi
+if [ $OPEN_CODE -ne 0 ]; then exit $OPEN_CODE; fi
+exit 1
 `
 )
 run(['chmod', '+x', wrapper])

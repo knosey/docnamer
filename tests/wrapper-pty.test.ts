@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { appBin as BINARY, appPlist as PLIST, wrapper as WRAPPER } from './app-binary.ts'
 import { PLAN_FILE } from '../src/commands.ts'
+import { scratch } from './scratch.ts'
 
 /**
  * S4 — the wrapper, driven end to end through a real `open` on a real pty.
@@ -232,9 +233,48 @@ test.skipIf(!hasPty)(
   90000
 )
 
+/**
+ * `open -W` can lose the race it exists to win: when the app exits before `open`
+ * registers its wait, it prints "Unable to block on applications (initial call to
+ * kevent() failed: No such process)" and exits 1. Measured once in a full
+ * `bun run test:free`: a `plan .` that had already written its plan reached the
+ * shell as 1, and 1 is the code reserved for a run that was accepted and then
+ * failed — a successful run reported as a failure is the one thing the wrapper
+ * must never do. `--version` is the fastest real command there is, so it is what
+ * races here: twelve runs, and every one must come back with the app's own 0.
+ */
+test.skipIf(!hasPty)(
+  'the wrapper returns the app exit code even when open cannot block on the app',
+  async () => {
+    if (!(await isWrapper(WRAPPER))) {
+      expect(false, `no wrapper installed at ${WRAPPER}`).toBe(true)
+      return
+    }
+
+    const t = makeTerminal()
+    try {
+      for (const n of Array.from({ length: 12 }, (_, i) => i + 1)) {
+        const run = await drive(t, ['--version'], [])
+        const seen = run.output.replace(ANSI, '')
+        expect(run.exited, `run ${n}: the app must exit`).toBe(true)
+        expect(
+          run.code,
+          `run ${n}: the app ran and exited 0, so the wrapper must return 0 — the terminal said ${JSON.stringify(
+            seen.slice(0, 400)
+          )}`
+        ).toBe(0)
+        expect(seen, `run ${n}: the app must have answered --version`).toContain('docnamer')
+      }
+    } finally {
+      t.terminal.close()
+    }
+  },
+  120000
+)
+
 /** A throwaway folder to stand in, with nothing in it but the hidden marker. */
 async function freshFolder(): Promise<string> {
-  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-rel-${crypto.randomUUID()}`
+  const dir = scratch('docnamer-rel')
   await Bun.write(`${dir}/.keep`, '')
   return dir
 }
