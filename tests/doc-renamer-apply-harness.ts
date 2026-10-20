@@ -27,6 +27,7 @@
 import { chmod, mkdir, rm } from 'node:fs/promises'
 import { CONFIG_FILE } from '../src/config.ts'
 import { EXPECTED_FILE } from '../src/eval.ts'
+import { appBin } from './app-binary.ts'
 import { frame } from './frame.ts'
 import { ensureProviderKey } from './preload.ts'
 
@@ -154,8 +155,7 @@ export async function shell(
 export async function resolveCli(): Promise<string[] | null> {
   const override = Bun.env.DOCNAMER_BIN
   if (override && override.trim()) return override.trim().split(/\s+/)
-  const onPath = Bun.which('docnamer')
-  if (onPath) return [onPath]
+  if (await Bun.file(appBin).exists()) return [appBin]
   const src = `${repo}/src/cli.ts`
   if (await Bun.file(src).exists()) return [Bun.which('bun') ?? 'bun', src]
   return null

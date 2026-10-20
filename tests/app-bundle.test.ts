@@ -5,6 +5,7 @@ export const reference = process.env.GRAPH_REFERENCE ?? 'grep -rn node: src/'
 import { expect, test } from 'bun:test'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { appBin as appBinary, appDir as appPath, appPlist as infoPlist } from './app-binary.ts'
 
 /**
  * S3 — Ship docnamer as its own macOS app: the bundle, its signing, and the
@@ -28,11 +29,7 @@ import { join } from 'node:path'
  */
 
 const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')
-const home = Bun.env.HOME ?? ''
 const buildScript = join(repo, 'scripts', 'build-app.ts')
-const appPath = join(home, 'Applications', 'docnamer.app')
-const infoPlist = join(appPath, 'Contents', 'Info.plist')
-const appBinary = join(appPath, 'Contents', 'MacOS', 'docnamer')
 
 /** Run the reference command and return what it prints — the truth. */
 function referenceOutput(): string {

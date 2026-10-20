@@ -3,6 +3,7 @@
 export const reference = process.env.GRAPH_REFERENCE ?? 'which open'
 
 import { expect, test } from 'bun:test'
+import { appBin as BINARY, appPlist as PLIST, wrapper as WRAPPER } from './app-binary.ts'
 
 /**
  * S4 — the wrapper, driven end to end through a real `open` on a real pty.
@@ -28,12 +29,6 @@ import { expect, test } from 'bun:test'
  * how the screen looked; a picker is a byte stream, and a redraw looks broken to
  * a grep.
  */
-
-const home = Bun.env.HOME ?? ''
-const WRAPPER = `${home}/bin/docnamer`
-const APP = `${home}/Applications/docnamer.app`
-const BINARY = `${APP}/Contents/MacOS/docnamer`
-const PLIST = `${APP}/Contents/Info.plist`
 
 const hasPty = typeof Bun.Terminal === 'function'
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, 'g')

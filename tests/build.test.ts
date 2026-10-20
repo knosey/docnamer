@@ -6,6 +6,7 @@ import { expect, test } from 'bun:test'
 import { copyFileSync, existsSync, mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { appBin, wrapper } from './app-binary.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
@@ -21,11 +22,15 @@ import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
  * The reference `bun --version` prints the version the compiled binary must
  * reproduce under `BUN_BE_BUN=1`, which makes a compiled Bun binary answer as
  * Bun itself; it is the truth this build is measured against.
+ *
+ * Which artifact each check drives comes from tests/app-binary.ts: the wrapper
+ * for the install check, the binary inside the bundle for everything else. The
+ * wrapper resolves its tty with `tty` and refuses without one, so a non-pty
+ * flow can only ever drive the binary — tests/wrapper-pty.test.ts drives the
+ * wrapper itself, on a real pty.
  */
 
 const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')
-const home = Bun.env.HOME ?? ''
-const binPath = join(home, 'bin', 'docnamer')
 
 /** Run the reference command and return what it prints — the truth. */
 function referenceOutput(): string {
@@ -39,17 +44,17 @@ test('bun run build exits 0 and installs an executable ~/bin/docnamer', () => {
     build.exitCode,
     `bun run build failed:\n${build.stdout.toString()}${build.stderr.toString()}`
   ).toBe(0)
-  expect(existsSync(binPath), `${binPath} was not created by bun run build`).toBe(true)
-  const mode = statSync(binPath).mode
+  expect(existsSync(wrapper), `${wrapper} was not created by bun run build`).toBe(true)
+  const mode = statSync(wrapper).mode
   expect(
     mode & 0o111,
-    `${binPath} exists but is not executable (mode ${(mode & 0o777).toString(8)})`
+    `${wrapper} exists but is not executable (mode ${(mode & 0o777).toString(8)})`
   ).toBeGreaterThan(0)
 })
 
-test('BUN_BE_BUN=1 ~/bin/docnamer --version prints what the reference prints', () => {
-  expect(existsSync(binPath), `${binPath} does not exist, so there is nothing to run`).toBe(true)
-  const proc = Bun.spawnSync([binPath, '--version'], { env: { ...Bun.env, BUN_BE_BUN: '1' } })
+test('BUN_BE_BUN=1 the app binary --version prints what the reference prints', () => {
+  expect(existsSync(appBin), `${appBin} does not exist, so there is nothing to run`).toBe(true)
+  const proc = Bun.spawnSync([appBin, '--version'], { env: { ...Bun.env, BUN_BE_BUN: '1' } })
   expect(proc.exitCode, `--version failed:\n${proc.stderr.toString()}`).toBe(0)
   expect(proc.stdout.toString().trim()).toBe(referenceOutput())
 })
@@ -75,7 +80,7 @@ test(
     // has to be handed over explicitly, and asking for it here is what makes
     // `bun test tests/build.test.ts` on its own a real check.
     await ensureProviderKey()
-    expect(existsSync(binPath), `${binPath} does not exist, so there is nothing to run`).toBe(true)
+    expect(existsSync(appBin), `${appBin} does not exist, so there is nothing to run`).toBe(true)
     const dir = mkdtempSync(join(tmpdir(), 'docnamer-build-'))
     copyFileSync(
       join(repo, 'tests/fixtures/acme-statement-scan.pdf'),
@@ -88,7 +93,7 @@ test(
     // docnamer.json is one relative path away, so a binary that read its config
     // off disk would pass here without carrying one at all. From the bare folder
     // there is nothing to read, and only an inlined roster can produce a type.
-    const proc = Bun.spawnSync([binPath, 'plan', dir], { cwd: dir, env: { ...Bun.env } })
+    const proc = Bun.spawnSync([appBin, 'plan', dir], { cwd: dir, env: { ...Bun.env } })
     expect(proc.exitCode, `plan failed:\n${proc.stderr.toString()}`).toBe(0)
 
     const planPath = join(dir, '.docnamer-plan.json')

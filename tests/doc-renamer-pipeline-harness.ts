@@ -18,6 +18,7 @@
  * Native Bun APIs only; no `node:` built-ins (D2).
  */
 import { CONFIG_FILE } from '../src/config.ts'
+import { appBin } from './app-binary.ts'
 import { frame } from './frame.ts'
 import { ensureProviderKey } from './preload.ts'
 
@@ -136,8 +137,7 @@ async function shell(cmd: string[]): Promise<{ code: number; stdout: string; std
 async function resolveCli(): Promise<string[] | null> {
   const override = Bun.env.DOCNAMER_BIN
   if (override && override.trim()) return override.trim().split(/\s+/)
-  const onPath = Bun.which('docnamer')
-  if (onPath) return [onPath]
+  if (await Bun.file(appBin).exists()) return [appBin]
   const src = `${repo}/src/cli.ts`
   if (await Bun.file(src).exists()) return [Bun.which('bun') ?? 'bun', src]
   return null

@@ -10,6 +10,7 @@
  * judge reads. The documents are copied to a scratch folder first, so no frame
  * run ever leaves a plan file inside the repository.
  */
+import { appBin } from './app-binary.ts'
 import { frame } from './frame.ts'
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
@@ -18,8 +19,6 @@ const repo = import.meta.dir.replace(/\/tests$/, '')
  * reads the machine's credential store rather than a throwaway one. */
 const HOME = Bun.env.HOME
 if (HOME === undefined) throw new Error('frames: HOME is unset')
-
-const BIN = `${HOME}/bin/docnamer`
 
 /** Where the paid run reads its documents: a copy, so the repo stays clean. */
 const WORK = '/tmp/docnamer-frames-docs'
@@ -44,7 +43,7 @@ async function run(args: string[], home: string, input?: string): Promise<Run> {
   delete env.XDG_CONFIG_HOME
   env.HOME = home
   env.NO_COLOR = '1'
-  const p = Bun.spawn([BIN, ...args], {
+  const p = Bun.spawn([appBin, ...args], {
     stdin: input === undefined ? 'ignore' : 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
