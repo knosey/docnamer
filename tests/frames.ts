@@ -39,15 +39,21 @@ const PAID_MS = 600_000
 /** One scratch root for the whole run: documents, homes and test set inside it. */
 const ROOT = scratch('docnamer-frames')
 
-/** The operator's own home answers the paid runs: `run` is handed one of the
- *  throwaway homes below, never a fake key. */
-async function run(args: string[], home: string, input?: string): Promise<ChildRun> {
+/** The child's environment: the operator's, minus any key the shell handed it —
+ *  a frame must show what the binary decides, never what the shell decided. */
+function baseEnv(home: string): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
-  // A frame must show what the binary decides, never what the shell handed it.
   delete env.FIREWORKS_API_KEY
   delete env.XDG_CONFIG_HOME
   env.HOME = home
+  return env
+}
+
+/** The operator's own home answers the paid runs: `run` is handed one of the
+ *  throwaway homes below, never a fake key. */
+async function run(args: string[], home: string, input?: string): Promise<ChildRun> {
+  const env = baseEnv(home)
   env.NO_COLOR = '1'
   return runChild([appBin, ...args], { cwd: repo, env, input, timeoutMs: PAID_MS })
 }
@@ -175,13 +181,9 @@ try {
   if ((ONLY === undefined || ONLY === 'ui-13-login-picker-80') && hasPty) {
     const t = makeTerminal(80, 24)
     try {
-      const env: Record<string, string> = {}
-      for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
-      delete env.FIREWORKS_API_KEY
-      delete env.XDG_CONFIG_HOME
+      const env = baseEnv(signedIn)
       // The piped frames above run under NO_COLOR; a terminal frame does not.
       delete env.NO_COLOR
-      env.HOME = signedIn
       env.TERM = 'xterm-256color'
       const r = await drive(t, [appBin, 'login'], [['Sign in to a provider', '\u001b']], {
         cwd: repo,
