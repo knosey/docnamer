@@ -2,10 +2,10 @@
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`getconf NAME_MAX /`
 
 import { expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { MODEL_CALL_MS } from './preload.ts'
+import { scratch } from './scratch.ts'
 
 /**
  * src/commands.ts and src/cli.ts are loaded INSIDE each check with a dynamic import, never at the top
@@ -134,7 +134,7 @@ const CONFIG: Config = {
 
 /** A throwaway folder holding one seed document, in /tmp (outside the tree). */
 function seed(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'docnamer-plan-'))
+  const dir = scratch('docnamer-plan')
   writeFileSync(
     join(dir, 'invoice-acme.txt'),
     'INVOICE\nAcme Ltd\nDate: 03/04/2026\nTotal: 482.50 GBP\n'
@@ -199,7 +199,7 @@ test('T5 writePlan writes .docnamer-plan.json in the folder', async () => {
 // turn it into a destructive undo of a run nobody named.
 test('T5 CLI main refuses `undo --run` with no value', async () => {
   const cli = await loadCli()
-  const dir = mkdtempSync(join(tmpdir(), 'docnamer-run-'))
+  const dir = scratch('docnamer-run')
   const renamed = '2026-04-03 Acme - Invoice.txt'
   writeFileSync(join(dir, renamed), 'INVOICE\nAcme Ltd\n')
   writeFileSync(

@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, statSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { existsSync, statSync } from 'node:fs'
 import { BUILD_MS, artifactsAt } from './app-binary.ts'
 import { runChild } from './child.ts'
+import { scratch } from './scratch.ts'
 
 /**
  * S3 — Ship docnamer as its own macOS app: the bundle, its signing, and the
@@ -27,7 +26,7 @@ const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')
  * run installs into a temp folder and never over the operator's
  * ~/Applications/docnamer.app — see tests/app-binary.ts.
  */
-const root = mkdtempSync(join(tmpdir(), 'docnamer-bundle-'))
+const root = scratch('docnamer-bundle')
 const at = artifactsAt(root)
 const appPath = at.appDir
 const appBinary = at.appBin

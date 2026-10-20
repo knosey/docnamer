@@ -5,11 +5,10 @@
  * is reached, and against a written plan file, so no model is called.
  */
 import { expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runChild } from './child.ts'
 import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
+import { scratch } from './scratch.ts'
 
 /** A plan row as the plan file stores it; only review's own fields matter. */
 function row(old: string, flags: string[], status: string): Record<string, unknown> {
@@ -48,8 +47,8 @@ async function cliAsTyping(
 }
 
 test('review numbers each row by its place in the review, not by its plan index', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'docnamer-review-home-'))
-  const folder = mkdtempSync(join(tmpdir(), 'docnamer-review-'))
+  const home = scratch('docnamer-review-home')
+  const folder = scratch('docnamer-review')
   // The unflagged row is first in the plan and last to be reviewed (I3), so the
   // two orders differ and a plan index cannot be mistaken for a position.
   const rows = [

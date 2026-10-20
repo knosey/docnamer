@@ -2,6 +2,7 @@
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`ls tests/fixtures`
 
 import { expect, test } from 'bun:test'
+import { scratch } from './scratch.ts'
 
 /**
  * src/commands.ts is loaded INSIDE each check with a dynamic import, never at the top of the file, so
@@ -113,8 +114,7 @@ const PLAN_FILE = '.docnamer-plan.json'
 
 /** A throwaway folder in /tmp (outside the tree) seeded with the fixture files. */
 async function seed(fixtures: string[]): Promise<string> {
-  const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-apply-${crypto.randomUUID()}`
-  Bun.spawnSync(['mkdir', '-p', dir])
+  const dir = scratch('docnamer-apply')
   for (const name of fixtures) {
     const bytes = await Bun.file(`${repo}/tests/fixtures/${name}`).arrayBuffer()
     await Bun.write(`${dir}/${name}`, bytes)

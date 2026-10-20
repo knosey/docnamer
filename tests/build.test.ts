@@ -2,12 +2,12 @@
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun --version`
 
 import { beforeAll, expect, test } from 'bun:test'
-import { copyFileSync, existsSync, mkdtempSync, statSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { copyFileSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { BUILD_MS, artifactsAt } from './app-binary.ts'
 import { runChild } from './child.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
+import { scratch } from './scratch.ts'
 
 /**
  * `package.json` (the `build`/`install` scripts) and `src/read.ts` (`macOcrBinary()` reaching the
@@ -32,7 +32,7 @@ import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')
 
 /** This file's own install root. */
-const root = mkdtempSync(join(tmpdir(), 'docnamer-build-'))
+const root = scratch('docnamer-build')
 const at = artifactsAt(root)
 
 /** Run the reference command and return what it prints — the truth. */
@@ -82,7 +82,7 @@ test(
     expect(existsSync(at.appBin), `${at.appBin} does not exist, so there is nothing to run`).toBe(
       true
     )
-    const dir = mkdtempSync(join(tmpdir(), 'docnamer-plan-'))
+    const dir = scratch('docnamer-plan')
     copyFileSync(
       join(repo, 'tests/fixtures/acme-statement-scan.pdf'),
       join(dir, 'acme-statement-scan.pdf')

@@ -25,7 +25,7 @@
  * This is test code, so `node:` built-ins are fine here (R0c): the ban is on
  * `src/`, which the compiled binary ships.
  */
-import { chmod, mkdir, rm } from 'node:fs/promises'
+import { chmod, rm } from 'node:fs/promises'
 import { writePlan as persistPlan } from '../src/commands.ts'
 import { CONFIG_FILE } from '../src/config.ts'
 import { EXPECTED_FILE } from '../src/eval.ts'
@@ -174,8 +174,7 @@ export async function resolveCli(): Promise<string[] | null> {
  * directory can be removed.
  */
 export async function closedFolder(): Promise<string> {
-  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-closed-${crypto.randomUUID()}`
-  await mkdir(dir, { recursive: true })
+  const dir = scratch('docnamer-closed')
   await chmod(dir, 0o000)
   return dir
 }
@@ -199,7 +198,6 @@ export async function boot(s: Session): Promise<void> {
   if (s.booted) return
   await ensureProviderKey()
   const dir = scratch('docnamer-apply')
-  await mkdir(dir, { recursive: true })
   s.dir = dir
   s.planPath = `${dir}/.docnamer-plan.json`
   for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
@@ -476,7 +474,6 @@ export async function act(s: Session, keys = 'A'): Promise<Session> {
 export async function missTestset(): Promise<string> {
   const from = `${repo}/tests/testset`
   const dir = scratch('docnamer-miss')
-  await mkdir(dir, { recursive: true })
   for (const rel of await listFiles(from)) {
     await Bun.write(`${dir}/${rel}`, Bun.file(`${from}/${rel}`))
   }

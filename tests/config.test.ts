@@ -1,4 +1,5 @@
 import { test, expect } from 'bun:test'
+import { scratch } from './scratch.ts'
 
 /** Read a repo-root file, or null when it is not there yet — a failed check, never a throw. */
 async function readRepoFile(name: string): Promise<string | null> {
@@ -89,8 +90,7 @@ test('config: the folder config is docnamer.json and no other name', async () =>
   }
   expect(typeof cli.configFor).toBe('function')
 
-  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-config-${crypto.randomUUID()}`
-  Bun.spawnSync(['mkdir', '-p', dir])
+  const dir = scratch('docnamer-config')
 
   // The folder's own config is honoured under the one shipped name. The sentinel
   // roster shares no type name with the shipped one, because src/cli.ts's fallback
@@ -127,8 +127,7 @@ test('config: a folder with no docnamer.json is planned by the shipped roster it
   const cli = (await import('../src/cli.ts')) as {
     configFor: (folder: string) => Promise<Record<string, unknown>>
   }
-  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-config-${crypto.randomUUID()}`
-  Bun.spawnSync(['mkdir', '-p', dir])
+  const dir = scratch('docnamer-config')
 
   // One shipped binary, usable on any folder: the roster it was built from IS
   // the config for a folder that carries none. There is no second, thinner

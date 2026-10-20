@@ -3,6 +3,7 @@ import { runChild } from './child.ts'
 import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
 import { BUILTIN_CONFIG } from '../src/config.ts'
 import { evalTestset } from '../src/eval.ts'
+import { scratch } from './scratch.ts'
 
 /**
  * T7 — the eval truth file is JSON, and the test set carries no YAML at all.
@@ -26,14 +27,14 @@ import { evalTestset } from '../src/eval.ts'
  */
 
 /** A throwaway folder for the failure cases — nothing is ever written into the repo. */
-async function scratch(body?: string): Promise<string> {
-  const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-json-${crypto.randomUUID()}`
+async function truthset(body?: string): Promise<string> {
+  const dir = scratch('docnamer-json')
   if (body !== undefined) await Bun.write(`${dir}/expected.json`, body)
   return dir
 }
 
 test('evalTestset refuses a test set with no expected.json, and names the file it wants', async () => {
-  const dir = await scratch()
+  const dir = await truthset()
   await expect(evalTestset(dir, BUILTIN_CONFIG)).rejects.toThrow('expected.json')
 })
 
@@ -43,7 +44,7 @@ test('evalTestset refuses a truth file that is not JSON, rather than scoring it 
   // rejection must be the PARSER's — a SyntaxError — and not the missing-file
   // error above, which is why the file is written and a plain `Error` would fail
   // this check.
-  const dir = await scratch('# the truth\ndup-invoice.md:\n  type: invoice\n')
+  const dir = await truthset('# the truth\ndup-invoice.md:\n  type: invoice\n')
   await expect(evalTestset(dir, BUILTIN_CONFIG)).rejects.toThrow(SyntaxError)
 })
 

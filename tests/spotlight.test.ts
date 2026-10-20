@@ -10,7 +10,8 @@ export const reference = process.env.GRAPH_REFERENCE ?? String.raw`ls tests/fixt
 // command names, so a swapped GRAPH_REFERENCE changes which files — and which
 // verdict — the suite reports.
 
-import { test, expect, afterAll } from 'bun:test'
+import { test, expect } from 'bun:test'
+import { scratch } from './scratch.ts'
 
 /** The reference's output lines, or [] when it cannot run — a failed check, never a throw. */
 function referenceLines(): string[] {
@@ -38,11 +39,7 @@ async function importSpotlight(): Promise<Record<string, unknown> | null> {
   }
 }
 
-const scratch = `${Bun.env.TMPDIR ?? '/tmp'}/spotlight-${crypto.randomUUID()}`
-
-afterAll(() => {
-  Bun.spawnSync(['rm', '-rf', scratch])
-})
+const folder = scratch('spotlight')
 
 test('spotlight: src/spotlight.ts exports the T1 interface', async () => {
   const mod = await importSpotlight()
@@ -83,7 +80,7 @@ test('spotlight: setFinderTag/readFinderTags round-trip on a fixture copy', asyn
   const mod = await importSpotlight()
   expect(mod).not.toBeNull()
   const name = referenceLines()[0] ?? ''
-  const file = `${scratch}/${name}`
+  const file = `${folder}/${name}`
   await Bun.write(file, await Bun.file(new URL(name, referenceDir())).bytes())
   const setFinderTag = mod?.setFinderTag as (f: string, tag: string) => Promise<void>
   const readFinderTags = mod?.readFinderTags as (f: string) => Promise<string[]>
@@ -96,7 +93,7 @@ test('spotlight: setFinderComment resolves for a fixture copy', async () => {
   const mod = await importSpotlight()
   expect(mod).not.toBeNull()
   const name = referenceLines()[0] ?? ''
-  const file = `${scratch}/comment-${name}`
+  const file = `${folder}/comment-${name}`
   await Bun.write(file, await Bun.file(new URL(name, referenceDir())).bytes())
   const setFinderComment = mod?.setFinderComment as (f: string, comment: string) => Promise<void>
   await expect(setFinderComment(file, 'renamed by docnamer')).resolves.toBeUndefined()
@@ -106,7 +103,7 @@ test('spotlight: addOcrTextLayer reports the bytes it wrote and its sidecar', as
   const mod = await importSpotlight()
   expect(mod).not.toBeNull()
   const name = referenceLines().find(n => n.endsWith('.pdf')) ?? ''
-  const file = `${scratch}/${name}`
+  const file = `${folder}/${name}`
   await Bun.write(file, await Bun.file(new URL(name, referenceDir())).bytes())
   const addOcrTextLayer = mod?.addOcrTextLayer as (
     f: string

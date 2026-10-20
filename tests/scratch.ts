@@ -3,13 +3,16 @@
 // exit hook below covers it. Without this, /tmp fills with credential files that
 // look real and are never read again — one run's homes were 30 directories deep.
 
-import { rmSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 
 const made: string[] = []
 
-/** A unique scratch directory under TMPDIR, removed by `cleanupScratch`. */
+/** A unique scratch directory under TMPDIR, created, removed by `cleanupScratch`.
+ *  It exists on return: every caller wants to write into it, and one that had to
+ *  mkdir first could forget, and then fail somewhere further away. */
 export function scratch(prefix: string): string {
   const dir = `${Bun.env.TMPDIR ?? '/tmp'}/${prefix}-${crypto.randomUUID()}`
+  mkdirSync(dir, { recursive: true })
   made.push(dir)
   return dir
 }

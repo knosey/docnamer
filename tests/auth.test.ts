@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { runChild } from './child.ts'
 import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
+import { scratch } from './scratch.ts'
 
 /**
  * T8 — where docnamer's model credential comes from, with no environment variable.
@@ -36,7 +37,7 @@ const OWN_STORE = { fireworks: { type: 'api_key', key: 'docnamer-held-key' } }
 
 /** A throwaway HOME, optionally carrying either store. Bun.write makes the parents. */
 async function homeWith(pi?: unknown, own?: unknown): Promise<string> {
-  const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-auth-${crypto.randomUUID()}`
+  const dir = scratch('docnamer-auth')
   if (pi !== undefined) await Bun.write(`${dir}/.pi/agent/auth.json`, JSON.stringify(pi))
   if (own !== undefined)
     await Bun.write(`${dir}/.config/docnamer/credentials.json`, JSON.stringify(own))

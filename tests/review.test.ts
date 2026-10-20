@@ -11,6 +11,7 @@ import { runChild } from './child.ts'
 import type { Config } from '../src/config.ts'
 import { loadConfig } from '../src/config.ts'
 import { MODEL_CALL_MS } from './preload.ts'
+import { scratch } from './scratch.ts'
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
 
@@ -115,8 +116,7 @@ describe('T3 applyAction', () => {
 
 describe('T3 review() and the CLI wiring', () => {
   test('the CLI dispatches review, updating row statuses in the plan file', async () => {
-    const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-review-${crypto.randomUUID()}`
-    Bun.spawnSync(['mkdir', '-p', dir])
+    const dir = scratch('docnamer-review')
     const rows = [row(), row({ old: 'scan.pdf', flags: ['low-confidence'] })]
     await Bun.write(`${dir}/.docnamer-plan.json`, JSON.stringify(rows, null, 2))
 
@@ -135,8 +135,7 @@ describe('T3 review() and the CLI wiring', () => {
   // R4/I3: "Enter accept". A person reads the key list and presses Enter, so the
   // prompt has to name Enter and Enter has to accept the row on screen.
   test('the CLI accepts the row on Enter and the prompt names Enter as accept', async () => {
-    const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-review-${crypto.randomUUID()}`
-    Bun.spawnSync(['mkdir', '-p', dir])
+    const dir = scratch('docnamer-review')
     const rows = [row(), row({ old: 'scan.pdf' })]
     await Bun.write(`${dir}/.docnamer-plan.json`, JSON.stringify(rows, null, 2))
 
@@ -161,8 +160,7 @@ describe('T3 review() and the CLI wiring', () => {
       expect(cli, 'src/cli.ts must exist (T3)').not.toBeNull()
       const main = fn(cli as Record<string, unknown>, 'main') as (argv: string[]) => Promise<number>
 
-      const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-review-${crypto.randomUUID()}`
-      Bun.spawnSync(['mkdir', '-p', dir])
+      const dir = scratch('docnamer-review')
       await Bun.write(`${dir}/a.txt`, 'INVOICE\nAcme Ltd\nDate: 03/04/2026\n')
       expect(await main(['plan', dir])).toBe(0)
       // An unknown command is a refusal: 2, not the 1 reserved for an accepted

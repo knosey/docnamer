@@ -3,6 +3,7 @@
 export const reference = process.env.GRAPH_REFERENCE ?? 'bun --version'
 
 import { expect, test } from 'bun:test'
+import { scratch } from './scratch.ts'
 
 /**
  * S1 — the device IO module.
@@ -91,7 +92,7 @@ test('deviceWriter and deviceReader move bytes over the device path', async () =
   const truth = referenceOutput()
   expect(truth.length, 'the reference must print a value').toBeGreaterThan(0)
 
-  const path = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-device-${crypto.randomUUID()}`
+  const path = `${scratch('docnamer-device')}/device`
   const payload = `docnamer-device:${truth}\n`
 
   const writer = mod.deviceWriter(path)

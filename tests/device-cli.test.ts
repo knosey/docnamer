@@ -4,6 +4,7 @@ export const reference = process.env.GRAPH_REFERENCE ?? 'echo 0'
 
 import { expect, test } from 'bun:test'
 import { runChild } from './child.ts'
+import { scratch } from './scratch.ts'
 
 /**
  * S2 — the CLI's chokepoints route through a terminal DEVICE, not through the
@@ -34,7 +35,7 @@ async function referenceOutput(): Promise<string> {
 /** A throwaway directory per test: a run must never inherit the last one's
  *  device or exit file (a gate that passes alone and fails in sequence). */
 async function tempDir(): Promise<string> {
-  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/device-cli-${crypto.randomUUID()}`
+  const dir = scratch('device-cli')
   await Bun.write(`${dir}/.keep`, '')
   return dir
 }

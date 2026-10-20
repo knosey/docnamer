@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
 import { repo, resolveCli, closedFolder, reopen } from './doc-renamer-apply-harness.ts'
+import { scratch } from './scratch.ts'
 
 /**
  * T9 — `docnamer login` on a REAL terminal.
@@ -41,7 +42,7 @@ test('Bun.Terminal is present, so the pty tests below run rather than skip', () 
 /** A throwaway home with nothing signed in, one per test: a credential written
  *  by one test must never be visible to the next. */
 async function freshHome(): Promise<string> {
-  const home = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-pty-${crypto.randomUUID()}`
+  const home = scratch('docnamer-pty')
   await Bun.write(`${home}/.keep`, '')
   return home
 }

@@ -6,10 +6,11 @@
 // for all three formats against fixtures built here, in a tmp dir, from the
 // native `zip` CLI: deterministic, and no binary fixtures committed.
 
-import { test, expect, beforeAll, afterAll } from 'bun:test'
+import { test, expect, beforeAll } from 'bun:test'
 import { read } from '../src/read.ts'
+import { scratch } from './scratch.ts'
 
-const dir = `${Bun.env.TMPDIR ?? '/tmp'}/read-formats-${crypto.randomUUID()}`
+const dir = scratch('read-formats')
 const fixtures = {
   xlsx: `${dir}/budget.xlsx`,
   pptx: `${dir}/deck.pptx`,
@@ -92,10 +93,6 @@ beforeAll(async () => {
     `%PDF-1.4\n1 0 obj<</Type/Page>>endobj\nstream\nBT /F1 12 Tf (Board minutes of the annual general meeting) Tj ET\nendstream\n`
   )
   zipTree(fixtures.pages, ['QuickLook/Preview.pdf'])
-})
-
-afterAll(() => {
-  Bun.spawnSync(['rm', '-rf', dir])
 })
 
 test('read() extracts text from xlsx shared strings', async () => {

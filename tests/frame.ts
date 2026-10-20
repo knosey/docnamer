@@ -27,6 +27,8 @@
  * ASCII in the SVG is what the parser sees. Re-measure before changing the
  * font stack: rasterise `['--', '\u2014', '-', '---']` and count the runs.
  */
+import { scratch } from './scratch.ts'
+
 const FRAMES_DIR = '.audit/screenshots'
 
 /** Menlo at 13px. The SVG box is sized from these, so nothing is clipped. */
@@ -89,8 +91,9 @@ export async function frame(text: string, name: string): Promise<string> {
     throw new Error(`frame ${name}: mkdir -p ${dir} failed: ${mk.stderr.toString().trim()}`)
   }
   const out = `${dir}/${name}.png`
-  // A predictable name in a shared TMPDIR is a symlink target. Unique per call.
-  const svg = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-frame-${name}-${crypto.randomUUID()}.svg`
+  // A predictable name in a shared TMPDIR is a symlink target. Unique per call,
+  // and in a scratch directory, so the intermediate is not left behind either.
+  const svg = `${scratch('docnamer-frame')}/frame.svg`
   await Bun.write(svg, svgText)
   const p = Bun.spawnSync(['sips', '-s', 'format', 'png', svg, '--out', out])
   if (p.exitCode !== 0) {
