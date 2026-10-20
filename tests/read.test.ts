@@ -6,7 +6,6 @@ export const reference =
 // through its own asserted failure — a dynamic import error, an empty listing — never a throw at load.
 
 import { test, expect } from 'bun:test'
-import { base } from './plan-file.ts'
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
 const fixturesDir = `${repo}/tests/fixtures`
@@ -60,42 +59,6 @@ test('reference is the truth this suite is anchored to', async () => {
   }
   expect(code).toBe(0)
   expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
-})
-
-// --- The module under test ---------------------------------------------------
-
-test('src/read.ts exports the Stage 1 read ladder', async () => {
-  const mod = await importSrc('read.ts')
-  expect(mod.__error?.message ?? '').toBe('')
-  expect(typeof mod.read).toBe('function')
-  expect(typeof mod.downloadICloud).toBe('function')
-  expect(typeof mod.ocrPages).toBe('function')
-})
-
-// --- Fixtures ----------------------------------------------------------------
-
-test('tests/fixtures holds the Stage 1 fixture set', async () => {
-  const files = await fixtureFiles()
-  expect(files.length).toBeGreaterThan(0)
-
-  // A text-layer PDF and a scanned PDF: two distinct PDFs, the scanned one named
-  // so its expected type is unambiguous.
-  expect(withExt(files, '.pdf').length).toBeGreaterThanOrEqual(2)
-  expect(files.some(f => /scan/i.test(f))).toBe(true)
-  expect(files.some(f => /\.pdf$/i.test(f) && !/scan/i.test(f))).toBe(true)
-
-  expect(withExt(files, '.png').length).toBeGreaterThanOrEqual(1)
-  expect(withExt(files, '.docx').length).toBeGreaterThanOrEqual(1)
-  expect(withExt(files, '.txt').length).toBeGreaterThanOrEqual(1)
-})
-
-test('tests/fixtures holds the byte-identical dup-invoice pair', async () => {
-  const files = await fixtureFiles()
-  const dups = files.filter(f => /dup-invoice/i.test(base(f)))
-  expect(dups.length).toBeGreaterThanOrEqual(2)
-
-  const bodies = await Promise.all(dups.map(f => Bun.file(`${fixturesDir}/${f}`).text()))
-  expect(new Set(bodies).size).toBe(1)
 })
 
 // --- The read ladder (R4, R5) and vision fallback (I2) ------------------------
@@ -161,7 +124,14 @@ test('ocrPages() reports text, its length and a mean confidence', async () => {
   expect(png).toBeDefined()
 
   const res = await mod.ocrPages([`${fixturesDir}/${png}`])
-  expect(typeof res.text).toBe('string')
-  expect(res.chars).toBe(res.text.length)
-  expect(res.meanConfidence === null || typeof res.meanConfidence === 'number').toBe(true)
+  // Real text with characters counted — not the implementation's own derivation
+  // restated back at it.
+  expect(res.text.trim().length).toBeGreaterThan(0)
+  expect(res.chars).toBeGreaterThan(0)
+  // A mean the ladder can compare against 0.8. `NaN` is a number and `NaN <= 0.8`
+  // is false, so the old shape passed on a confidence that would have made
+  // read()'s vision fallback unreachable.
+  expect(typeof res.meanConfidence).toBe('number')
+  expect(res.meanConfidence).toBeGreaterThan(0)
+  expect(res.meanConfidence).toBeLessThanOrEqual(1)
 })

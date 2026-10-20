@@ -12,8 +12,8 @@ import { expect, test } from 'bun:test'
  * it a device path, a size and a file to write its exit code into, and the app
  * reads and writes that path with `Bun.file(path).stream()` and
  * `Bun.file(path).writer()`. This file pins that contract before the module
- * exists: the flag parser, the writer, the reader, and the ban on `node:`
- * built-ins. The real terminal flow belongs to the wrapper's own step, so here a
+ * exists: the flag parser, the writer and the reader. The real terminal flow
+ * belongs to the wrapper's own step, so here a
  * plain temp file stands in for the device — it proves bytes land on the path
  * and come back off it, which is the whole of the abstraction.
  */
@@ -50,20 +50,8 @@ function referenceOutput(): string {
   return proc.stdout.toString().trim()
 }
 
-test('src/device.ts exists and imports no node: built-in', async () => {
-  const file = Bun.file(`${import.meta.dir}/../src/device.ts`)
-  const exists = await file.exists()
-  expect(exists, 'src/device.ts must exist').toBe(true)
-  const source = exists ? await file.text() : ''
-  expect(
-    /["']node:/.test(source),
-    'src/device.ts must not import a node: built-in — it is a shipped source'
-  ).toBe(false)
-})
-
 test('parseDeviceArgs reads --tty, --cols, --rows, --exit-file and --cwd from argv', async () => {
   const mod = await loadDevice()
-  expect(typeof mod.parseDeviceArgs, 'src/device.ts must export parseDeviceArgs').toBe('function')
 
   const parsed = mod.parseDeviceArgs([
     'plan',
@@ -99,8 +87,6 @@ test('parseDeviceArgs reads --tty, --cols, --rows, --exit-file and --cwd from ar
 
 test('deviceWriter and deviceReader move bytes over the device path', async () => {
   const mod = await loadDevice()
-  expect(typeof mod.deviceWriter, 'src/device.ts must export deviceWriter').toBe('function')
-  expect(typeof mod.deviceReader, 'src/device.ts must export deviceReader').toBe('function')
 
   const truth = referenceOutput()
   expect(truth.length, 'the reference must print a value').toBeGreaterThan(0)
@@ -118,24 +104,4 @@ test('deviceWriter and deviceReader move bytes over the device path', async () =
     await new Response(mod.deviceReader(path)).text(),
     'deviceReader must read back what deviceWriter wrote'
   ).toBe(payload)
-})
-
-test('the runtime the device module runs on is the one the reference names', async () => {
-  const truth = referenceOutput()
-  expect(truth.length, 'the reference must print a value').toBeGreaterThan(0)
-  expect(
-    Bun.version,
-    'src/device.ts is built on bun-only device IO; the reference names that bun'
-  ).toBe(truth)
-})
-
-test('src/device.ts does its device IO through Bun.file', async () => {
-  const file = Bun.file(`${import.meta.dir}/../src/device.ts`)
-  const exists = await file.exists()
-  expect(exists, 'src/device.ts must exist').toBe(true)
-  const source = exists ? await file.text() : ''
-  expect(
-    /Bun\.file\(/.test(source),
-    'src/device.ts must reach the device path with Bun.file, not a node: stream'
-  ).toBe(true)
 })

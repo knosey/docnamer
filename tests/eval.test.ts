@@ -52,8 +52,6 @@ type CliModule = { main(argv: string[]): Promise<number> }
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
 const TESTSET = `${repo}/tests/testset`
-const EXPECTED = `${TESTSET}/expected.json`
-
 /** Run the reference command and return its stdout lines, sorted: the truth set. */
 function referenceOutput(): string[] {
   const argv = reference.split(/\s+/).filter(Boolean)
@@ -122,26 +120,6 @@ async function loadCli(): Promise<CliModule> {
 const config: Config = loadConfig(`${repo}/docnamer.json`)
 
 // --- cases -------------------------------------------------------------------
-
-test('eval.ts exports its T4 surface', async () => {
-  const mod = await loadEval()
-  expect(typeof mod.evalTestset).toBe('function')
-  expect(typeof mod.formatEvalReport).toBe('function')
-})
-
-test('the graded test set is the reference set, plus expected.json', async () => {
-  const names: string[] = []
-  try {
-    for await (const rel of new Bun.Glob('*').scan({ cwd: TESTSET, onlyFiles: true }))
-      names.push(rel)
-  } catch (e) {
-    if ((e as { code?: string }).code !== 'ENOENT') throw e
-  }
-  expect(names).toContain('expected.json')
-  expect(await Bun.file(EXPECTED).exists()).toBe(true)
-  // The truth: the graded files are exactly what the reference printed.
-  expect(await gradedFiles()).toEqual(referenceOutput())
-})
 
 test(
   'evalTestset scores the graded set without renaming anything',

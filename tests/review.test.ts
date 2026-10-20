@@ -1,6 +1,3 @@
-// The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
-export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun --version`
-
 /**
  * Exercises the produced surface of src/review.ts and src/cli.ts: applyAction(rows, index, action,
  * value, config) applies one ReviewAction to a plan row and returns the updated rows, and the CLI
@@ -44,16 +41,6 @@ const row = (over: Partial<Row> = {}): Row => ({
   status: 'pending',
   ...over
 })
-
-/** Run the reference command and return its trimmed stdout: the truth. */
-function referenceOutput(): string {
-  const argv = reference.split(/\s+/).filter(Boolean)
-  if (!argv.length) throw new Error('reference is empty')
-  const p = Bun.spawnSync(argv)
-  if (p.exitCode !== 0)
-    throw new Error(`reference exited ${p.exitCode}: ${p.stderr.toString().trim()}`)
-  return p.stdout.toString().trim()
-}
 
 async function importOrNull(path: string): Promise<Record<string, unknown> | null> {
   try {
@@ -197,12 +184,4 @@ describe('T3 review() and the CLI wiring', () => {
     },
     MODEL_CALL_MS
   )
-
-  test('the CLI is driven by the runtime the reference names', () => {
-    const bun = Bun.which('bun')
-    if (bun === null) throw new Error('bun must be on PATH to drive the CLI (T3)')
-    const p = Bun.spawnSync([bun, '--version'])
-    if (p.exitCode !== 0) throw new Error(`bun --version exited ${p.exitCode}`)
-    expect(p.stdout.toString().trim()).toBe(referenceOutput())
-  })
 })

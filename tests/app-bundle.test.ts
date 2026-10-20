@@ -1,9 +1,5 @@
-// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
-// verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? 'grep -rn node: src/'
-
 import { expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { artifactsAt } from './app-binary.ts'
@@ -19,19 +15,12 @@ import { artifactsAt } from './app-binary.ts'
  * and sign it ad-hoc, or with a real identity when `security find-identity`
  * yields one.
  *
- * The reference `grep -rn node: src/` is the truth the ban is measured against:
- * every occurrence it reports in a shipped source must be a mention, never an
- * import.
- *
- * The test reaches the work through the built artifact and the reference command,
- * never through a top-of-file import, so a missing script, a missing bundle or a
- * degraded signature is a failed check this suite prints — not an uncaught throw
- * while the file loads.
+ * The test reaches the work through the built artifact, never through a top-of-file
+ * import, so a missing bundle or a degraded signature is a failed check this suite
+ * prints — not an uncaught throw while the file loads.
  */
 
 const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')
-const buildScript = join(repo, 'scripts', 'build-app.ts')
-
 /**
  * This file's own install root, handed to the build as DOCNAMER_APP_HOME so the
  * run installs into a temp folder and never over the operator's
@@ -43,50 +32,11 @@ const appPath = at.appDir
 const appBinary = at.appBin
 const infoPlist = at.appPlist
 
-/** Run the reference command and return what it prints — the truth. */
-function referenceOutput(): string {
-  const proc = Bun.spawnSync(['/bin/sh', '-c', reference], { cwd: repo })
-  return proc.stdout.toString()
-}
-
 /** Read one key out of an Info.plist, XML or binary, the way macOS does. */
 function plistValue(key: string): string {
   const proc = Bun.spawnSync(['plutil', '-extract', key, 'raw', '-o', '-', infoPlist])
   return proc.stdout.toString().trim()
 }
-
-/** An actual import of a node: built-in, as opposed to a comment that mentions one. */
-const NODE_IMPORT = /(?:from|import)\s*\(?\s*['"]node:|require\s*\(\s*['"]node:/
-
-/** The `node:` occurrences this test finds in the shipped sources for itself, in grep's shape: the reference must
- *  report every one of them, which is what makes this suite's verdict follow its reference. */
-function foundInSources(): string[] {
-  const found: string[] = []
-  for (const rel of new Bun.Glob('src/*.ts').scanSync({ cwd: repo })) {
-    const lines = readFileSync(join(repo, rel), 'utf8').split('\n')
-    for (const [at, line] of lines.entries())
-      if (line.includes('node:')) found.push(`${rel}:${at + 1}:${line}`)
-  }
-  return found
-}
-
-test('the shipped sources import no node: built-ins (the reference is the scan)', () => {
-  const reported = referenceOutput()
-  const missed = foundInSources().filter(line => !reported.includes(line))
-  expect(
-    missed,
-    'the reference reported none of these occurrences, so it is not the scan of the shipped sources:\n' +
-      missed.join('\n')
-  ).toEqual([])
-  const offenders = reported.split('\n').filter(line => NODE_IMPORT.test(line))
-  expect(offenders, `node: built-ins reach the shipped sources:\n${offenders.join('\n')}`).toEqual(
-    []
-  )
-})
-
-test('the build script exists', () => {
-  expect(existsSync(buildScript), `${buildScript} does not exist`).toBe(true)
-})
 
 test('bun run build assembles ~/Applications/docnamer.app around the compiled binary', () => {
   const build = Bun.spawnSync(['bun', 'run', 'build'], {

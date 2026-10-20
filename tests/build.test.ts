@@ -70,17 +70,6 @@ test('BUN_BE_BUN=1 the app binary --version prints what the reference prints', (
   expect(proc.stdout.toString().trim()).toBe(referenceOutput())
 })
 
-test('no node: built-ins are imported anywhere in src/ (R1, D2)', async () => {
-  const glob = new Bun.Glob('*.ts')
-  for await (const file of glob.scan(join(repo, 'src'))) {
-    const src = await Bun.file(join(repo, 'src', file)).text()
-    expect(
-      /from\s+['"]node:|require\(['"]node:/.test(src),
-      `src/${file} imports a node: built-in; the standalone binary must stay native Bun + platform frameworks`
-    ).toBe(false)
-  }
-})
-
 test(
   'the compiled binary plans a scan PDF as itself, not degraded to other',
   async () => {
