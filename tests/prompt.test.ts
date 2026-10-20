@@ -257,7 +257,19 @@ test('a piped picker prints a numbered list and takes a number', async () => {
   })
   expect(id, 'a number did not select the row it numbers').toBe('anthropic')
   const text = written.join('')
-  expect(text, 'the fallback list must be numbered, or a number means nothing').toContain('1')
+  // '1' alone proves nothing: it is in the title, in a detail, anywhere. What the
+  // fallback promises is that the row a number NAMES is the row it NUMBERS, so the
+  // number has to stand in front of the label — '2' selecting 'anthropic' above is
+  // only meaningful because the list said `2) Anthropic`.
+  const rows = text.split('\n')
+  expect(
+    rows.some(row => /^\s*2\) Anthropic/.test(row)),
+    `the fallback list must number its rows: nothing in ${JSON.stringify(rows)} reads "2) Anthropic"`
+  ).toBe(true)
+  expect(
+    rows.some(row => /^\s*1\) Fireworks/.test(row)),
+    'the first row must be numbered 1'
+  ).toBe(true)
   expect(text, 'the fallback list does not name the providers').toContain('Fireworks')
 })
 

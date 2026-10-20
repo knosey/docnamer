@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { appBin as BINARY, appPlist as PLIST, wrapper as WRAPPER } from './app-binary.ts'
 import { PLAN_FILE } from '../src/commands.ts'
+import { ANSI, drive, hasPty, makeTerminal, slaveDevice } from './pty.ts'
 import { scratch } from './scratch.ts'
 
 /**
@@ -25,15 +26,20 @@ import { scratch } from './scratch.ts'
  * by those runs, never by grepping the script for the words: a grep for `stty`
  * passes on a comment, and passes on a script that would never set a terminal raw.
  *
- * The pty comes from `Bun.Terminal`, bun's own terminal API: no second language,
- * no external process. The slave device path is learned by running `tty` on that
- * pty and reading the first `/dev/` line it prints. Nothing here is asserted on
- * how the screen looked; a picker is a byte stream, and a redraw looks broken to
- * a grep.
+ * The pty comes from `Bun.Terminal`, bun's own terminal API, through the driver
+ * in `tests/pty.ts` that this file shares with `pty.test.ts`: the terminal, the
+ * wait-until-the-child-has-drawn-it and the deadline on the exit are the same
+ * three things in both files, and one copy of them cannot drift. Nothing here is
+ * asserted on how the screen looked; a picker is a byte stream, and a redraw
+ * looks broken to a grep.
  */
 
-const hasPty = typeof Bun.Terminal === 'function'
-const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, 'g')
+/** The terminal a person has: a colour-capable one, and the environment as it
+ *  is (the wrapper's own behaviour is what is under test, not a scrubbed env). */
+const wrapperEnv: Record<string, string> = { ...Bun.env, TERM: 'xterm-256color' } as Record<
+  string,
+  string
+>
 
 // A required gate treats SKIP as failure. The two pty tests below are
 // `skipIf(!hasPty)`, so on a runtime without Bun.Terminal they skip and this file
@@ -60,111 +66,6 @@ async function plistValue(key: string): Promise<string> {
     killSignal: 'SIGTERM'
   })
   return p.exitCode === 0 ? p.stdout.toString().trim() : ''
-}
-
-type Term = {
-  readonly terminal: Bun.Terminal
-  read(): string
-  reset(): void
-}
-
-/** One pty, with everything the child writes collected as text. */
-function makeTerminal(): Term {
-  let out = ''
-  const decoder = new TextDecoder()
-  const terminal = new Bun.Terminal({
-    cols: 100,
-    rows: 40,
-    data(_t, chunk) {
-      out += decoder.decode(chunk)
-    }
-  })
-  return {
-    terminal,
-    read: () => out,
-    reset: () => {
-      out = ''
-    }
-  }
-}
-
-/**
- * The slave device path of `t`: run `tty` on it and read the first `/dev/` line.
- * The probe is killed once the path is known; the pty stays open, so the same
- * device is what the wrapper will resolve and the app will open.
- */
-async function slaveDevice(t: Term, ms = 5000): Promise<string> {
-  const probe = Bun.spawn(['/bin/sh', '-c', 'tty; sleep 30'], { terminal: t.terminal })
-  try {
-    const start = Date.now()
-    for (;;) {
-      const match = t.read().match(/\/dev\/[^\s\r\n]+/)
-      if (match) return match[0] as string
-      if (Date.now() - start > ms) throw new Error('no /dev/ line from `tty` on the probe pty')
-      await Bun.sleep(50)
-    }
-  } finally {
-    // The probe is done with. Its exit is raced rather than awaited: a `sleep 30`
-    // that outlives the SIGTERM would otherwise hold this test file open, and the
-    // pty is closed by the caller either way.
-    probe.kill()
-    await Promise.race([probe.exited, Bun.sleep(2000)])
-  }
-}
-
-type Run = { exited: boolean; code: number | null; output: string }
-
-/**
- * Wait until the terminal has shown `marker`, or fail naming what it showed
- * instead. A sleep before a keystroke is a guess at how long the child needs —
- * too short and the key lands on a program that is not listening yet, which
- * reads as a product bug. This waits exactly as long as it takes, and no longer.
- */
-async function waitFor(t: Term, marker: string, ms: number): Promise<void> {
-  const start = Date.now()
-  for (;;) {
-    if (t.read().replace(ANSI, '').includes(marker)) return
-    if (Date.now() - start > ms) {
-      throw new Error(
-        `the terminal never showed ${JSON.stringify(marker)}: it showed ${JSON.stringify(
-          t.read().replace(ANSI, '').slice(-500)
-        )}`
-      )
-    }
-    await Bun.sleep(25)
-  }
-}
-
-/**
- * Run the wrapper on `t`, typing `steps` as `[textToWaitFor, keys]` pairs: each
- * keystroke goes in once the child has drawn what the step waits for.
- * `cwd` is the directory a person is standing in when they type the command.
- */
-async function drive(
-  t: Term,
-  args: string[],
-  steps: [string, string][],
-  ms = 30000,
-  cwd?: string
-): Promise<Run> {
-  t.reset()
-  const proc = Bun.spawn([WRAPPER, ...args], {
-    terminal: t.terminal,
-    env: { ...Bun.env, TERM: 'xterm-256color' },
-    ...(cwd === undefined ? {} : { cwd })
-  })
-  for (const [marker, keys] of steps) {
-    await waitFor(t, marker, ms)
-    // A finished program has no terminal left to type into.
-    if (proc.exitCode === null) t.terminal.write(keys)
-  }
-  const raced = await Promise.race([proc.exited, Bun.sleep(ms).then(() => 'hung' as const)])
-  if (raced === 'hung') {
-    proc.kill()
-    return { exited: false, code: null, output: t.read() }
-  }
-  await Bun.sleep(150) // let the last frame land before the terminal closes
-  return { exited: true, code: raced, output: t.read() }
 }
 
 test('the build installs ~/bin/docnamer as a wrapper and assembles the app bundle', async () => {
@@ -208,7 +109,10 @@ test.skipIf(!hasPty)(
       expect(device.startsWith('/dev/'), `the probe pty reported ${device}`).toBe(true)
 
       // The picker draws on the device and Esc cancels it: the prompt comes back.
-      const login = await drive(t, ['login'], [['Sign in to a provider', '\x1b']])
+      const login = await drive(t, [WRAPPER, 'login'], [['Sign in to a provider', '\x1b']], {
+        env: wrapperEnv,
+        ms: 90000
+      })
       expect(
         login.exited,
         `a cancelled login must return, not hold the terminal open — the terminal showed head=${JSON.stringify(
@@ -223,7 +127,10 @@ test.skipIf(!hasPty)(
 
       // A refusal's exit code reaches the caller. `open -W` exits 0 whatever the
       // app does, so only --exit-file can carry the 2 back — the whole point of it.
-      const refused = await drive(t, ['nonsense-command'], [])
+      const refused = await drive(t, [WRAPPER, 'nonsense-command'], [], {
+        env: wrapperEnv,
+        ms: 90000
+      })
       expect(refused.exited, 'the app must exit').toBe(true)
       expect(refused.code, 'the app exit code must propagate through open and the wrapper').toBe(2)
     } finally {
@@ -254,7 +161,7 @@ test.skipIf(!hasPty)(
     const t = makeTerminal()
     try {
       for (const n of Array.from({ length: 12 }, (_, i) => i + 1)) {
-        const run = await drive(t, ['--version'], [])
+        const run = await drive(t, [WRAPPER, '--version'], [], { env: wrapperEnv })
         const seen = run.output.replace(ANSI, '')
         expect(run.exited, `run ${n}: the app must exit`).toBe(true)
         expect(
@@ -295,7 +202,7 @@ test.skipIf(!hasPty)(
     const dir = await freshFolder()
     const t = makeTerminal()
     try {
-      const run = await drive(t, ['plan', '.'], [], 30000, dir)
+      const run = await drive(t, [WRAPPER, 'plan', '.'], [], { env: wrapperEnv, cwd: dir })
       const seen = run.output.replace(ANSI, '')
       expect(
         run.exited,

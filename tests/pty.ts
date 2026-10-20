@@ -1,0 +1,136 @@
+/**
+ * One driver for a real terminal, shared by every test that needs one.
+ *
+ * A pty test can only assert on what the program DID — it picked, it stored, it
+ * exited — because a screen is a byte stream and a redraw looks broken to a
+ * grep. Getting that stream means three things done right, and doing them twice
+ * is how one of the two copies drifts:
+ *
+ *  - the terminal itself (`Bun.Terminal`, bun's own API: no external process);
+ *  - waiting for what the child has drawn BEFORE typing at it. A sleep is a
+ *    guess at how long the child needs, and a key typed into a program that is
+ *    not listening yet reds the run for a reason that names nothing — which is
+ *    what these files did until the review council named it;
+ *  - a deadline on the exit, so a program that holds the terminal open fails the
+ *    test instead of hanging the suite.
+ *
+ * Nothing here asserts anything. A file that uses it owns its own expectations.
+ */
+
+export const hasPty = typeof Bun.Terminal === 'function'
+
+/** The escape sequences a terminal interprets, so a captured frame can be read
+ *  as the text a person actually sees on it. */
+export const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, 'g')
+
+export type Term = {
+  readonly terminal: Bun.Terminal
+  read(): string
+  reset(): void
+}
+
+/** One pty, with everything the child writes collected as text. */
+export function makeTerminal(cols = 100, rows = 40): Term {
+  let out = ''
+  const decoder = new TextDecoder()
+  const terminal = new Bun.Terminal({
+    cols,
+    rows,
+    data(_t, chunk) {
+      out += decoder.decode(chunk)
+    }
+  })
+  return {
+    terminal,
+    read: () => out,
+    reset: () => {
+      out = ''
+    }
+  }
+}
+
+/**
+ * Wait until the terminal has shown `marker`, or fail naming what it showed
+ * instead. This is the wait that replaces a sleep: it costs what the child
+ * actually needs and no more.
+ */
+async function waitFor(t: Term, marker: string, ms: number): Promise<void> {
+  const start = Date.now()
+  for (;;) {
+    if (t.read().replace(ANSI, '').includes(marker)) return
+    if (Date.now() - start > ms) {
+      throw new Error(
+        `the terminal never showed ${JSON.stringify(marker)}: it showed ${JSON.stringify(
+          t.read().replace(ANSI, '').slice(-500)
+        )}`
+      )
+    }
+    await Bun.sleep(25)
+  }
+}
+
+/**
+ * The slave device path of `t`: run `tty` on it and read the first `/dev/` line.
+ * `Bun.Terminal` does not expose the path, and the wrapper resolves its own
+ * `tty` to this same device, so the probe is how a test can name it. The probe
+ * is killed once the path is known; the pty stays open.
+ */
+export async function slaveDevice(t: Term, ms = 5000): Promise<string> {
+  const probe = Bun.spawn(['/bin/sh', '-c', 'tty; sleep 30'], { terminal: t.terminal })
+  try {
+    const start = Date.now()
+    for (;;) {
+      const match = t.read().match(/\/dev\/[^\s\r\n]+/)
+      if (match) return match[0] as string
+      if (Date.now() - start > ms) throw new Error('no /dev/ line from `tty` on the probe pty')
+      await Bun.sleep(50)
+    }
+  } finally {
+    // The probe is done with. Its exit is raced rather than awaited: a `sleep 30`
+    // that outlives the SIGTERM would otherwise hold the test file open, and the
+    // pty is closed by the caller either way.
+    probe.kill()
+    await Promise.race([probe.exited, Bun.sleep(2000)])
+  }
+}
+
+export type Run = { exited: boolean; code: number | null; output: string }
+
+export type DriveOptions = {
+  cwd?: string
+  env?: Record<string, string>
+  /** How long the child gets to exit on its own before it counts as a hang. */
+  ms?: number
+}
+
+/**
+ * Run `cmd` on `t`, typing `steps` as `[textToWaitFor, keys]` pairs: each
+ * keystroke goes in once the child has drawn what the step waits for. `cwd` is
+ * the directory a person is standing in when they type the command.
+ */
+export async function drive(
+  t: Term,
+  cmd: string[],
+  steps: [string, string][],
+  o: DriveOptions = {}
+): Promise<Run> {
+  const ms = o.ms ?? 30000
+  t.reset()
+  const proc = Bun.spawn(cmd, {
+    terminal: t.terminal,
+    ...(o.env === undefined ? {} : { env: o.env }),
+    ...(o.cwd === undefined ? {} : { cwd: o.cwd })
+  })
+  for (const [marker, keys] of steps) {
+    await waitFor(t, marker, ms)
+    // A finished program has no terminal left to type into.
+    if (proc.exitCode === null) t.terminal.write(keys)
+  }
+  const raced = await Promise.race([proc.exited, Bun.sleep(ms).then(() => 'hung' as const)])
+  if (raced === 'hung') {
+    proc.kill()
+    return { exited: false, code: null, output: t.read() }
+  }
+  await Bun.sleep(150) // let the last frame land before the terminal closes
+  return { exited: true, code: raced, output: t.read() }
+}

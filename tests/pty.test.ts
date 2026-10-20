@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
 import { repo, resolveCli, closedFolder, reopen } from './doc-renamer-apply-harness.ts'
+import { ANSI, drive, hasPty, makeTerminal } from './pty.ts'
 import { scratch } from './scratch.ts'
 
 /**
@@ -18,16 +19,10 @@ import { scratch } from './scratch.ts'
  * EXITED. A reader left holding Bun's stdin stream keeps the process alive
  * forever, which prints a perfect success line and then never returns the
  * prompt; only the exit status catches that.
+ *
+ * The pty, the wait-until-drawn and the exit deadline live in `tests/pty.ts`,
+ * because `wrapper-pty.test.ts` needs exactly the same three.
  */
-
-/** How long the child gets to exit on its own before it counts as a hang. */
-const EXIT_MS = 4000
-
-/** The escape sequences a terminal interprets, so a captured frame can be read
- *  as the text a person actually sees on it. */
-const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g')
-
-const hasPty = typeof Bun.Terminal === 'function'
 
 // A required gate treats SKIP as failure. Three of this file's tests are
 // `skipIf(!hasPty)`, so on a runtime without Bun.Terminal the file empties itself
@@ -60,72 +55,54 @@ function cleanEnv(home: string): Record<string, string> {
   return env
 }
 
-type Run = { exited: boolean; code: number | null; output: string }
-
-async function drive(cmd: string[], steps: [number, string][], home: string): Promise<Run> {
-  let output = ''
-  const decoder = new TextDecoder()
-  const terminal = new Bun.Terminal({
-    cols: 100,
-    rows: 40,
-    data(_t, chunk) {
-      output += decoder.decode(chunk)
-    }
-  })
-
-  const proc = Bun.spawn(cmd, { cwd: repo, terminal, env: cleanEnv(home) })
-  try {
-    for (const [wait, keys] of steps) {
-      await Bun.sleep(wait * 1000)
-      // A finished program has no terminal left to type into.
-      if (proc.exitCode === null) terminal.write(keys)
-    }
-    const raced = await Promise.race([proc.exited, Bun.sleep(EXIT_MS).then(() => 'hung' as const)])
-    if (raced === 'hung') {
-      proc.kill()
-      return { exited: false, code: null, output }
-    }
-    await Bun.sleep(100) // let the last frame land before the terminal closes
-    return { exited: true, code: raced, output }
-  } finally {
-    terminal.close()
+/** The CLI this file drives, or a failure that says how to get one. */
+async function cliOrThrow(): Promise<string[]> {
+  const cli = await resolveCli()
+  if (cli === null) {
+    throw new Error('pty: no docnamer CLI to drive — build it or set DOCNAMER_BIN')
   }
+  return cli
 }
 
 test.skipIf(!hasPty)(
   'the picker on a real pty picks, stores and returns the prompt',
   async () => {
-    const cli = await resolveCli()
-    if (cli === null) {
-      throw new Error('pty: no docnamer CLI to drive — build it or set DOCNAMER_BIN')
-    }
+    const cli = await cliOrThrow()
     const home = await freshHome()
+    const t = makeTerminal()
+    try {
+      // Each keystroke waits for the frame that answers it: the list, then the
+      // filter it applied, then the key prompt the choice opened.
+      const run = await drive(
+        t,
+        [...cli, 'login'],
+        [
+          ['Sign in to a provider', 'fire'],
+          ['filter: fire', '\r'],
+          ['Enter Fireworks API key', 'key-from-the-pty\n']
+        ],
+        { cwd: repo, env: cleanEnv(home) }
+      )
+      const seen = run.output.replace(ANSI, '')
 
-    const run = await drive(
-      [...cli, 'login'],
-      [
-        [0.8, 'fire'],
-        [0.3, '\r'],
-        [0.7, 'key-from-the-pty\n']
-      ],
-      home
-    )
+      expect(run.exited, 'login must return the prompt, not hold the terminal open').toBe(true)
+      expect(run.code, 'a completed login exits 0').toBe(0)
+      expect(seen, 'the picker must name the providers it is offering').toContain('Fireworks')
+      expect(seen, 'the filter must narrow to the one provider it matched').toContain(
+        'filter: fire'
+      )
+      expect(seen, 'login must say where the credential went').toContain(
+        'stored in ~/.config/docnamer/credentials.json'
+      )
 
-    expect(run.exited, 'login must return the prompt, not hold the terminal open').toBe(true)
-    expect(run.code, 'a completed login exits 0').toBe(0)
-    expect(run.output, 'the picker must name the providers it is offering').toContain('Fireworks')
-    expect(run.output, 'the filter must narrow to the one provider it matched').toContain(
-      'filter: fire'
-    )
-    expect(run.output, 'login must say where the credential went').toContain(
-      'stored in ~/.config/docnamer/credentials.json'
-    )
-
-    const store = JSON.parse(await Bun.file(`${home}/.config/docnamer/credentials.json`).text())
-    expect(store.fireworks, 'the picked provider is the one that was stored').toEqual({
-      type: 'api_key',
-      key: 'key-from-the-pty'
-    })
+      const store = JSON.parse(await Bun.file(`${home}/.config/docnamer/credentials.json`).text())
+      expect(store.fireworks, 'the picked provider is the one that was stored').toEqual({
+        type: 'api_key',
+        key: 'key-from-the-pty'
+      })
+    } finally {
+      t.terminal.close()
+    }
   },
   20000
 )
@@ -133,31 +110,28 @@ test.skipIf(!hasPty)(
 test.skipIf(!hasPty)(
   'escape cancels the picker on a real pty and still returns the prompt',
   async () => {
-    const cli = await resolveCli()
-    if (cli === null) {
-      throw new Error('pty: no docnamer CLI to drive — build it or set DOCNAMER_BIN')
-    }
-
+    const cli = await cliOrThrow()
     const home = await freshHome()
+    const t = makeTerminal()
+    try {
+      const run = await drive(t, [...cli, 'login'], [['Sign in to a provider', '\x1b']], {
+        cwd: repo,
+        env: cleanEnv(home)
+      })
+      const seen = run.output.replace(ANSI, '')
 
-    const run = await drive(
-      [...cli, 'login'],
-      [
-        [0.8, '\x1b'],
-        [0.3, 'x']
-      ],
-      home
-    )
-
-    expect(run.exited, 'a cancelled picker must return the prompt too').toBe(true)
-    expect(run.code, 'cancelling is not a crash').toBe(0)
-    expect(run.output, 'a cancelled login must not claim a provider was signed in').not.toContain(
-      'signed in to'
-    )
-    expect(
-      await Bun.file(`${home}/.config/docnamer/credentials.json`).exists(),
-      'nothing may be stored by a cancelled picker'
-    ).toBe(false)
+      expect(run.exited, 'a cancelled picker must return the prompt too').toBe(true)
+      expect(run.code, 'cancelling is not a crash').toBe(0)
+      expect(seen, 'a cancelled login must not claim a provider was signed in').not.toContain(
+        'signed in to'
+      )
+      expect(
+        await Bun.file(`${home}/.config/docnamer/credentials.json`).exists(),
+        'nothing may be stored by a cancelled picker'
+      ).toBe(false)
+    } finally {
+      t.terminal.close()
+    }
   },
   20000
 )
@@ -176,15 +150,12 @@ test.skipIf(!hasPty)(
 test.skipIf(!hasPty)(
   'a failure under a spinner lands on its own line, not on the frame',
   async () => {
-    const cli = await resolveCli()
-    if (cli === null) {
-      throw new Error('pty: no docnamer CLI to drive — build it or set DOCNAMER_BIN')
-    }
+    const cli = await cliOrThrow()
     const home = await freshHome()
     const closed = await closedFolder()
-
+    const t = makeTerminal()
     try {
-      const run = await drive([...cli, 'plan', closed], [], home)
+      const run = await drive(t, [...cli, 'plan', closed], [], { cwd: repo, env: cleanEnv(home) })
 
       expect(run.exited, 'a refused folder must still return the prompt').toBe(true)
       expect(run.code, 'a refused folder is a failed run').toBe(1)
@@ -197,6 +168,7 @@ test.skipIf(!hasPty)(
         'the error was glued to the spinner frame: no line begins with docnamer:'
       ).toBe(true)
     } finally {
+      t.terminal.close()
       await reopen(closed)
     }
   },
