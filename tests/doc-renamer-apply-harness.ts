@@ -30,9 +30,11 @@ import { writePlan as persistPlan } from '../src/commands.ts'
 import { CONFIG_FILE } from '../src/config.ts'
 import { EXPECTED_FILE } from '../src/eval.ts'
 import { appBin } from './app-binary.ts'
+import { runChild } from './child.ts'
 import { frame } from './frame.ts'
 import { assertPlanCovers, base, planRows } from './plan-file.ts'
-import { ensureProviderKey } from './preload.ts'
+import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
+import { scratch } from './scratch.ts'
 
 export type Flow = 'apply' | 'undo' | 'review' | 'eval'
 
@@ -140,13 +142,11 @@ export async function shell(
   // The child must carry the provider key: pi-ai resolves Fireworks auth from its
   // own environment, and ensureProviderKey() sets it on THIS process. Handing the
   // environment over explicitly is what makes that reach the child.
-  const p = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe', env: { ...Bun.env } })
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(p.stdout).text(),
-    new Response(p.stderr).text(),
-    p.exited
-  ])
-  return { code, stdout, stderr }
+  //
+  // Any call here can reach a model, so the deadline is the model budget: a child
+  // that stops answering is SIGTERMed with its command named in the throw, rather
+  // than hanging the file with no cause on the report.
+  return runChild(cmd, { env: { ...Bun.env }, timeoutMs: MODEL_CALL_MS })
 }
 
 /** The one place that decides which artifact is under test. The TREE comes first:
@@ -198,8 +198,8 @@ async function listFiles(dir: string): Promise<string[]> {
 export async function boot(s: Session): Promise<void> {
   if (s.booted) return
   await ensureProviderKey()
-  const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-apply-${crypto.randomUUID()}`
-  Bun.spawnSync(['mkdir', '-p', dir])
+  const dir = scratch('docnamer-apply')
+  await mkdir(dir, { recursive: true })
   s.dir = dir
   s.planPath = `${dir}/.docnamer-plan.json`
   for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
@@ -450,17 +450,10 @@ export async function restore(s: Session): Promise<Session> {
 export async function act(s: Session, keys = 'A'): Promise<Session> {
   await ensure(s)
   if (!s.cli) throw missingCli()
-  const p = Bun.spawn([...s.cli, 'review', s.dir], {
-    stdin: new Blob([keys]),
-    stdout: 'pipe',
-    stderr: 'pipe',
+  const { code, stdout, stderr } = await runChild([...s.cli, 'review', s.dir], {
+    input: keys,
     env: { ...Bun.env }
   })
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(p.stdout).text(),
-    new Response(p.stderr).text(),
-    p.exited
-  ])
   s.last = { code, stdout, stderr }
   if (code !== 0) throw new Error(`docnamer review exited ${code}\n${stderr}${stdout}`)
   s.plan = planRows<PlanRow>(JSON.parse(await Bun.file(s.planPath).text()) as unknown)
@@ -482,7 +475,7 @@ export async function act(s: Session, keys = 'A'): Promise<Session> {
  */
 export async function missTestset(): Promise<string> {
   const from = `${repo}/tests/testset`
-  const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-miss-${crypto.randomUUID()}`
+  const dir = scratch('docnamer-miss')
   await mkdir(dir, { recursive: true })
   for (const rel of await listFiles(from)) {
     await Bun.write(`${dir}/${rel}`, Bun.file(`${from}/${rel}`))

@@ -12,7 +12,7 @@ export type ChildRun = { code: number; stdout: string; stderr: string }
 
 type ChildOptions = {
   cwd?: string
-  env?: Record<string, string>
+  env?: Record<string, string | undefined>
   /** Written to the child's stdin, which is then closed. */
   input?: string
   timeoutMs?: number

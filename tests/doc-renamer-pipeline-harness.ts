@@ -12,13 +12,17 @@
  * observe `.docnamer-plan.json` and the originals on disk. A step whose claim that surface cannot
  * show throws `Skipped` — a machine-readable, non-green hole — rather than passing.
  *
- * Native Bun APIs only; no `node:` built-ins.
+ * The shared helpers under tests/ may reach `node:` built-ins (R0c: the ban is on `src/`, which
+ * the shipped binary compiles).
  */
+import { mkdir } from 'node:fs/promises'
 import { CONFIG_FILE } from '../src/config.ts'
 import { appBin } from './app-binary.ts'
+import { runChild } from './child.ts'
 import { frame } from './frame.ts'
 import { assertPlanCovers, base, planRows } from './plan-file.ts'
-import { ensureProviderKey } from './preload.ts'
+import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
+import { scratch } from './scratch.ts'
 
 export type PlanRow = {
   old: string
@@ -118,13 +122,11 @@ async function shell(cmd: string[]): Promise<{ code: number; stdout: string; std
   // environment over explicitly is what makes that reach the child; relying on
   // inheritance left every analyse call with no key, which failed in ~0.1s per
   // file with "returned no parseable JSON analysis" and no model ever called.
-  const p = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe', env: { ...Bun.env } })
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(p.stdout).text(),
-    new Response(p.stderr).text(),
-    p.exited
-  ])
-  return { code, stdout, stderr }
+  //
+  // Every call here reaches a model, so the deadline is the model budget: a child
+  // that stops answering is SIGTERMed with its command named in the throw, rather
+  // than hanging the file with no cause on the report.
+  return runChild(cmd, { env: { ...Bun.env }, timeoutMs: MODEL_CALL_MS })
 }
 
 /** Same order as the apply harness, for the same reason: the tree is the code under
@@ -149,8 +151,8 @@ async function listFiles(dir: string): Promise<string[]> {
 export async function boot(s: Session): Promise<void> {
   if (s.booted) return
   await ensureProviderKey()
-  const dir = `${Bun.env.TMPDIR ?? Bun.env.TMP ?? '/tmp'}/docnamer-${crypto.randomUUID()}`
-  Bun.spawnSync(['mkdir', '-p', dir])
+  const dir = scratch('docnamer')
+  await mkdir(dir, { recursive: true })
   s.dir = dir
   s.planPath = `${dir}/.docnamer-plan.json`
   for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
