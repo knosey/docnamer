@@ -4,6 +4,7 @@ export const reference = process.env.GRAPH_REFERENCE ?? 'which open'
 
 import { expect, test } from 'bun:test'
 import { appBin as BINARY, appPlist as PLIST, wrapper as WRAPPER } from './app-binary.ts'
+import { PLAN_FILE } from '../src/commands.ts'
 
 /**
  * S4 — the wrapper, driven end to end through a real `open` on a real pty.
@@ -108,12 +109,22 @@ async function slaveDevice(t: Term, ms = 5000): Promise<string> {
 
 type Run = { exited: boolean; code: number | null; output: string }
 
-/** Run the wrapper on `t`, typing `steps` as `[secondsToWait, keys]` pairs. */
-async function drive(t: Term, args: string[], steps: [number, string][], ms = 30000): Promise<Run> {
+/**
+ * Run the wrapper on `t`, typing `steps` as `[secondsToWait, keys]` pairs.
+ * `cwd` is the directory a person is standing in when they type the command.
+ */
+async function drive(
+  t: Term,
+  args: string[],
+  steps: [number, string][],
+  ms = 30000,
+  cwd?: string
+): Promise<Run> {
   t.reset()
   const proc = Bun.spawn([WRAPPER, ...args], {
     terminal: t.terminal,
-    env: { ...Bun.env, TERM: 'xterm-256color' }
+    env: { ...Bun.env, TERM: 'xterm-256color' },
+    ...(cwd === undefined ? {} : { cwd })
   })
   for (const [wait, keys] of steps) {
     await Bun.sleep(wait * 1000)
@@ -208,4 +219,54 @@ test.skipIf(!hasPty)(
     }
   },
   90000
+)
+
+/** A throwaway folder to stand in, with nothing in it but the hidden marker. */
+async function freshFolder(): Promise<string> {
+  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-rel-${crypto.randomUUID()}`
+  await Bun.write(`${dir}/.keep`, '')
+  return dir
+}
+
+test.skipIf(!hasPty)(
+  'a relative folder means the folder the person was standing in, not the app bundle',
+  async () => {
+    if (!(await isWrapper(WRAPPER))) {
+      expect(false, `no wrapper installed at ${WRAPPER}`).toBe(true)
+      return
+    }
+
+    // A LaunchServices launch gives the app cwd "/" — measured by `open -n`ing a
+    // probe app from a known directory and reading back what it reported. So `plan .`
+    // only means the folder the person typed it in if the wrapper carries that cwd
+    // across to the app. An empty folder is the cheap proof: nothing to read, no
+    // model call, and the plan it writes lands where the person was standing.
+    const dir = await freshFolder()
+    const t = makeTerminal()
+    try {
+      const run = await drive(t, ['plan', '.'], [], 30000, dir)
+      const seen = run.output.replace(ANSI, '')
+      expect(
+        run.exited,
+        `\`plan .\` must return — the terminal showed head=${JSON.stringify(
+          seen.slice(0, 300)
+        )} tail=${JSON.stringify(seen.slice(-300))}`
+      ).toBe(true)
+      expect(
+        run.code,
+        `\`plan .\` in an empty folder plans zero rows and exits 0 — the terminal said ${JSON.stringify(
+          seen.slice(0, 500)
+        )}`
+      ).toBe(0)
+      expect(
+        await Bun.file(`${dir}/${PLAN_FILE}`).exists(),
+        `\`plan .\` wrote no plan into ${dir}, the folder the wrapper ran in: the app resolved "." against ${
+          seen.includes('/') ? `a path outside it` : 'nothing'
+        } — terminal said ${JSON.stringify(seen.slice(0, 400))}`
+      ).toBe(true)
+    } finally {
+      t.terminal.close()
+    }
+  },
+  60000
 )
