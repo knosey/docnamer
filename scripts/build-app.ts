@@ -1,12 +1,21 @@
 /**
  * Build docnamer as its own macOS app: compile the binary into
- * ~/Applications/docnamer.app, write its Info.plist (the TCC identity and the
- * folder-usage descriptions), sign it, and install ~/bin/docnamer as the shell
- * wrapper a person actually runs.
+ * <root>/Applications/docnamer.app, write its Info.plist (the TCC identity and
+ * the folder-usage descriptions), sign it, and install <root>/bin/docnamer as the
+ * shell wrapper a person actually runs. <root> is DOCNAMER_APP_HOME when a test
+ * sets it, HOME otherwise.
  */
 
-const home = Bun.env.HOME
-if (!home) throw new Error('HOME is not set; cannot locate ~/Applications and ~/bin')
+/**
+ * The install root: `DOCNAMER_APP_HOME` when a test isolates its build, the real
+ * HOME otherwise. tests/app-binary.ts reads the same variable through
+ * `artifactsAt`, so a build and the assertions about that build agree on one
+ * folder. Without it, `bun test` would install a build of whatever branch it ran
+ * on over the operator's own ~/Applications/docnamer.app.
+ */
+const home = Bun.env.DOCNAMER_APP_HOME ? Bun.env.DOCNAMER_APP_HOME : Bun.env.HOME
+if (!home)
+  throw new Error('neither DOCNAMER_APP_HOME nor HOME is set; cannot locate the install root')
 
 const app = `${home}/Applications/docnamer.app`
 const macos = `${app}/Contents/MacOS`

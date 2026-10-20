@@ -1,11 +1,11 @@
 // The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`bun --version`
 
-import { expect, test } from 'bun:test'
+import { beforeAll, expect, test } from 'bun:test'
 import { copyFileSync, existsSync, mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appBin, wrapper } from './app-binary.ts'
+import { artifactsAt } from './app-binary.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 
 /**
@@ -17,13 +17,22 @@ import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
  * `bun --version` prints the version the compiled binary must reproduce under `BUN_BE_BUN=1`, which
  * makes a compiled Bun binary answer as Bun itself; it is the truth this build is measured against.
  *
- * Which artifact each check drives comes from tests/app-binary.ts: the wrapper for the install check,
- * the binary inside the bundle for everything else. The wrapper resolves its tty with `tty` and
- * refuses without one, so a non-pty flow can only ever drive the binary — tests/wrapper-pty.test.ts
- * drives the wrapper itself, on a real pty.
+ * The build installs into a root of this file's own, handed over as DOCNAMER_APP_HOME. A test that
+ * ran `bun run build` against the real ~/Applications/docnamer.app would install a build of
+ * whatever branch it ran on as the tool on the machine — see tests/app-binary.ts. The wrapper
+ * resolves its tty with `tty` and refuses without one, so a non-pty flow can only ever drive the
+ * binary; tests/wrapper-pty.test.ts drives the installed wrapper itself, on a real pty.
+ *
+ * The last test makes a REAL paid model call, which is why this file is not in the `test:free` set
+ * `bun run test:free` and the pre-commit hook run. tests/app-bundle.test.ts carries the checks on
+ * the built artifact that need no model.
  */
 
 const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')
+
+/** This file's own install root. */
+const root = mkdtempSync(join(tmpdir(), 'docnamer-build-'))
+const at = artifactsAt(root)
 
 /** Run the reference command and return what it prints — the truth. */
 function referenceOutput(): string {
@@ -31,23 +40,32 @@ function referenceOutput(): string {
   return proc.stdout.toString().trim()
 }
 
-test('bun run build exits 0 and installs an executable ~/bin/docnamer', () => {
-  const build = Bun.spawnSync(['bun', 'run', 'build'], { cwd: repo })
+/** Build once, into `root`, before anything asserts on the artifact. */
+beforeAll(() => {
+  const build = Bun.spawnSync(['bun', 'run', 'build'], {
+    cwd: repo,
+    env: { ...Bun.env, DOCNAMER_APP_HOME: root }
+  })
   expect(
     build.exitCode,
     `bun run build failed:\n${build.stdout.toString()}${build.stderr.toString()}`
   ).toBe(0)
-  expect(existsSync(wrapper), `${wrapper} was not created by bun run build`).toBe(true)
-  const mode = statSync(wrapper).mode
+})
+
+test('bun run build installs an executable wrapper beside the app', () => {
+  expect(existsSync(at.wrapper), `${at.wrapper} was not created by bun run build`).toBe(true)
+  const mode = statSync(at.wrapper).mode
   expect(
     mode & 0o111,
-    `${wrapper} exists but is not executable (mode ${(mode & 0o777).toString(8)})`
+    `${at.wrapper} exists but is not executable (mode ${(mode & 0o777).toString(8)})`
   ).toBeGreaterThan(0)
 })
 
 test('BUN_BE_BUN=1 the app binary --version prints what the reference prints', () => {
-  expect(existsSync(appBin), `${appBin} does not exist, so there is nothing to run`).toBe(true)
-  const proc = Bun.spawnSync([appBin, '--version'], { env: { ...Bun.env, BUN_BE_BUN: '1' } })
+  expect(existsSync(at.appBin), `${at.appBin} does not exist, so there is nothing to run`).toBe(
+    true
+  )
+  const proc = Bun.spawnSync([at.appBin, '--version'], { env: { ...Bun.env, BUN_BE_BUN: '1' } })
   expect(proc.exitCode, `--version failed:\n${proc.stderr.toString()}`).toBe(0)
   expect(proc.stdout.toString().trim()).toBe(referenceOutput())
 })
@@ -73,8 +91,10 @@ test(
     // has to be handed over explicitly, and asking for it here is what makes
     // `bun test tests/build.test.ts` on its own a real check.
     await ensureProviderKey()
-    expect(existsSync(appBin), `${appBin} does not exist, so there is nothing to run`).toBe(true)
-    const dir = mkdtempSync(join(tmpdir(), 'docnamer-build-'))
+    expect(existsSync(at.appBin), `${at.appBin} does not exist, so there is nothing to run`).toBe(
+      true
+    )
+    const dir = mkdtempSync(join(tmpdir(), 'docnamer-plan-'))
     copyFileSync(
       join(repo, 'tests/fixtures/acme-statement-scan.pdf'),
       join(dir, 'acme-statement-scan.pdf')
@@ -86,7 +106,7 @@ test(
     // docnamer.json is one relative path away, so a binary that read its config
     // off disk would pass here without carrying one at all. From the bare folder
     // there is nothing to read, and only an inlined roster can produce a type.
-    const proc = Bun.spawnSync([appBin, 'plan', dir], { cwd: dir, env: { ...Bun.env } })
+    const proc = Bun.spawnSync([at.appBin, 'plan', dir], { cwd: dir, env: { ...Bun.env } })
     expect(proc.exitCode, `plan failed:\n${proc.stderr.toString()}`).toBe(0)
 
     const planPath = join(dir, '.docnamer-plan.json')

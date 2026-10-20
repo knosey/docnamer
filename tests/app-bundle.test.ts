@@ -3,9 +3,10 @@
 export const reference = process.env.GRAPH_REFERENCE ?? 'grep -rn node: src/'
 
 import { expect, test } from 'bun:test'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appBin as appBinary, appDir as appPath, appPlist as infoPlist } from './app-binary.ts'
+import { artifactsAt } from './app-binary.ts'
 
 /**
  * S3 — Ship docnamer as its own macOS app: the bundle, its signing, and the
@@ -30,6 +31,17 @@ import { appBin as appBinary, appDir as appPath, appPlist as infoPlist } from '.
 
 const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')
 const buildScript = join(repo, 'scripts', 'build-app.ts')
+
+/**
+ * This file's own install root, handed to the build as DOCNAMER_APP_HOME so the
+ * run installs into a temp folder and never over the operator's
+ * ~/Applications/docnamer.app — see tests/app-binary.ts.
+ */
+const root = mkdtempSync(join(tmpdir(), 'docnamer-bundle-'))
+const at = artifactsAt(root)
+const appPath = at.appDir
+const appBinary = at.appBin
+const infoPlist = at.appPlist
 
 /** Run the reference command and return what it prints — the truth. */
 function referenceOutput(): string {
@@ -77,7 +89,10 @@ test('the build script exists', () => {
 })
 
 test('bun run build assembles ~/Applications/docnamer.app around the compiled binary', () => {
-  const build = Bun.spawnSync(['bun', 'run', 'build'], { cwd: repo })
+  const build = Bun.spawnSync(['bun', 'run', 'build'], {
+    cwd: repo,
+    env: { ...Bun.env, DOCNAMER_APP_HOME: root }
+  })
   const buildOutput = `${build.stdout.toString()}${build.stderr.toString()}`
   expect(build.exitCode, `bun run build failed:\n${buildOutput}`).toBe(0)
 
