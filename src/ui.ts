@@ -42,6 +42,8 @@ export function styleFrom(env: Record<string, string | undefined>, tty: boolean)
 }
 
 type Glyphs = {
+  readonly full: string
+  readonly empty: string
   readonly ok: string
   readonly warn: string
   readonly pointer: string
@@ -52,6 +54,8 @@ type Glyphs = {
 }
 
 const UNICODE: Glyphs = {
+  full: '\u25b0',
+  empty: '\u25b1',
   ok: '\u2713',
   warn: '!',
   pointer: '\u276f',
@@ -73,6 +77,8 @@ const UNICODE: Glyphs = {
 }
 
 const ASCII: Glyphs = {
+  full: '#',
+  empty: '-',
   ok: '+',
   warn: '!',
   pointer: '>',
@@ -146,6 +152,15 @@ function pad(text: string, width: number): string {
   // to its string length would push every later column right by the escapes.
   const w = visibleWidth(text)
   return w >= width ? text : text + ' '.repeat(width - w)
+}
+
+/** The one bar a command draws, unicode blocks or ASCII by the style's glyph
+ *  set: ten cells, a space, then the rounded percentage. */
+export function progressBar(done: number, total: number, style: Style): string {
+  const glyphs = style.unicode ? UNICODE : ASCII
+  const filled = Math.round((done / total) * 10)
+  const percent = Math.round((done / total) * 100)
+  return `${glyphs.full.repeat(filled)}${glyphs.empty.repeat(10 - filled)} ${percent}%`
 }
 
 export type Row = readonly string[]
