@@ -110,4 +110,8 @@
 <!-- /record:T6 -->
 
 <!-- record:run -->
+**failed** · run `ship-feature-ace690`
+- Tasks: T1 not started · T2 not started · T3 not started · T4 not started · T5 not started · T6 not started
+- Commits: none recorded
+- Detail: task-tests: fan-out child 'task-test#4 (T5: revisit and re-edit any already-assessed document)' failed: reference — the truth this step asserts is not obtainable before any work: ## What the reference prints now `plutil -p .docnamer-plan.json` exited 1: ``` .docnamer-plan.json: (The file “.docnamer-plan.json” couldn’t be opened because there is no such file.) ``` — and landed nothing, so it is not… [+341 chars]
 <!-- /record:run -->
