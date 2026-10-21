@@ -467,18 +467,28 @@ export async function main(argv: string[]): Promise<number> {
   if (cmd === 'apply') {
     const spinner = u.spinner(`renaming the documents in ${folder}`)
     const report = await apply(folder, config, (done, total, file) => {
-      spinner.update(`${done} of ${total} ${u.glyphs.dash} ${file}`)
+      spinner.update(
+        `${progressBar(done, total, style)} ${done} of ${total} ${u.glyphs.dash} ${file}`
+      )
     })
-    spinner.stop(`renamed ${report.renamed} file(s)`)
+    // The completion line draws the full bar, as plan's does: the fraction
+    // was known at every step, so the finish shows it.
+    const applied = report.renamed + report.skipped.length
+    spinner.stop(`${progressBar(applied, applied, style)} renamed ${report.renamed} file(s)`)
     for (const s of report.skipped) u.log(u.warn(`skipped ${s.file}: ${s.reason}`))
     u.log(u.note(`undo file ${report.undoFile} \u2014 \`docnamer undo\` puts it back`))
     return 0
   }
   const spinner = u.spinner(`restoring the names in ${folder}`)
   const report = await undo(folder, run, config, (done, total, file) => {
-    spinner.update(`${done} of ${total} ${u.glyphs.dash} ${file}`)
+    spinner.update(
+      `${progressBar(done, total, style)} ${done} of ${total} ${u.glyphs.dash} ${file}`
+    )
   })
-  spinner.stop(`restored ${report.restored.length} file(s)`)
+  const restoredCount = report.restored.length + report.skipped.length
+  spinner.stop(
+    `${progressBar(restoredCount, restoredCount, style)} restored ${report.restored.length} file(s)`
+  )
   // The names, not a count: after an operation whose whole point is
   // reversibility, a person has to see which file is sitting at which name.
   for (const name of report.restored) u.log(u.ok(`restored ${name}`))

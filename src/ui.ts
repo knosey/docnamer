@@ -259,7 +259,10 @@ export function ui(style: Style): Ui {
     head(title: string, detail?: string): string {
       const text = detail === undefined ? title : `${title} ${dim('\u2014')} ${cyan(detail)}`
       const plain = detail === undefined ? title : `${title} \u2014 ${detail}`
-      return `${INDENT}${bold(text)}\n${INDENT}${dim(glyphs.rule.repeat(plain.length))}`
+      // The title is clipped to the screen by whoever logs it; the rule under it
+      // must not be, or it runs past the edge into the truncation marker.
+      const rule = glyphs.rule.repeat(Math.min(plain.length, terminalWidth() - INDENT.length))
+      return `${INDENT}${bold(text)}\n${INDENT}${dim(rule)}`
     },
 
     row,

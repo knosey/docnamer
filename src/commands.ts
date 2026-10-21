@@ -84,10 +84,6 @@ export async function plan(
   // Each completion reports how many documents are done, so a terminal can
   // draw the bar rising beside the throbber while the rest are still read.
   let done = 0
-  const advance = (file: string): void => {
-    done += 1
-    progress?.(done, rels.length, file)
-  }
   const examined = await Promise.all(
     rels.map(async rel => {
       const path = `${folder}/${rel}`
@@ -126,7 +122,8 @@ export async function plan(
       }
       // Exactly once per file, whatever happened above: a row thrown mid-draw
       // was already validated and keeps its name.
-      advance(old)
+      done += 1
+      progress?.(done, rels.length, old)
       return { rel, old, checked, failedReason, method }
     })
   )
@@ -235,7 +232,9 @@ export const readPlan = async (folder: string, command: string): Promise<PlanRow
   return JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
 }
 
-/** Why `row` cannot be renamed right now, or null when it can. */
+/** Why `row` cannot be renamed right now, or null when it can. Kept as its own
+ *  unit: inlined into `apply`'s loop the guard chain pushes that function past
+ *  the complexity gate. */
 const skipReason = async (folder: string, row: PlanRow): Promise<string | null> => {
   const f = Bun.file(`${folder}/${row.old}`)
   if (!(await f.exists())) return 'file no longer exists'

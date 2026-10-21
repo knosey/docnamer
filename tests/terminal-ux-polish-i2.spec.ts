@@ -21,6 +21,7 @@ import {
   open_review,
   render_cards,
   review_frame_captured,
+  title_rule_fits_screen,
   two_cards_with_padding,
   scroll_down,
   header_still_visible,
@@ -33,6 +34,7 @@ flow('terminal-ux-polish I2: review shows padded cards with a locked controls he
   await open_review(s)
   await render_cards(s)
   await review_frame_captured(s)
+  await title_rule_fits_screen(s)
   await two_cards_with_padding(s)
   await scroll_down(s)
   await header_still_visible(s)

@@ -31,7 +31,7 @@ import { wrapper } from './app-binary.ts'
 import { runChild, type ChildRun } from './child.ts'
 import { resolveCli } from './doc-renamer-apply-harness.ts'
 import { frame, FRAMES_DIR } from './frame.ts'
-import { ANSI, makeTerminal, type Run, type Term } from './pty.ts'
+import { ANSI, makeTerminal, SCREEN_COLS, type Run, type Term } from './pty.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 import { scratch } from './scratch.ts'
 
@@ -39,7 +39,7 @@ import { scratch } from './scratch.ts'
 export const repo = import.meta.dir.replace(/\/tests$/, '')
 
 /** A named hole: the claim cannot be closed on the current observation surface. */
-export class Skipped extends Error {
+class Skipped extends Error {
   readonly skip = true
   constructor(readonly claim: string) {
     super('SKIP: ' + claim)
@@ -48,7 +48,7 @@ export class Skipped extends Error {
 }
 
 /** The version line the wrapper prints, read off a captured frame. */
-export const VERSION_LINE = /^docnamer\s+\S+/m
+const VERSION_LINE = /^docnamer\s+\S+/m
 
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
@@ -81,7 +81,7 @@ export const CONTROLS = /keys:.*accept.*skip.*edit/s
 export const FULL_BAR = '\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0 100%'
 
 /** The block glyphs the unicode path draws and the ASCII path must not. */
-export const BLOCKS = /[\u25b0\u25b1\u2500-\u257f]/
+const BLOCKS = /[\u25b0\u25b1\u2500-\u257f]/
 
 /** Three review rows, enough that scrolling and revisiting are both reachable. */
 function seedRows(): PlanRow[] {
@@ -142,6 +142,8 @@ export class Session {
   versionFrame = ''
   /** The screen with the throbber and bar on it, taken when the bar was seen. */
   throbberFrame = ''
+  /** The screen the run left behind when it finished, bar and all. */
+  completionFrame = ''
   /** The text capture_frames rasterised for I4. */
   framedAnalysis = ''
   /** The `--version` run I1 captured. */
@@ -378,6 +380,31 @@ export async function scroll_down(s: Session): Promise<Session> {
   live.write('\x1b[B')
   await live.waitFor('[2/', 30000)
   s.reviewFrame = live.screen()
+  await frame(s.reviewFrame, 'i2-review-scrolled')
+  return s
+}
+
+/** title_rule_fits_screen: the divider under the review title fits the screen.
+ *  The title carries the plan path, so it is clipped; a rule drawn to the title's
+ *  full length runs past the edge into the truncation marker. */
+export async function title_rule_fits_screen(s: Session): Promise<Session> {
+  const lines = strip(s.reviewFrame).split(/\r\n|\n|\r/)
+  const rule = lines.find(l => /^[\s]*[\u2500-\u257f]{4,}/.test(l))
+  if (rule === undefined) {
+    throw new Error(
+      `I2 title_rule_fits_screen: the frame shows no rule under the title:\n${s.reviewFrame}`
+    )
+  }
+  if (rule.includes('...')) {
+    throw new Error(
+      `I2 title_rule_fits_screen: the rule was drawn to the title's full length and clipped at the screen edge:\n${rule}`
+    )
+  }
+  if (rule.length > SCREEN_COLS) {
+    throw new Error(
+      `I2 title_rule_fits_screen: the rule is ${rule.length} cells wide on a ${SCREEN_COLS}-column screen:\n${rule}`
+    )
+  }
   return s
 }
 
@@ -385,6 +412,11 @@ export async function scroll_down(s: Session): Promise<Session> {
 export async function header_still_visible(s: Session): Promise<Session> {
   if (!CONTROLS.test(strip(s.reviewFrame))) {
     throw new Error(`I2 header_still_visible: the controls header scrolled away:\n${s.reviewFrame}`)
+  }
+  if (!(await Bun.file(`${repo}/${FRAMES_DIR}/i2-review-scrolled.png`).exists())) {
+    throw new Error(
+      'I2 header_still_visible: scroll_down wrote no frame to show the header survived'
+    )
   }
   return s
 }
@@ -601,6 +633,8 @@ export async function analysis_completes(s: Session): Promise<Session> {
     throw new Error(`I5 analysis_completes: analysis did not finish cleanly: ${run.code}`)
   }
   s.analysisFrames.push(strip(run.output))
+  s.completionFrame = live.screen()
+  await frame(s.completionFrame, 'i5-complete')
   return s
 }
 
@@ -621,6 +655,16 @@ export async function full_bar_100_percent(s: Session): Promise<Session> {
   const expected = referenceFullBar()
   if (!last.includes(expected)) {
     throw new Error(`I5 full_bar_100_percent: the completion line is not ${expected}:\n${last}`)
+  }
+  // The element is judged off a frame, not a byte log: the run's own screen must
+  // carry the bar, and the PNG that shows it must exist.
+  if (!s.completionFrame.includes(expected)) {
+    throw new Error(
+      `I5 full_bar_100_percent: the completion screen does not show ${expected}:\n${s.completionFrame}`
+    )
+  }
+  if (!(await Bun.file(`${repo}/${FRAMES_DIR}/i5-complete.png`).exists())) {
+    throw new Error('I5 full_bar_100_percent: analysis_completes wrote no completion frame')
   }
   return s
 }

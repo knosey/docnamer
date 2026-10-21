@@ -49,7 +49,10 @@ export type Term = {
  * a clean run shows no marker on the screen while a wrapper that lost its
  * trailing CR leaves `%` standing mid-line, where the erase cannot reach it.
  */
-export function makeTerminal(cols = 100, rows = 40): Term {
+/** The screen the emulated pty presents: the width every frame must fit. */
+export const SCREEN_COLS = 100
+
+export function makeTerminal(cols = SCREEN_COLS, rows = 40): Term {
   let out = ''
   const decoder = new TextDecoder()
   const esc = String.fromCharCode(27)
