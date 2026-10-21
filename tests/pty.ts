@@ -17,6 +17,8 @@
  * Nothing here asserts anything. A file that uses it owns its own expectations.
  */
 
+import xterm from '@xterm/headless'
+
 export const hasPty = typeof Bun.Terminal === 'function'
 
 /** The escape sequences a terminal interprets, so a captured frame can be read
@@ -25,153 +27,59 @@ export const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, 
 
 export type Term = {
   readonly terminal: Bun.Terminal
+  /** Every byte the child wrote, as text: the log, not the screen. */
   read(): string
-  /** The screen a person sees: rows up to the last non-blank, right-trimmed. */
-  screen(): string
+  /** The screen a person sees: the visible rows, right-trimmed, with the blank
+   *  rows below the last written one dropped. Resolves once every byte written
+   *  so far has been drawn. */
+  screen(): Promise<string>
   reset(): void
 }
 
-/**
- * One pty, with everything the child writes collected as text.
- *
- * The pty also plays the part of the terminal a person sits at: it tracks the
- * cursor (printable bytes advance the column; CR, LF and BS and the CSI
- * H/A/B/C/D/G/d sequences move it, clamped to the box) and answers each DSR
- * query (`ESC[6n`) once with `ESC[{row};{col}R` on the child's input, because
- * a real terminal answers. The limit, measured byte-for-byte on this pty: zsh
- * prints its inverse `%` promptsp marker plus its erase sequence after EVERY
- * command even with the answer, so the marker's absence is a fact about the
- * SCREEN, not the byte log. That is what the grid is for: a printable byte
- * writes its cell then advances (clamped at the edge — the captured erase
- * uses CR, never wrap), CSI J clears from the cursor to the end of the grid
- * and CSI K to the end of the row, and `screen()` reads the grid back as the
- * rows a person sees. zsh's `\r \r` erase overwrites its `%` at column 0, so
- * a clean run shows no marker on the screen while a wrapper that lost its
- * trailing CR leaves `%` standing mid-line, where the erase cannot reach it.
- */
 /** The screen the emulated pty presents: the width every frame must fit. */
 export const SCREEN_COLS = 100
 
+/**
+ * One pty, with everything the child writes collected as text and drawn on a
+ * real terminal emulator: xterm.js, headless — the emulator pi-tui tests its
+ * own renderer against. The screen is what a person sees, so it has to be kept
+ * the way a terminal keeps it, and a hand-built grid did not: it clamped the
+ * cursor at the right edge, so a line one character too wide overwrote the last
+ * cell with its final character (`missing requ4`), and clamped at the bottom,
+ * so a frame past the last row overwrote that row instead of scrolling. xterm
+ * wraps, scrolls, erases, switches screens and answers the child's queries
+ * (zsh's cursor-position query among them) as a terminal does.
+ */
 export function makeTerminal(cols = SCREEN_COLS, rows = 40): Term {
   let out = ''
   const decoder = new TextDecoder()
-  const esc = String.fromCharCode(27)
-  const csi = new RegExp(`${esc}\\[([0-9;?]*)([A-Za-z])`, 'y')
-  let row = 0
-  let col = 0
-  const clamp = (v: number, hi: number): number => Math.max(0, Math.min(v, hi))
-  /** The `at`-th CSI parameter, 1 when absent: `ESC[C` moves one column. */
-  const param = (params: string, at: number): number => {
-    const p = params.split(';')[at]
-    return p === undefined || p === '' ? 1 : Number(p)
-  }
-  /** One CSI final byte as the cursor move it commands (`f` is `H`). */
-  const CSI_MOVE: Record<string, (n: (at: number) => number) => void> = {
-    H: n => {
-      row = clamp(n(0) - 1, rows - 1)
-      col = clamp(n(1) - 1, cols - 1)
-    },
-    A: n => {
-      row = clamp(row - n(0), rows - 1)
-    },
-    B: n => {
-      row = clamp(row + n(0), rows - 1)
-    },
-    C: n => {
-      col = clamp(col + n(0), cols - 1)
-    },
-    D: n => {
-      col = clamp(col - n(0), cols - 1)
-    },
-    G: n => {
-      col = clamp(n(0) - 1, cols - 1)
-    },
-    d: n => {
-      row = clamp(n(0) - 1, rows - 1)
-    }
-  }
-  /** One control byte as the cursor move it commands; a printable advances. */
-  const CONTROL_MOVE: Record<string, () => void> = {
-    '\r': () => {
-      col = 0
-    },
-    '\n': () => {
-      row = clamp(row + 1, rows - 1)
-    },
-    '\x08': () => {
-      col = clamp(col - 1, cols - 1)
-    }
-  }
-  /** The cells of the display: grid[r][c] is the glyph a person sees there. */
-  const grid: string[][] = []
-  /** Write one printable byte at the cursor. */
-  const cell = (ch: string): void => {
-    const r = (grid[row] ??= [])
-    while (r.length < col) r.push(' ')
-    r[col] = ch
-  }
-  /** Erase from the cursor to the end of the grid (CSI J). */
-  const eraseBelow = (): void => {
-    for (let r = row; r < grid.length; r += 1) {
-      const g = grid[r]
-      if (g) g.length = r === row ? Math.min(g.length, col) : 0
-    }
-  }
-  /** Erase from the cursor to the end of the row (CSI K). */
-  const eraseRow = (): void => {
-    const g = grid[row]
-    if (g) g.length = Math.min(g.length, col)
-  }
-  /** Apply one CSI sequence: answer a DSR query, erase or move otherwise. */
-  const applyCsi = (params: string, f: string, answer: (reply: string) => void): void => {
-    if (f === 'n' && params === '6') {
-      answer(`${esc}[${row + 1};${col + 1}R`)
-      return
-    }
-    if (f === 'J') return eraseBelow()
-    if (f === 'K') return eraseRow()
-    CSI_MOVE[f === 'f' ? 'H' : f]?.(at => param(params, at))
-  }
-  /** Advance the tracked cursor over one chunk of child output. */
-  const track = (text: string, answer: (reply: string) => void): void => {
-    let i = 0
-    while (i < text.length) {
-      if (text[i] === esc && text[i + 1] === '[') {
-        csi.lastIndex = i
-        const m = csi.exec(text)
-        if (m === null) return // a sequence split across chunks; the tail is untracked
-        applyCsi(m[1] as string, m[2] as string, answer)
-        i += m[0].length
-        continue
-      }
-      const ch = text[i] as string
-      if (ch >= ' ') {
-        cell(ch)
-        col = clamp(col + 1, cols - 1)
-      } else CONTROL_MOVE[ch]?.()
-      i++
-    }
-  }
+  const display = new xterm.Terminal({ cols, rows, allowProposedApi: true })
   const terminal = new Bun.Terminal({
     cols,
     rows,
-    data(t, chunk) {
-      const text = decoder.decode(chunk)
-      out += text
-      track(text, reply => t.write(reply))
+    data(_t, chunk) {
+      out += decoder.decode(chunk, { stream: true })
+      display.write(chunk)
     }
   })
+  // A terminal answers what it is asked; the replies go back on the child's input.
+  display.onData(reply => terminal.write(reply))
+  const visible = (): string => {
+    const buffer = display.buffer.active
+    const lines = Array.from(
+      { length: rows },
+      (_, r) => buffer.getLine(buffer.viewportY + r)?.translateToString(true) ?? ''
+    )
+    let last = lines.length - 1
+    while (last >= 0 && lines[last] === '') last -= 1
+    return lines.slice(0, last + 1).join('\n')
+  }
   return {
     terminal,
     read: () => out,
-    screen: () => {
-      const lines = Array.from({ length: grid.length }, (_, r) =>
-        (grid[r] ?? []).join('').replace(/\s+$/, '')
-      )
-      let last = lines.length - 1
-      while (last >= 0 && lines[last] === '') last -= 1
-      return lines.slice(0, last + 1).join('\n')
-    },
+    // xterm parses asynchronously: an empty write's callback runs once
+    // everything before it has been drawn.
+    screen: () => new Promise(resolve => display.write('', () => resolve(visible()))),
     reset: () => {
       out = ''
     }
@@ -179,18 +87,21 @@ export function makeTerminal(cols = SCREEN_COLS, rows = 40): Term {
 }
 
 /**
- * Wait until the terminal has shown `marker`, or fail naming what it showed
- * instead. This is the wait that replaces a sleep: it costs what the child
- * actually needs and no more.
+ * Wait until the terminal has shown `marker` in the output written since byte
+ * `from`, or fail naming what it showed instead. This is the wait that replaces
+ * a sleep: it costs what the child actually needs and no more. `from` is where
+ * the log stood when the keys this wait answers were typed: a marker already on
+ * screen before them proves nothing about what they did.
  */
-async function waitFor(t: Term, marker: string, ms: number): Promise<void> {
+async function waitFor(t: Term, marker: string, ms: number, from = 0): Promise<void> {
   const start = Date.now()
+  const since = (): string => t.read().slice(from).replace(ANSI, '')
   for (;;) {
-    if (t.read().replace(ANSI, '').includes(marker)) return
+    if (since().includes(marker)) return
     if (Date.now() - start > ms) {
       throw new Error(
         `the terminal never showed ${JSON.stringify(marker)}: it showed ${JSON.stringify(
-          t.read().replace(ANSI, '').slice(-500)
+          since().slice(-500)
         )}`
       )
     }
@@ -250,8 +161,10 @@ export async function drive(
     ...(o.env === undefined ? {} : { env: o.env }),
     ...(o.cwd === undefined ? {} : { cwd: o.cwd })
   })
+  let from = 0
   for (const [marker, keys] of steps) {
-    await waitFor(t, marker, ms)
+    await waitFor(t, marker, ms, from)
+    from = t.read().length
     // A finished program has no terminal left to type into.
     if (proc.exitCode === null) t.terminal.write(keys)
   }

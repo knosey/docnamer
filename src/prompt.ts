@@ -448,20 +448,23 @@ function withCursor(line: string): string {
   return line.replaceAll(FAKE_CURSOR_START, `${ESC}[7m`).replaceAll(FAKE_CURSOR_END, `${ESC}[27m`)
 }
 
+/** One line being edited inside a frame the caller draws. */
+export type LineEdit = {
+  /** Feed one key: the line once Enter ends the edit, null once Esc or Ctrl-C
+   *  does, undefined while it goes on. */
+  key(key: string): string | null | undefined
+  /** The line as it stands, `width` cells wide, its cursor a reverse-video cell. */
+  render(width: number): string
+}
+
 /**
- * One line edited on a terminal the caller already holds raw, in pi-tui's
- * `Input`: ←/→, Home/End, word moves, deletes, kill and yank, undo and paste.
- * It starts from `initial` with the cursor at its end, so an edit begins with
- * what is there. Enter returns the line and leaves it on screen; Esc or Ctrl-C
- * erases it and returns null. One cell short of the width, so the line never
- * reaches the last column and wraps.
+ * One line edited in pi-tui's `Input`: ←/→, Home/End, word moves, deletes, kill
+ * and yank, undo and paste. It starts from `initial` with the cursor at its end,
+ * so an edit begins with what is there. The line is drawn by whoever owns the
+ * screen, as one line of its frame: a line painted on its own beside a frame the
+ * caller redraws is overwritten by the next redraw.
  */
-export async function editLine(
-  label: string,
-  initial: string,
-  out: (text: string) => void,
-  keys: Keys
-): Promise<string | null> {
+export function lineEdit(label: string, initial: string): LineEdit {
   const input = new Input({ prompt: label })
   input.setValue(initial)
   input.handleInput(`${ESC}[F`)
@@ -472,18 +475,13 @@ export async function editLine(
   input.onEscape = () => {
     answer = null
   }
-  const width = terminalWidth() - 1
-  const paint = (): void => out(`\r${ERASE}${withCursor(input.render(width)[0] ?? '')}`)
-  paint()
-  while (answer === undefined) {
-    const key = await keys.next()
-    if (key === null) answer = null
-    else input.handleInput(key)
-    if (answer === undefined) paint()
+  return {
+    key: (key: string) => {
+      input.handleInput(key)
+      return answer
+    },
+    render: (width: number) => withCursor(input.render(width)[0] ?? '')
   }
-  if (answer === null) out(`\r${ERASE}`)
-  else out(`\r${ERASE}${truncateToWidth(`${label}${answer}`, width)}\n`)
-  return answer
 }
 
 async function pickNumbered(

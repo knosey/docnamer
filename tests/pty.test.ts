@@ -387,9 +387,10 @@ test.skipIf(!hasPty)(
           ['[1/3]', '\r'],
           // ↑ returns to the already-accepted document 1
           ['[2/3]', '\x1b[A'],
-          // re-edit it: `e`, the new name, Enter
+          // re-edit it: `e`, Ctrl-U to clear the name it opens on, the new
+          // name, Enter
           ['[1/3]', 'e'],
-          ['new name:', '2024-03-12 acme receipt revised.pdf\r'],
+          ['new name:', '\x152024-03-12 acme receipt revised.pdf\r'],
           // quit so the plan is persisted
           ['[2/3]', 'q']
         ],

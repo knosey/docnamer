@@ -7,7 +7,7 @@
  * stdout into the frame the visual review reads, so a stray ANSI code corrupts
  * the evidence rather than the appearance.
  */
-import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import { deviceReader, deviceWriter } from './device.ts'
 
 export type Style = {
@@ -55,6 +55,7 @@ type Glyphs = {
   readonly dot: string
   readonly up: string
   readonly down: string
+  readonly ellipsis: string
   readonly frames: readonly string[]
 }
 
@@ -69,6 +70,7 @@ const UNICODE: Glyphs = {
   dot: '\u00b7',
   up: '\u2191',
   down: '\u2193',
+  ellipsis: '\u2026',
   frames: [
     '\u280b',
     '\u2819',
@@ -94,8 +96,12 @@ const ASCII: Glyphs = {
   dot: '*',
   up: '^',
   down: 'v',
+  ellipsis: '...',
   frames: ['|', '/', '-', '\\']
 }
+
+/** A select-graphic-rendition sequence: the only escape a clipped line gains. */
+const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, 'g')
 
 const INDENT = '  '
 const GAP = '  '
@@ -109,15 +115,16 @@ type Device = {
   readonly writer: { write(chunk: string): unknown; end(): unknown }
   readonly stream: ReadableStream<Uint8Array>
   readonly cols: number | null
+  readonly rows: number | null
 }
 
 let active: Device | null = null
 
-/** Register the device path as this process's terminal, with the width the
+/** Register the device path as this process's terminal, with the size the
  *  wrapper measured: the launched process's own stdout is not a terminal, so
  *  it cannot answer the question itself. */
-export function setDevice(path: string, cols: number | null): void {
-  active = { writer: deviceWriter(path), stream: deviceReader(path), cols }
+export function setDevice(path: string, cols: number | null, rows: number | null = null): void {
+  active = { writer: deviceWriter(path), stream: deviceReader(path), cols, rows }
 }
 
 /** The width the drawing code must fit, in cells. */
@@ -126,6 +133,13 @@ export function terminalWidth(): number {
   const cols = process.stdout.columns
   // A pipe answers undefined; 80 is the width every terminal can be assumed to have.
   return typeof cols === 'number' && cols > 0 ? cols : 80
+}
+
+/** The height a full-screen frame must fit, in rows; 24 when nothing says. */
+export function terminalHeight(): number {
+  if (active !== null && active.rows !== null) return active.rows
+  const rows = process.stdout.rows
+  return typeof rows === 'number' && rows > 0 ? rows : 24
 }
 
 /** Whether a device is the terminal — prompt reads it instead of stdin. */
@@ -199,6 +213,8 @@ export type Ui = {
   warn(text: string): string
   fail(what: string, help?: string): string
   spinner(label: string): Spinner
+  /** `text` cut to `width` cells, ending in the glyph set's ellipsis when cut. */
+  clip(text: string, width: number): string
   /** For a frame that positions the cursor itself; still routed through here. */
   raw(text: string): void
   log(line: string): void
@@ -222,6 +238,13 @@ export function ui(style: Style): Ui {
   const yellow = (text: string): string => tint('33', text)
   const red = (text: string): string => tint('31', text)
   const cyan = (text: string): string => tint('36', text)
+
+  /** pi-tui wraps the ellipsis in SGR resets whatever the text holds; colour
+   *  off writes no escape at all, so there they come back out. */
+  const clip = (text: string, width: number): string => {
+    const cut = truncateToWidth(text, width, glyphs.ellipsis)
+    return style.colour ? cut : cut.replace(SGR, '')
+  }
 
   /** The only place a row is assembled. The margin goes out verbatim and FIRST,
    *  before any styling, so the plan table's `!` cannot be hidden by colour from
@@ -257,8 +280,8 @@ export function ui(style: Style): Ui {
     glyphs,
 
     head(title: string, detail?: string): string {
-      const text = detail === undefined ? title : `${title} ${dim('\u2014')} ${cyan(detail)}`
-      const plain = detail === undefined ? title : `${title} \u2014 ${detail}`
+      const text = detail === undefined ? title : `${title} ${dim(glyphs.dash)} ${cyan(detail)}`
+      const plain = detail === undefined ? title : `${title} ${glyphs.dash} ${detail}`
       // The title is clipped to the screen by whoever logs it; the rule under it
       // must not be, or it runs past the edge into the truncation marker.
       const rule = glyphs.rule.repeat(Math.min(plain.length, terminalWidth() - INDENT.length))
@@ -314,8 +337,13 @@ export function ui(style: Style): Ui {
       }
       let text = label
       let frame = 0
+      // One row, never wrapped: a wrapped label leaves its first row behind on
+      // every repaint, because the carriage return only reaches the last one.
+      // One cell short of the width, so the line never sits at the last column.
       const paint = (): void => {
-        write(`\r${ERASE}${cyan(glyphs.frames[frame] as string)} ${text}`)
+        const glyph = glyphs.frames[frame] as string
+        const room = terminalWidth() - 1 - visibleWidth(glyph) - 1
+        write(`\r${ERASE}${cyan(glyph)} ${clip(text, room)}`)
         frame = (frame + 1) % glyphs.frames.length
       }
       paint()
@@ -335,6 +363,8 @@ export function ui(style: Style): Ui {
       drawn = live
       return live
     },
+
+    clip,
 
     raw(text: string): void {
       write(text)

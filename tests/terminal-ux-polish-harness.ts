@@ -30,6 +30,7 @@ import { writePlan, PLAN_FILE, type PlanRow } from '../src/commands.ts'
 import { wrapper } from './app-binary.ts'
 import { runChild, type ChildRun } from './child.ts'
 import { resolveCli } from './doc-renamer-apply-harness.ts'
+import { readdirSync, rmSync } from 'node:fs'
 import { frame, FRAMES_DIR } from './frame.ts'
 import { ANSI, makeTerminal, SCREEN_COLS, type Run, type Term } from './pty.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
@@ -109,11 +110,15 @@ function seedRows(): PlanRow[] {
 type Live = {
   term: Term
   proc: ReturnType<typeof Bun.spawn>
+  /** Type `keys`; the next `waitFor` looks only at what is written after them. */
   write(keys: string): void
   reset(): void
+  /** Wait for `marker` in the output written since the last keys were typed. */
   waitFor(marker: string, ms?: number): Promise<void>
+  /** Wait until the screen a person sees shows `state`, and return that screen. */
+  waitForScreen(state: string, ms?: number): Promise<string>
   seen(): string
-  screen(): string
+  screen(): Promise<string>
   finish(ms?: number): Promise<Run>
   close(): void
 }
@@ -192,21 +197,37 @@ const argv = (s: Session): string[] => {
   return s.cli
 }
 
-/** Spawn `cmd` on its own pty and collect every byte it writes. */
+/** Spawn `cmd` on its own pty and collect every byte it writes. A wait answers
+ *  the keys typed last: it reads only what was written after them, because a
+ *  marker already on screen before the keys proves nothing about what they did
+ *  — the scrolled review frame was captured before any redraw that way, byte
+ *  for byte the frame before it. */
 function startPty(cmd: string[], env: Record<string, string>, cwd: string): Live {
   const term = makeTerminal()
   const proc = Bun.spawn(cmd, { terminal: term.terminal, env, cwd })
-  const plain = (): string => term.read().replace(ANSI, '')
+  let mark = 0
+  const since = (): string => term.read().slice(mark).replace(ANSI, '')
   const waitFor = async (marker: string, ms = 20000): Promise<void> => {
     const start = Date.now()
     for (;;) {
-      if (plain().includes(marker)) return
+      if (since().includes(marker)) return
       if (Date.now() - start > ms) {
         throw new Error(
           `the terminal never showed ${JSON.stringify(marker)}: it showed ${JSON.stringify(
-            plain().slice(-500)
+            since().slice(-500)
           )}`
         )
+      }
+      await Bun.sleep(25)
+    }
+  }
+  const waitForScreen = async (state: string, ms = 20000): Promise<string> => {
+    const start = Date.now()
+    for (;;) {
+      const screen = await term.screen()
+      if (screen.includes(state)) return screen
+      if (Date.now() - start > ms) {
+        throw new Error(`the screen never showed ${JSON.stringify(state)}; it showed:\n${screen}`)
       }
       await Bun.sleep(25)
     }
@@ -214,9 +235,16 @@ function startPty(cmd: string[], env: Record<string, string>, cwd: string): Live
   return {
     term,
     proc,
-    write: (keys: string) => term.terminal.write(keys),
-    reset: () => term.reset(),
+    write: (keys: string) => {
+      mark = term.read().length
+      term.terminal.write(keys)
+    },
+    reset: () => {
+      mark = 0
+      term.reset()
+    },
     waitFor,
+    waitForScreen,
     seen: () => term.read(),
     screen: () => term.screen(),
     finish: async (ms = 20000): Promise<Run> => {
@@ -232,6 +260,21 @@ function startPty(cmd: string[], env: Record<string, string>, cwd: string): Live
   }
 }
 
+/** Remove the frames one flow wrote on an earlier run, so the judge never reads
+ *  a frame this run did not draw. Only this flow's: the flows run side by side,
+ *  and another flow's frames are its own. */
+function clearFrames(flow: string): void {
+  const dir = `${repo}/${FRAMES_DIR}`
+  let names: string[] = []
+  try {
+    names = readdirSync(dir)
+  } catch {
+    return
+  }
+  for (const name of names)
+    if (name.startsWith(`${flow}-`)) rmSync(`${dir}/${name}`, { force: true })
+}
+
 /** The plain text of a captured frame, escapes removed. */
 const strip = (text: string): string => text.replace(ANSI, '')
 
@@ -242,6 +285,7 @@ const strip = (text: string): string => text.replace(ANSI, '')
  *  the wrapper — not the bare binary — is what this drives. */
 export async function run_version(s: Session): Promise<Session> {
   await ensure(s)
+  clearFrames('i1')
   if (!(await Bun.file(wrapper).exists())) {
     throw new Skipped(`I1 run_version: no installed wrapper at ${wrapper} to drive`)
   }
@@ -261,7 +305,7 @@ export async function capture_pty_frame(s: Session): Promise<Session> {
   if (!s.shell) throw new Error('I1 capture_pty_frame: run_version left no shell session')
   // The screen, not the byte log: the log carries every redraw and erase, which
   // rasterises as mangled, over-wide lines no judge can read.
-  s.versionFrame = s.shell.screen()
+  s.versionFrame = await s.shell.screen()
   await frame(s.versionFrame, 'i1-version')
   return s
 }
@@ -291,7 +335,7 @@ export async function version_frame_legible(s: Session): Promise<Session> {
 export async function no_stray_percent(s: Session): Promise<Session> {
   if (!s.version) throw new Error('I1 no_stray_percent: run_version has not run')
   if (!s.shell) throw new Error('I1 no_stray_percent: run_version left no shell')
-  const screen = s.shell.screen()
+  const screen = await s.shell.screen()
   const version = `docnamer ${referenceOutput()}`
   if (!screen.includes(version)) {
     throw new Error(`I1 no_stray_percent: the screen carries no ${version} line:\n${screen}`)
@@ -329,11 +373,11 @@ export async function open_review(s: Session): Promise<Session> {
   return s
 }
 
-/** render_cards: wait for the first card and capture the frame. */
+/** render_cards: wait until the screen shows the first two cards, and capture it. */
 export async function render_cards(s: Session): Promise<Session> {
+  clearFrames('i2')
   const live = await reviewOf(s)
-  await live.waitFor('[1/', 30000)
-  s.reviewFrame = live.screen()
+  s.reviewFrame = await live.waitForScreen('[2/3]', 30000)
   await frame(s.reviewFrame, 'i2-review')
   return s
 }
@@ -374,12 +418,17 @@ export async function two_cards_with_padding(s: Session): Promise<Session> {
   return s
 }
 
-/** scroll_down: move the cursor to the next document. */
+/** scroll_down: move the cursor to the next document, and capture the screen
+ *  once it shows the move — the header naming document 2, not a frame that was
+ *  already there before the key. */
 export async function scroll_down(s: Session): Promise<Session> {
   const live = await reviewOf(s)
+  const before = s.reviewFrame
   live.write('\x1b[B')
-  await live.waitFor('[2/', 30000)
-  s.reviewFrame = live.screen()
+  s.reviewFrame = await live.waitForScreen('Reviewing document 2 of 3', 30000)
+  if (s.reviewFrame === before) {
+    throw new Error(`I2 scroll_down: the screen did not change after the move:\n${before}`)
+  }
   await frame(s.reviewFrame, 'i2-review-scrolled')
   return s
 }
@@ -431,11 +480,14 @@ async function reviewOf(s: Session): Promise<Live> {
 
 // --- I3: revisit and change an already-assessed document ----------------------
 
-/** accept_doc1: accept document 1, then move on. */
+/** accept_doc1: accept document 1, then move on. Each I3 step leaves the
+ *  screen it produced as a frame, so the judge can follow the edit flow. */
 export async function accept_doc1(s: Session): Promise<Session> {
+  clearFrames('i3')
   const live = await reviewOf(s)
+  await live.waitForScreen('Reviewing document 1 of 3', 30000)
   live.write('\r')
-  await live.waitFor('[2/', 30000)
+  await frame(await live.waitForScreen('Reviewing document 2 of 3', 30000), 'i3-1-accepted')
   return s
 }
 
@@ -443,17 +495,30 @@ export async function accept_doc1(s: Session): Promise<Session> {
 export async function navigate_back(s: Session): Promise<Session> {
   const live = await reviewOf(s)
   live.write('\x1b[A')
-  await live.waitFor('[1/', 30000)
+  const screen = await live.waitForScreen('Reviewing document 1 of 3', 30000)
+  if (!screen.includes('(accepted)')) {
+    throw new Error(`I3 navigate_back: document 1 does not show its decision:\n${screen}`)
+  }
+  await frame(screen, 'i3-2-back')
   return s
 }
 
-/** edit_name: `e`, the new name, Enter, then quit so the plan is persisted. */
+/** The name I3 edits document 1 to. */
+const EDITED = '2024-03-12 acme receipt revised.pdf'
+
+/** edit_name: `e` opens the name as it stands; Ctrl-U clears it, the new name,
+ *  Enter, then quit so the plan is persisted. */
 export async function edit_name(s: Session): Promise<Session> {
   const live = await reviewOf(s)
   live.write('e')
-  await live.waitFor('new name', 30000)
-  live.write('2024-03-12 acme receipt revised.pdf\r')
-  await live.waitFor('[2/', 30000)
+  await frame(
+    await live.waitForScreen('new name: 2024-03-12 acme receipt.pdf', 30000),
+    'i3-3-edit-open'
+  )
+  live.write(`\x15${EDITED}`)
+  await frame(await live.waitForScreen(`new name: ${EDITED}`, 30000), 'i3-4-name-typed')
+  live.write('\r')
+  await live.waitForScreen('Reviewing document 2 of 3', 30000)
   live.write('q')
   const run = await live.finish(30000)
   if (!run.exited || run.code !== 0) {
@@ -461,6 +526,7 @@ export async function edit_name(s: Session): Promise<Session> {
       `I3 edit_name: review did not exit cleanly: ${JSON.stringify(run.output.slice(-400))}`
     )
   }
+  await frame(await live.screen(), 'i3-5-saved')
   return s
 }
 
@@ -475,6 +541,10 @@ export async function plan_updated_for_doc1(s: Session): Promise<Session> {
   if (first.status !== 'accepted') {
     throw new Error(`I3 plan_updated_for_doc1: document 1 is ${first.status}, not accepted`)
   }
+  // The plan file is what the interaction changes, and nothing on the screen
+  // shows it: its rows go into a frame of their own, as the file holds them.
+  const record = rows.map(r => `${r.status.padEnd(9)} ${r.old.padEnd(14)} -> ${r.new}`)
+  await frame([`${s.planPath}:`, '', ...record].join('\n'), 'i3-6-plan-file')
   return s
 }
 
@@ -533,12 +603,13 @@ const BAR_WINDOW_MS = 5_000
 
 /** throbber_with_bar: a `▰`/`▱` bar followed by a percentage sits beside it. */
 export async function throbber_with_bar(s: Session): Promise<Session> {
+  clearFrames('i4')
   const live = await analysisOf(s)
   const full = referenceFullBlock()
   await live.waitFor(full, BAR_WINDOW_MS)
   // The throbber frame is transient — gone once the run completes — so the
   // evidence screen is taken here, while the bar is provably on it.
-  s.throbberFrame = live.screen()
+  s.throbberFrame = await live.screen()
   const text = strip(live.seen())
   const pct = text.search(/\d+%/)
   if (!text.includes(full) || pct === -1 || text.indexOf(full) > pct) {
@@ -627,13 +698,14 @@ async function analysisOf(s: Session): Promise<Live> {
 
 /** analysis_completes: wait for the analysis to exit cleanly. */
 export async function analysis_completes(s: Session): Promise<Session> {
+  clearFrames('i5')
   const live = await analysisOf(s)
   const run = await live.finish(MODEL_CALL_MS)
   if (!run.exited || run.code !== 0) {
     throw new Error(`I5 analysis_completes: analysis did not finish cleanly: ${run.code}`)
   }
   s.analysisFrames.push(strip(run.output))
-  s.completionFrame = live.screen()
+  s.completionFrame = await live.screen()
   await frame(s.completionFrame, 'i5-complete')
   return s
 }
@@ -674,6 +746,7 @@ export async function full_bar_100_percent(s: Session): Promise<Session> {
 /** run_with_no_color_piped: run the CLI piped, with NO_COLOR set. */
 export async function run_with_no_color_piped(s: Session): Promise<Session> {
   await ensure(s)
+  clearFrames('i6')
   await ensureProviderKey()
   const res = await runChild([...argv(s), 'plan', await analysisDir(s)], {
     cwd: repo,
@@ -686,9 +759,12 @@ export async function run_with_no_color_piped(s: Session): Promise<Session> {
   return s
 }
 
-/** capture_output: write the piped output as the flow's evidence. */
+/** capture_output: write the piped output as the flow's evidence, under the
+ *  command that produced it. A pipe has no screen and so no width: its table is
+ *  whole where a 100-column screen's gives way, and a judge comparing the two
+ *  frames has to be able to see which is which. */
 export async function capture_output(s: Session): Promise<Session> {
-  await frame(s.output, 'i6-no-colour')
+  await frame(`$ NO_COLOR=1 docnamer plan ${s.analysisDir} | cat\n${s.output}`, 'i6-no-colour')
   return s
 }
 

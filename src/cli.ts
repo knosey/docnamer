@@ -185,6 +185,10 @@ function column(rows: readonly Example[]): string {
   return rows.map(([name, text]) => `  ${name.padEnd(width)}${text}`).join('\n')
 }
 
+/** The one progress line plan, apply and undo draw beside the throbber. */
+const progressLine = (u: Ui, done: number, total: number, file: string): string =>
+  `${progressBar(done, total, u.style)} ${done} of ${total} ${u.glyphs.dash} ${file}`
+
 /** The help for the program, or for one command when `cmd` names one. */
 function helpText(cmd?: Command): string {
   const sections =
@@ -326,7 +330,7 @@ async function credentialCommand(
   const id = providerId ?? (await pick('Sign in to a provider', await catalogOptions(), style))
   if (id === null) return 0
   await login(id, u, {})
-  u.log(u.ok(`signed in to ${id} ${u.dim('\u2014')} stored in ${tilde(ownAuthPath())}`))
+  u.log(u.ok(`signed in to ${id} ${u.dim(u.glyphs.dash)} stored in ${tilde(ownAuthPath())}`))
   return 0
 }
 
@@ -348,7 +352,7 @@ export async function main(argv: string[]): Promise<number> {
   // The wrapper's device flags name the terminal this process was launched
   // away from; when they are present the device is the only way in and out.
   const device = parseDeviceArgs(argv)
-  if (device.tty !== null) setDevice(device.tty, device.cols)
+  if (device.tty !== null) setDevice(device.tty, device.cols, device.rows)
   // A device is always a tty of the size the wrapper measured, whatever the
   // process's own fds are. styleFrom is the whole capability gate, fallbacks
   // included.
@@ -443,10 +447,7 @@ export async function main(argv: string[]): Promise<number> {
       folder,
       { recursive, applyUnflagged: false },
       config,
-      (done, total, file) => {
-        const bar = progressBar(done, total, style)
-        spinner.update(`${bar} ${done} of ${total} ${u.glyphs.dash} ${file}`)
-      }
+      (done, total, file) => spinner.update(progressLine(u, done, total, file))
     )
     await writePlan(folder, rows)
     // The completion line draws the final bar in the same format the
@@ -457,7 +458,7 @@ export async function main(argv: string[]): Promise<number> {
     // The table is what a person reads before anything is renamed: the count
     // alone never showed which name a file would get.
     u.log(renderTable(rows, style))
-    u.log(u.note(`plan written to ${folder}/${PLAN_FILE} \u2014 run \`docnamer review\``))
+    u.log(u.note(`plan written to ${folder}/${PLAN_FILE} ${u.glyphs.dash} run \`docnamer review\``))
     return 0
   }
   if (cmd === 'review') {
@@ -467,23 +468,19 @@ export async function main(argv: string[]): Promise<number> {
   if (cmd === 'apply') {
     const spinner = u.spinner(`renaming the documents in ${folder}`)
     const report = await apply(folder, config, (done, total, file) => {
-      spinner.update(
-        `${progressBar(done, total, style)} ${done} of ${total} ${u.glyphs.dash} ${file}`
-      )
+      spinner.update(progressLine(u, done, total, file))
     })
     // The completion line draws the full bar, as plan's does: the fraction
     // was known at every step, so the finish shows it.
     const applied = report.renamed + report.skipped.length
     spinner.stop(`${progressBar(applied, applied, style)} renamed ${report.renamed} file(s)`)
     for (const s of report.skipped) u.log(u.warn(`skipped ${s.file}: ${s.reason}`))
-    u.log(u.note(`undo file ${report.undoFile} \u2014 \`docnamer undo\` puts it back`))
+    u.log(u.note(`undo file ${report.undoFile} ${u.glyphs.dash} \`docnamer undo\` puts it back`))
     return 0
   }
   const spinner = u.spinner(`restoring the names in ${folder}`)
   const report = await undo(folder, run, config, (done, total, file) => {
-    spinner.update(
-      `${progressBar(done, total, style)} ${done} of ${total} ${u.glyphs.dash} ${file}`
-    )
+    spinner.update(progressLine(u, done, total, file))
   })
   const restoredCount = report.restored.length + report.skipped.length
   spinner.stop(

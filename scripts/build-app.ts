@@ -94,21 +94,29 @@ run(
 //    loses the race to block on an app that has already exited — measured, run 7
 //    of 12 of `--version` — and taking its 1 there reported a finished run as
 //    failed. 1 means "accepted, then failed"; only a missing file means that.
+//    Losing that race also makes `open` print "Unable to block on applications
+//    (initial call to kevent() failed: No such process)" — onto the person's
+//    terminal, between the app's output and their prompt. So `open`'s own
+//    complaints are held in a file and shown only when the app never reported
+//    back, the one case where they explain anything.
 await Bun.write(
   wrapper,
   `#!/bin/sh
 APP="${app}"
 TTY=$(tty) || exit 1
 EXIT_FILE=$(mktemp /tmp/docnamer-exit.XXXXXX)
+OPEN_ERR=$(mktemp /tmp/docnamer-open.XXXXXX)
 SAVED=$(stty -g)
 stty raw -echo opost
 COLS=$(tput cols); ROWS=$(tput lines)
-/usr/bin/open -n -W "$APP" --args --tty "$TTY" --cols "$COLS" --rows "$ROWS" --exit-file "$EXIT_FILE" --cwd "$PWD" "$@"
+/usr/bin/open -n -W "$APP" --args --tty "$TTY" --cols "$COLS" --rows "$ROWS" --exit-file "$EXIT_FILE" --cwd "$PWD" "$@" 2>"$OPEN_ERR"
 OPEN_CODE=$?
 stty "$SAVED"
 CODE=$(cat "$EXIT_FILE" 2>/dev/null)
 rm -f "$EXIT_FILE"
-if [ -n "$CODE" ]; then exit "$CODE"; fi
+if [ -n "$CODE" ]; then rm -f "$OPEN_ERR"; exit "$CODE"; fi
+cat "$OPEN_ERR" >&2
+rm -f "$OPEN_ERR"
 if [ $OPEN_CODE -ne 0 ]; then exit $OPEN_CODE; fi
 exit 1
 `

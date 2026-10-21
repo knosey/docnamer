@@ -187,6 +187,9 @@ test.skipIf(!hasPty)(
           )}`
         ).toBe(0)
         expect(seen, `run ${n}: the app must have answered --version`).toContain('docnamer')
+        // Losing the race also makes `open` complain on the person's terminal;
+        // the app answered, so the complaint explains nothing and must not show.
+        expect(seen, `run ${n}: open's race reached the terminal`).not.toContain('Unable to block')
       }
     } finally {
       t.terminal.close()
