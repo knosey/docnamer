@@ -53,19 +53,23 @@ export const VERSION_LINE = /^docnamer\s+\S+/m
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
 const reference = process.env.GRAPH_REFERENCE ?? 'plutil -extract version raw package.json'
+/** The truth I4–I6's bar compares against — the charmap, their task's own reference in the workplan, swapped the
+ *  same way. Read off the version reference, the bar was always ASCII and no UTF-8 terminal could pass. */
+const charmapReference = process.env.GRAPH_REFERENCE ?? 'locale charmap'
 
-/** Run the reference command and return its trimmed stdout. */
-const referenceOutput = (): string => {
-  const [cmd, ...args] = reference.split(/\s+/).filter(Boolean)
+/** Run a reference command and return its trimmed stdout. */
+const outputOf = (command: string): string => {
+  const [cmd, ...args] = command.split(/\s+/).filter(Boolean)
   const proc = Bun.spawnSync([cmd as string, ...args])
   return proc.stdout.toString().trim()
 }
+const referenceOutput = (): string => outputOf(reference)
 
 /** The bar line the reference's charmap draws at 100%: FULL_BAR on a UTF-8
  *  locale, ASCII `#`s where the charmap says otherwise — the truth the
  *  swapped reference turns against the block bar the CLI draws. */
 const referenceFullBar = (): string =>
-  /utf-?8/i.test(referenceOutput()) ? FULL_BAR : `${'#'.repeat(10)} 100%`
+  /utf-?8/i.test(outputOf(charmapReference)) ? FULL_BAR : `${'#'.repeat(10)} 100%`
 
 /** The full-block glyph the reference's charmap can draw. */
 const referenceFullBlock = (): string => referenceFullBar().charAt(0)
@@ -128,6 +132,8 @@ export class Session {
   review: Live | null = null
   /** The analysis session I4/I5 drive. */
   analysis: Live | null = null
+  /** The folder I4–I6 plan: documents to analyse, apart from the seeded plan's folder. */
+  analysisDir = ''
   /** The latest captured review frame. */
   reviewFrame = ''
   /** Successive distinct analysis frames, in the order the terminal showed them. */
@@ -416,11 +422,30 @@ export async function later_docs_unchanged(s: Session): Promise<Session> {
 
 // --- I4: block progress bar next to the throbber during analysis --------------
 
+/** Documents for an analysis to work through, so its in-progress frames exist: the boot folder holds
+ *  only a plan, and planning it finishes at once (`planned 0 document(s)`) with no frame to observe.
+ *  Text, an OCR'd scan and an image finish at different times — three text files finish inside one
+ *  80 ms paint and the bar never draws between 0% and 100%. Copied from tests/fixtures as the pipeline
+ *  harness copies them. */
+const ANALYSED = ['statement-text.pdf', 'dup-invoice.txt', 'acme-statement-scan.pdf', 'receipt.png']
+async function analysisDir(s: Session): Promise<string> {
+  if (s.analysisDir !== '') return s.analysisDir
+  const dir = scratch('docnamer-analysis')
+  for (const name of ANALYSED) {
+    await Bun.write(
+      `${dir}/${name}`,
+      await Bun.file(`${repo}/tests/fixtures/${name}`).arrayBuffer()
+    )
+  }
+  s.analysisDir = dir
+  return dir
+}
+
 /** start_analysis: run `docnamer plan` on a pty and wait for the throbber. */
 export async function start_analysis(s: Session): Promise<Session> {
   await ensure(s)
   await ensureProviderKey()
-  const live = startPty([...argv(s), 'plan', s.dir], shellEnv(), repo)
+  const live = startPty([...argv(s), 'plan', await analysisDir(s)], shellEnv(), repo)
   s.analysis = live
   await live.waitFor('reading', MODEL_CALL_MS)
   return s
@@ -457,6 +482,9 @@ export async function capture_frames(s: Session): Promise<Session> {
     }
     await Bun.sleep(100)
   }
+  // The frame the terminal holds at exit — the completion line — is drawn after the last poll.
+  const final = strip(live.seen())
+  if (final !== last) s.analysisFrames.push(final)
   if (s.analysisFrames.length === 0) {
     throw new Error('I4 capture_frames: the analysis drew no frame to capture')
   }
@@ -466,10 +494,9 @@ export async function capture_frames(s: Session): Promise<Session> {
 
 /** percentage_increases: the percentage rises, never falls, as documents finish. */
 export async function percentage_increases(s: Session): Promise<Session> {
-  const seen: number[] = []
-  for (const f of s.analysisFrames) {
-    for (const m of f.matchAll(/(\d+)%/g)) seen.push(Number(m[1]))
-  }
+  // A frame is everything the terminal received so far (pty `read()`), so the last one holds every
+  // paint in order; reading each frame would count the earlier paints again and see the bar fall.
+  const seen = [...(s.analysisFrames.at(-1) ?? '').matchAll(/(\d+)%/g)].map(m => Number(m[1]))
   if (seen.length < 2) {
     throw new Error(`I4 percentage_increases: only ${seen.length} percentage(s) were drawn`)
   }
@@ -532,7 +559,7 @@ export async function full_bar_100_percent(s: Session): Promise<Session> {
 export async function run_with_no_color_piped(s: Session): Promise<Session> {
   await ensure(s)
   await ensureProviderKey()
-  const res = await runChild([...argv(s), 'plan', s.dir], {
+  const res = await runChild([...argv(s), 'plan', await analysisDir(s)], {
     cwd: repo,
     env: { ...shellEnv({ NO_COLOR: '1' }) },
     timeoutMs: MODEL_CALL_MS
