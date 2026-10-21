@@ -66,7 +66,7 @@ prints, so the swapped reference turns the verdict.
 - done_when: `bun run test:e2e tests/terminal-ux-polish-i1.spec.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T1 -->
-**done** · run `ship-feature-406f15` · built in run `ship-feature-e61fc5`
+**done** · run `ship-feature-ec5639` · built in run `ship-feature-e61fc5`
 - Commits: `c2d39ba..4207538`
 - Landed: [tests/pty.ts](../../../tests/pty.ts), [tests/terminal-ux-polish-harness.ts](../../../tests/terminal-ux-polish-harness.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -87,7 +87,7 @@ prints, so the swapped reference turns the verdict.
 - done_when: `bun test tests/ui.test.ts`
 - Reference: `locale charmap`
 <!-- record:T2 -->
-**done** · run `ship-feature-406f15` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-ec5639` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/ui.ts](../../../src/ui.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -116,12 +116,12 @@ gate, not the unit test alone.
 - done_when: `bun run test:e2e tests/progress-bar.test.ts tests/terminal-ux-polish-i4.spec.ts tests/terminal-ux-polish-i5.spec.ts tests/terminal-ux-polish-i6.spec.ts`
 - Reference: `locale charmap`
 <!-- record:T3 -->
-**hole** · run `ship-feature-406f15`
-- Commits: none — HEAD stayed at `4704ef4`
-- Landed: [src/cli.ts](../../../src/cli.ts), [src/commands.ts](../../../src/commands.ts)
+**hole** · run `ship-feature-ec5639`
+- Commits: none — HEAD stayed at `68cead8`
+- Landed: [src/cli.ts](../../../src/cli.ts)
 - Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✗
 - Tests: task-test#2 done
-- Summary: done_when — exit 1 — output tail: … [+47 earlier line(s)] 6 pass 2 fail 14 expect() calls Ran 8 tests across 4 files. [5.68s] error: script "test:e2e" exited with code 1 files named: tests/progress-bar.test.ts, tests/terminal-ux-polish-i4.spec.ts, tests/terminal-ux-polish-i5.spec.ts, tests/terminal-ux-polish-i6.spec.ts
+- Summary: done_when — exit 1 — output tail: … [+47 earlier line(s)] 6 pass 2 fail 14 expect() calls Ran 8 tests across 4 files. [5.60s] error: script "test:e2e" exited with code 1 files named: tests/progress-bar.test.ts, tests/terminal-ux-polish-i4.spec.ts, tests/terminal-ux-polish-i5.spec.ts, tests/terminal-ux-polish-i6.spec.ts
 <!-- /record:T3 -->
 
 ## T4: review screen renders stacked padded cards with a locked controls header
@@ -137,7 +137,7 @@ gate, not the unit test alone.
 - done_when: `bun test tests/review-screen.test.ts`
 - Reference: `tput cols`
 <!-- record:T4 -->
-**done** · run `ship-feature-406f15` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-ec5639` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -158,7 +158,7 @@ gate, not the unit test alone.
 - done_when: `bun test tests/pty.test.ts`
 - Reference: `printf '%s\n' '2024-03-13 globex receipt.pdf'`
 <!-- record:T5 -->
-**done** · run `ship-feature-406f15` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-ec5639` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -181,7 +181,7 @@ gate, not the unit test alone.
 - done_when: `bun test tests/cli-help.test.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T6 -->
-**done** · run `ship-feature-406f15`
+**done** · run `ship-feature-ec5639`
 - Commits: none recorded
 - Landed: nothing
 - Gates: done_when ✓ · reference_decides ✓
@@ -190,8 +190,8 @@ gate, not the unit test alone.
 <!-- /record:T6 -->
 
 <!-- record:run -->
-**failed** · run `ship-feature-406f15`
+**failed** · run `ship-feature-ec5639`
 - Tasks: T1 done · T2 done · T3 hole · T4 done · T5 done · T6 done
-- Commits: none — HEAD stayed at `4704ef4`
-- Detail: verify: exit 1 — output tail: … [+19768 earlier chars] ock names what broke and how to fix it [0.02ms] (pass) a failure with no fix prints one line, not an empty help [0.01ms] (pass) a spinner on a pipe logs its label once and never redraws [0.05ms] [K[36m⠋[0m reading(pass) a spinner on a terminal redraws in place and clears its own line [0.12ms] (pass) the block bar follows the locale charmap … [+4047 chars]
+- Commits: none — HEAD stayed at `68cead8`
+- Detail: verify: exit 1 — output tail: … [+19660 earlier chars] and never leaves trailing whitespace [0.11ms] (pass) a failure block names what broke and how to fix it [0.02ms] (pass) a failure with no fix prints one line, not an empty help [0.01ms] (pass) a spinner on a pipe logs its label once and never redraws [0.05ms] [K[36m⠋[0m reading(pass) a spinner on a terminal redraws in place and clears its o… [+3586 chars]
 <!-- /record:run -->
