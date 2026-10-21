@@ -26,6 +26,8 @@ export const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, 
 export type Term = {
   readonly terminal: Bun.Terminal
   read(): string
+  /** The screen a person sees: rows up to the last non-blank, right-trimmed. */
+  screen(): string
   reset(): void
 }
 
@@ -39,8 +41,13 @@ export type Term = {
  * a real terminal answers. The limit, measured byte-for-byte on this pty: zsh
  * prints its inverse `%` promptsp marker plus its erase sequence after EVERY
  * command even with the answer, so the marker's absence is a fact about the
- * SCREEN, not the byte log — the screen model of terminal-ux-polish's T1 task
- * is what observes it.
+ * SCREEN, not the byte log. That is what the grid is for: a printable byte
+ * writes its cell then advances (clamped at the edge — the captured erase
+ * uses CR, never wrap), CSI J clears from the cursor to the end of the grid
+ * and CSI K to the end of the row, and `screen()` reads the grid back as the
+ * rows a person sees. zsh's `\r \r` erase overwrites its `%` at column 0, so
+ * a clean run shows no marker on the screen while a wrapper that lost its
+ * trailing CR leaves `%` standing mid-line, where the erase cannot reach it.
  */
 export function makeTerminal(cols = 100, rows = 40): Term {
   let out = ''
@@ -92,12 +99,34 @@ export function makeTerminal(cols = 100, rows = 40): Term {
       col = clamp(col - 1, cols - 1)
     }
   }
-  /** Apply one CSI sequence: answer a DSR query, move the cursor otherwise. */
+  /** The cells of the display: grid[r][c] is the glyph a person sees there. */
+  const grid: string[][] = []
+  /** Write one printable byte at the cursor. */
+  const cell = (ch: string): void => {
+    const r = (grid[row] ??= [])
+    while (r.length < col) r.push(' ')
+    r[col] = ch
+  }
+  /** Erase from the cursor to the end of the grid (CSI J). */
+  const eraseBelow = (): void => {
+    for (let r = row; r < grid.length; r += 1) {
+      const g = grid[r]
+      if (g) g.length = r === row ? Math.min(g.length, col) : 0
+    }
+  }
+  /** Erase from the cursor to the end of the row (CSI K). */
+  const eraseRow = (): void => {
+    const g = grid[row]
+    if (g) g.length = Math.min(g.length, col)
+  }
+  /** Apply one CSI sequence: answer a DSR query, erase or move otherwise. */
   const applyCsi = (params: string, f: string, answer: (reply: string) => void): void => {
     if (f === 'n' && params === '6') {
       answer(`${esc}[${row + 1};${col + 1}R`)
       return
     }
+    if (f === 'J') return eraseBelow()
+    if (f === 'K') return eraseRow()
     CSI_MOVE[f === 'f' ? 'H' : f]?.(at => param(params, at))
   }
   /** Advance the tracked cursor over one chunk of child output. */
@@ -113,8 +142,10 @@ export function makeTerminal(cols = 100, rows = 40): Term {
         continue
       }
       const ch = text[i] as string
-      if (ch >= ' ') col = clamp(col + 1, cols - 1)
-      else CONTROL_MOVE[ch]?.()
+      if (ch >= ' ') {
+        cell(ch)
+        col = clamp(col + 1, cols - 1)
+      } else CONTROL_MOVE[ch]?.()
       i++
     }
   }
@@ -130,6 +161,14 @@ export function makeTerminal(cols = 100, rows = 40): Term {
   return {
     terminal,
     read: () => out,
+    screen: () => {
+      const lines = Array.from({ length: grid.length }, (_, r) =>
+        (grid[r] ?? []).join('').replace(/\s+$/, '')
+      )
+      let last = lines.length - 1
+      while (last >= 0 && lines[last] === '') last -= 1
+      return lines.slice(0, last + 1).join('\n')
+    },
     reset: () => {
       out = ''
     }

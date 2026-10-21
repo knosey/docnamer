@@ -89,6 +89,7 @@ type Live = {
   reset(): void
   waitFor(marker: string, ms?: number): Promise<void>
   seen(): string
+  screen(): string
   finish(ms?: number): Promise<Run>
   close(): void
 }
@@ -183,6 +184,7 @@ function startPty(cmd: string[], env: Record<string, string>, cwd: string): Live
     reset: () => term.reset(),
     waitFor,
     seen: () => term.read(),
+    screen: () => term.screen(),
     finish: async (ms = 20000): Promise<Run> => {
       const raced = await Promise.race([proc.exited, Bun.sleep(ms).then(() => 'hung' as const)])
       if (raced === 'hung') {
@@ -226,18 +228,21 @@ export async function capture_pty_frame(s: Session): Promise<Session> {
   return s
 }
 
-/** no_stray_percent: no `%` marker sits between the version line and the prompt. */
+/** no_stray_percent: no `%` marker sits between the version line and the prompt.
+ *  Asserted on the SCREEN, not the byte log: zsh prints its promptsp `%` plus
+ *  erase after every command, so the byte log always carries it — only the
+ *  screen shows whether the erase overwrote it (clean CRLF) or it stands
+ *  mid-line (a wrapper that lost the CR). */
 export async function no_stray_percent(s: Session): Promise<Session> {
   if (!s.version) throw new Error('I1 no_stray_percent: run_version has not run')
-  const text = strip(s.version.output)
-  if (!VERSION_LINE.test(text)) {
-    throw new Error(`I1 no_stray_percent: the frame carries no version line:\n${text}`)
+  if (!s.shell) throw new Error('I1 no_stray_percent: run_version left no shell')
+  const screen = s.shell.screen()
+  if (!VERSION_LINE.test(screen)) {
+    throw new Error(`I1 no_stray_percent: the screen carries no version line:\n${screen}`)
   }
-  // zsh's partial-line marker is a lone `%` immediately before the prompt. The
-  // version line must end the output; a `%` after it is the defect.
-  const afterVersion = text.slice(text.search(VERSION_LINE))
-  if (/%(?=\s*ux-ready>)/.test(afterVersion)) {
-    throw new Error(`I1 no_stray_percent: zsh printed a stray % after the version:\n${text}`)
+  const afterVersion = screen.slice(screen.search(VERSION_LINE))
+  if (afterVersion.includes('%')) {
+    throw new Error(`I1 no_stray_percent: a stray % stands on screen after the version:\n${screen}`)
   }
   return s
 }
