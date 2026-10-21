@@ -24,7 +24,16 @@ import { evalTestset, formatEvalReport } from './eval.ts'
 import { renderTable } from './table.ts'
 import { parseDeviceArgs, type DeviceArgs } from './device.ts'
 import { pick, releaseStdin, type Option } from './prompt.ts'
-import { closeDevice, hasDevice, setDevice, styleFrom, ui, type Style, type Ui } from './ui.ts'
+import {
+  closeDevice,
+  hasDevice,
+  progressBar,
+  setDevice,
+  styleFrom,
+  ui,
+  type Style,
+  type Ui
+} from './ui.ts'
 
 /**
  * The folder's own config: one name, one location. A folder that does not carry
@@ -342,7 +351,14 @@ export async function main(argv: string[]): Promise<number> {
   if (device.tty !== null) setDevice(device.tty, device.cols)
   // A device is always a tty of the size the wrapper measured, whatever the
   // process's own fds are.
-  const style = styleFrom(process.env, hasDevice() || process.stdout.isTTY === true)
+  // The capability gate stays styleFrom; the CLI boundary then honours the
+  // explicit fallbacks: DOCNAMER_ASCII or NO_COLOR select the ASCII glyph set,
+  // so a redirected log never carries a block glyph a file cannot mean.
+  const detected = styleFrom(process.env, hasDevice() || process.stdout.isTTY === true)
+  const style: Style =
+    'DOCNAMER_ASCII' in process.env || 'NO_COLOR' in process.env
+      ? { ...detected, unicode: false, colour: false }
+      : detected
   const u = ui(style)
   const [cmd, ...rest] = stripDeviceFlags(argv)
 
@@ -424,10 +440,22 @@ export async function main(argv: string[]): Promise<number> {
     return 0
   }
   if (cmd === 'plan') {
-    const spinner = u.spinner(`reading ${folder} and asking the model`)
-    const rows = await plan(folder, { recursive, applyUnflagged: false }, config)
+    // The bar stands beside the throbber from the first frame, and rises as
+    // each document's analysis completes.
+    const spinner = u.spinner(`${progressBar(0, 1, style)} reading ${folder} and asking the model`)
+    const rows = await plan(
+      folder,
+      { recursive, applyUnflagged: false },
+      config,
+      (done, total, file) => {
+        spinner.update(`${progressBar(done, total, style)} ${done} of ${total} — ${file}`)
+      }
+    )
     await writePlan(folder, rows)
-    spinner.stop(`planned ${rows.length} document(s)`)
+    // Completion is 100% by definition; the completion line draws the full bar
+    // in the same format the in-progress bars drew.
+    const total = Math.max(rows.length, 1)
+    spinner.stop(`${progressBar(total, total, style)} planned ${rows.length} document(s)`)
     // The table is what a person reads before anything is renamed: the count
     // alone never showed which name a file would get.
     u.log(renderTable(rows, style))
