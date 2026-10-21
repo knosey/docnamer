@@ -163,10 +163,14 @@ function pad(text: string, width: number): string {
   return w >= width ? text : text + ' '.repeat(width - w)
 }
 
+/** The glyph set a style draws with: the one place the unicode-or-ASCII
+ *  choice is made. */
+const glyphsFor = (style: Style): Glyphs => (style.unicode ? UNICODE : ASCII)
+
 /** The one bar a command draws, unicode blocks or ASCII by the style's glyph
  *  set: ten cells, a space, then the rounded percentage. */
-export function progressBar(done: number, total: number, style: Style): string {
-  const glyphs = style.unicode ? UNICODE : ASCII
+export const progressBar = (done: number, total: number, style: Style): string => {
+  const glyphs = glyphsFor(style)
   // One ratio, floored (0 of 0 is 0%): the blocks are the whole tens of the
   // percentage, so the two can never disagree and the bar is full only at 100%.
   const percent = total === 0 ? 0 : Math.floor((done / total) * 100)
@@ -208,7 +212,7 @@ export type Ui = {
 let drawn: Spinner | null = null
 
 export function ui(style: Style): Ui {
-  const glyphs = style.unicode ? UNICODE : ASCII
+  const glyphs = glyphsFor(style)
 
   const tint = (code: string, text: string): string =>
     style.colour ? `${ESC}[${code}m${text}${ESC}[0m` : text

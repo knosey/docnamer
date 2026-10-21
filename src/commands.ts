@@ -84,21 +84,14 @@ export async function plan(
   // Each completion reports how many documents are done, so a terminal can
   // draw the bar rising beside the throbber while the rest are still read.
   let done = 0
+  const advance = (file: string): void => {
+    done += 1
+    progress?.(done, rels.length, file)
+  }
   const examined = await Promise.all(
     rels.map(async rel => {
       const path = `${folder}/${rel}`
       const old = base(rel)
-      const advanced = (): void => {
-        done += 1
-        // The observer must fail open: a throwing display callback (a tty
-        // hiccup in the spinner's write) cannot demote a validated row or end
-        // the run.
-        try {
-          progress?.(done, rels.length, old)
-        } catch {
-          // The count already rose; what the terminal draws is cosmetic.
-        }
-      }
       let checked: Checked | null = null
       let failedReason: string | null = null
       let method: PlanRow['method'] = null
@@ -133,7 +126,7 @@ export async function plan(
       }
       // Exactly once per file, whatever happened above: a row thrown mid-draw
       // was already validated and keeps its name.
-      advanced()
+      advance(old)
       return { rel, old, checked, failedReason, method }
     })
   )
@@ -233,15 +226,8 @@ function removeFile(path: string): void {
   }
 }
 
-/**
- * Apply the accepted rows of `<folder>/.docnamer-plan.json`: rename each in
- * place, tag and comment it per the config, and record every change in a
- * timestamped undo file before deleting the plan. A row whose file changed size
- * or mtime since planning — or whose new name is taken — is skipped and
- * reported, never renamed.
- */
 /** The plan file of `folder`, or a refusal naming the command that needed it. */
-export async function readPlan(folder: string, command: string): Promise<PlanRow[]> {
+export const readPlan = async (folder: string, command: string): Promise<PlanRow[]> => {
   const planPath = `${folder}/${PLAN_FILE}`
   if (!(await Bun.file(planPath).exists())) {
     throw new Error(`${command}: no plan file at ${planPath} — run docnamer plan first`)
@@ -249,14 +235,29 @@ export async function readPlan(folder: string, command: string): Promise<PlanRow
   return JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
 }
 
-// The per-row guards and annotate steps are one straight-line flow; splitting
-// relocates the branching without reducing it.
-// fallow-ignore-next-line complexity
-export async function apply(
+/** Why `row` cannot be renamed right now, or null when it can. */
+const skipReason = async (folder: string, row: PlanRow): Promise<string | null> => {
+  const f = Bun.file(`${folder}/${row.old}`)
+  if (!(await f.exists())) return 'file no longer exists'
+  if (f.size !== row.size || f.lastModified !== row.mtime) {
+    return 'file changed since planning (size or mtime differs)'
+  }
+  if (await Bun.file(`${folder}/${row.new}`).exists()) return `target ${row.new} already exists`
+  return null
+}
+
+/**
+ * Apply the accepted rows of `<folder>/.docnamer-plan.json`: rename each in
+ * place, tag and comment it per the config, and record every change in a
+ * timestamped undo file before deleting the plan. A row whose file changed size
+ * or mtime since planning — or whose new name is taken — is skipped and
+ * reported, never renamed.
+ */
+export const apply = async (
   folder: string,
   config: Config,
   progress?: Progress
-): Promise<ApplyReport> {
+): Promise<ApplyReport> => {
   const planPath = `${folder}/${PLAN_FILE}`
   const rows = await readPlan(folder, 'apply')
   const accepted = rows.filter(r => r.status === 'accepted')
@@ -266,22 +267,13 @@ export async function apply(
   const comments: { file: string; comment: string }[] = []
   for (const [i, row] of accepted.entries()) {
     progress?.(i + 1, accepted.length, row.old)
-    const from = `${folder}/${row.old}`
+    const reason = await skipReason(folder, row)
+    if (reason !== null) {
+      skipped.push({ file: row.old, reason })
+      continue
+    }
     const to = `${folder}/${row.new}`
-    const f = Bun.file(from)
-    if (!(await f.exists())) {
-      skipped.push({ file: row.old, reason: 'file no longer exists' })
-      continue
-    }
-    if (f.size !== row.size || f.lastModified !== row.mtime) {
-      skipped.push({ file: row.old, reason: 'file changed since planning (size or mtime differs)' })
-      continue
-    }
-    if (await Bun.file(to).exists()) {
-      skipped.push({ file: row.old, reason: `target ${row.new} already exists` })
-      continue
-    }
-    renameFile(from, to)
+    renameFile(`${folder}/${row.old}`, to)
 
     const entry: UndoEntry = { old: row.old, new: row.new, size: row.size, mtime: row.mtime }
     // Tagging and OCR touch independent systems, so they run concurrently; what
@@ -299,10 +291,8 @@ export async function apply(
       await ocrLayer
       entry.sidecar = `${row.new}${SIDECAR}`
     }
-    if (config.defaults.finder_comment) {
-      // Comments are batched into one osascript after the loop.
-      comments.push({ file: to, comment: row.summary })
-    }
+    // Comments are batched into one osascript after the loop.
+    if (config.defaults.finder_comment) comments.push({ file: to, comment: row.summary })
     entries.push(entry)
   }
   await setFinderComments(comments)

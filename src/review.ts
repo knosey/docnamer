@@ -162,8 +162,9 @@ function current(s: Session): { row: PlanRow; index: number } | null {
 
 /** Log review lines clipped to the terminal's width — a line wider than the
  *  screen wraps and breaks the card layout. The one width rule, on every line. */
-function say(u: Ui, text: string): void {
-  for (const line of text.split('\n')) u.log(truncateToWidth(line, terminalWidth()))
+const say = (u: Ui, text: string): void => {
+  const width = terminalWidth()
+  for (const line of text.split('\n')) u.log(truncateToWidth(line, width))
 }
 
 /** Show the row under the cursor and the one after it as stacked padded cards,
