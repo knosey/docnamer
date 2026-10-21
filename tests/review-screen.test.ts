@@ -5,8 +5,10 @@
  * is reached, and against a written plan file, so no model is called.
  */
 import { expect, test } from 'bun:test'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import { join } from 'node:path'
 import { runCliAs } from './doc-renamer-apply-harness.ts'
+import { ANSI } from './pty.ts'
 import { scratch } from './scratch.ts'
 
 // The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
@@ -83,7 +85,7 @@ test('review stacks padded cards inside the reference width with a locked contro
   expect(run.code, `review exited ${run.code}: ${run.stderr}`).toBe(0)
 
   // A person sees the frame without ANSI escapes.
-  const plain = run.stdout.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '')
+  const plain = run.stdout.replace(ANSI, '')
   const lines = plain.split(/\r\n|\n|\r/)
 
   // Controls header: accept / edit / skip / quit, present in the scrolled frame.
@@ -93,17 +95,17 @@ test('review stacks padded cards inside the reference width with a locked contro
 
   // Stacked cards: two documents' names appear, each on its own line, and the
   // line that starts a later card is preceded by a blank padded line.
-  const starts = lines
-    .map((l, i) => (/\[\d+\/\d+\]/.test(l) ? i : -1))
-    .filter(i => i >= 0)
+  const starts = lines.map((l, i) => (/\[\d+\/\d+\]/.test(l) ? i : -1)).filter(i => i >= 0)
   expect(starts.length, `fewer than two cards in the frame:\n${plain}`).toBeGreaterThanOrEqual(2)
-  expect(
-    lines[starts[1]! - 1] ?? '',
-    `no padded line between stacked cards:\n${plain}`
-  ).toMatch(/^\s*$/)
+  expect(lines[starts[1]! - 1] ?? '', `no padded line between stacked cards:\n${plain}`).toMatch(
+    /^\s*$/
+  )
 
   // Every visible line fits the reference width — the terminal truth.
   for (const line of lines) {
-    expect(visibleWidth(line), `a card line is wider than ${width}: ${JSON.stringify(line)}`).toBeLessThanOrEqual(width)
+    expect(
+      visibleWidth(line),
+      `a card line is wider than ${width}: ${JSON.stringify(line)}`
+    ).toBeLessThanOrEqual(width)
   }
 })

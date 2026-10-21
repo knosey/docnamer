@@ -284,7 +284,9 @@ export async function two_cards_with_padding(s: Session): Promise<Session> {
     return at
   }, [])
   if (headers.length < 2) {
-    throw new Error(`I2 two_cards_with_padding: ${headers.length} card(s) on screen:\n${s.reviewFrame}`)
+    throw new Error(
+      `I2 two_cards_with_padding: ${headers.length} card(s) on screen:\n${s.reviewFrame}`
+    )
   }
   const between = lines.slice((headers[0] as number) + 1, headers[1] as number)
   if (!between.some(l => l.trim() === '')) {
@@ -307,9 +309,7 @@ export async function scroll_down(s: Session): Promise<Session> {
 /** header_still_visible: the controls header survives the scroll. */
 export async function header_still_visible(s: Session): Promise<Session> {
   if (!CONTROLS.test(strip(s.reviewFrame))) {
-    throw new Error(
-      `I2 header_still_visible: the controls header scrolled away:\n${s.reviewFrame}`
-    )
+    throw new Error(`I2 header_still_visible: the controls header scrolled away:\n${s.reviewFrame}`)
   }
   return s
 }
@@ -350,7 +350,9 @@ export async function edit_name(s: Session): Promise<Session> {
   live.write('q')
   const run = await live.finish(30000)
   if (!run.exited || run.code !== 0) {
-    throw new Error(`I3 edit_name: review did not exit cleanly: ${JSON.stringify(run.output.slice(-400))}`)
+    throw new Error(
+      `I3 edit_name: review did not exit cleanly: ${JSON.stringify(run.output.slice(-400))}`
+    )
   }
   return s
 }
@@ -373,7 +375,10 @@ export async function plan_updated_for_doc1(s: Session): Promise<Session> {
 export async function later_docs_unchanged(s: Session): Promise<Session> {
   const rows = JSON.parse(await Bun.file(s.planPath).text()) as PlanRow[]
   for (const row of rows.slice(1)) {
-    if (row.new !== '2024-03-13 globex receipt.pdf' && row.new !== '2024-03-14 initech receipt.pdf') {
+    if (
+      row.new !== '2024-03-13 globex receipt.pdf' &&
+      row.new !== '2024-03-14 initech receipt.pdf'
+    ) {
       throw new Error(`I3 later_docs_unchanged: later document ${row.old} became "${row.new}"`)
     }
     if (row.status !== 'pending') {
@@ -395,10 +400,15 @@ export async function start_analysis(s: Session): Promise<Session> {
   return s
 }
 
+/** A missing bar fails inside the red gate's verdict budget: the first
+ *  throbber frame either carries the bar or never will, so the wait covers a
+ *  few frames, not the model call. */
+const BAR_WINDOW_MS = 5_000
+
 /** throbber_with_bar: a `▰`/`▱` bar followed by a percentage sits beside it. */
 export async function throbber_with_bar(s: Session): Promise<Session> {
   const live = await analysisOf(s)
-  await live.waitFor('\u25b0', MODEL_CALL_MS)
+  await live.waitFor('\u25b0', BAR_WINDOW_MS)
   const text = strip(live.seen())
   if (!/\u25b0.*\d+%/.test(text)) {
     throw new Error(`I4 throbber_with_bar: no block bar with a percentage in the frame:\n${text}`)
@@ -512,9 +522,11 @@ export async function capture_output(s: Session): Promise<Session> {
 
 /** no_ansi_escapes: not one escape sequence reaches the pipe. */
 export async function no_ansi_escapes(s: Session): Promise<Session> {
-  const found = s.output.match(/\u001b\[[0-9;?]*[A-Za-z]/)
+  const found = s.output.match(ANSI)
   if (found) {
-    throw new Error(`I6 no_ansi_escapes: piped output carries the escape ${JSON.stringify(found[0])}`)
+    throw new Error(
+      `I6 no_ansi_escapes: piped output carries the escape ${JSON.stringify(found[0])}`
+    )
   }
   return s
 }

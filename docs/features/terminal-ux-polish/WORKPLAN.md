@@ -16,17 +16,43 @@
 
 - `true`
 
-## T1: wrapper restores the tty and ends on a fresh line
+## T1: the test pty answers zsh's cursor query, so I1 sees what a real terminal sees
+
+R1's product half already shipped (ec5b904: the wrapper runs `stty raw -echo
+opost` and restores the snapshot): the installed wrapper's version run emits
+`docnamer 0.1.0\r\n`, verified byte-for-byte on a pty, and
+tests/wrapper-pty.test.ts pins it green (8/8). What is missing is the
+harness's ability to OBSERVE it, measured this session: zsh prints its
+inverse `%` partial-line marker after EVERY command on a Bun.Terminal pty —
+a plain `printf 'hi there\n'` gets it — because zsh's promptsp logic asks
+the terminal where the cursor is (`ESC[6n`, DSR) and nothing answers, and the
+capture's bare backspace byte is invalid XML 1.0, so sips refuses the raster
+("Cannot extract image from file") and I1's frame step crashes.
+
+This task teaches tests/pty.ts's makeTerminal to track the cursor the way a
+real terminal emulator does (printable bytes advance the column; CR, LF, BS
+and the CSI H/A/B/C/D/G/d sequences move it; clamp to the 100x40 box) and to
+answer each DSR query once by writing `ESC[{row};{col}R` to the terminal's
+input. Then the fixed wrapper's CRLF leaves the cursor at column 1, zsh
+prints no `%`, and the flow is green for the operator's reason; a wrapper
+regression that loses the CR leaves the column mid-line and the marker
+returns, so the test stays honest. tests/frame.ts strips C0 control bytes
+(the observed backspace; keep tab and newline) before rasterising. Build both
+patterns from String.fromCharCode the way tests/pty.ts's ANSI constant does,
+so oxlint's no-control-regex stays quiet. The i1 spec gains the reference
+constant and asserts the printed version equals what the reference prints.
 
 - Covers: R1, I1
 - Depends on: none
 - Files:
-  - Modify: [build-app.ts](../../../scripts/build-app.ts#L81-L114)
+  - Modify: [pty.ts](../../../tests/pty.ts)
+  - Modify: [frame.ts](../../../tests/frame.ts)
+  - Test: [terminal-ux-polish-i1.spec.ts](../../../tests/terminal-ux-polish-i1.spec.ts)
   - Test: [wrapper-pty.test.ts](../../../tests/wrapper-pty.test.ts)
 - Interfaces:
   - Consumes: none
   - Produces: none
-- done_when: `bun test tests/wrapper-pty.test.ts`
+- done_when: `bun run test:e2e tests/terminal-ux-polish-i1.spec.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T1 -->
 <!-- /record:T1 -->
@@ -88,7 +114,7 @@
   - Consumes: none
   - Produces: none
 - done_when: `bun test tests/pty.test.ts`
-- Reference: `plutil -p .docnamer-plan.json`
+- Reference: `grep -o '2024-03-13 globex receipt.pdf' tests/terminal-ux-polish-harness.ts`
 <!-- record:T5 -->
 <!-- /record:T5 -->
 

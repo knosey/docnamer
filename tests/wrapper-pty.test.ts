@@ -5,6 +5,12 @@ import { staleInstall } from './doc-renamer-apply-harness.ts'
 import { ANSI, drive, hasPty, makeTerminal, slaveDevice } from './pty.ts'
 import { scratch } from './scratch.ts'
 
+// The reference the graph runner swaps through GRAPH_REFERENCE; assert against
+// it, never edit it. `plutil -extract version raw package.json` prints the
+// version the wrapper must report.
+export const reference =
+  process.env.GRAPH_REFERENCE ?? String.raw`plutil -extract version raw package.json`
+
 /**
  * S4 — the wrapper, driven end to end through a real `open` on a real pty.
  *
@@ -268,6 +274,89 @@ test.skipIf(!hasPty)(
           run.output.replace(ANSI, '').slice(0, 300)
         )}`
       ).toBe(0)
+    } finally {
+      t.terminal.close()
+    }
+  },
+  60000
+)
+
+/** What the reference command prints — the version the wrapper must report. */
+function referenceOutput(): string {
+  const proc = Bun.spawnSync(reference.split(/\s+/).filter(Boolean), {
+    timeout: 10000,
+    killSignal: 'SIGTERM'
+  })
+  if (proc.exitCode !== 0) {
+    throw new Error(`the reference exited ${proc.exitCode}: ${proc.stderr.toString().trim()}`)
+  }
+  return proc.stdout.toString().trim()
+}
+
+/**
+ * T1 — the wrapper restores the tty and ends on a fresh line.
+ *
+ * The wrapper sets the tty raw so the app can read keys off the device. Raw
+ * mode turns off the terminal's echo and line discipline, so a wrapper that
+ * does not put the terminal back leaves every shell it runs in broken: no
+ * echo, no line editing. The last thing the app writes must also end on a
+ * fresh line, so the shell prompt returns at column 0 rather than glued to the
+ * version.
+ *
+ * `--version` exercises both with no model call and no picker: it prints the
+ * version the reference prints and exits. The reference
+ * (`plutil -extract version raw package.json`) is the version truth, so the
+ * run is compared against it.
+ */
+test.skipIf(!hasPty)(
+  'the wrapper restores the tty and ends on a fresh line',
+  async () => {
+    if (!(await isWrapper(WRAPPER))) {
+      expect(false, `no wrapper installed at ${WRAPPER}`).toBe(true)
+      return
+    }
+
+    const want = referenceOutput()
+    expect(want, 'the reference command printed no version to compare against').not.toBe('')
+
+    const t = makeTerminal()
+    try {
+      const run = await drive(t, [WRAPPER, '--version'], [], { env: wrapperEnv })
+      const seen = run.output.replace(ANSI, '')
+      expect(
+        run.exited,
+        `the app must exit — the terminal said ${JSON.stringify(seen.slice(0, 400))}`
+      ).toBe(true)
+      expect(
+        run.code,
+        `--version exits 0 — the terminal said ${JSON.stringify(seen.slice(0, 400))}`
+      ).toBe(0)
+      expect(
+        seen,
+        `--version must print the version the reference prints (${want}) — it printed ${JSON.stringify(
+          seen.slice(0, 200)
+        )}`
+      ).toContain(want)
+
+      // "Ends on a fresh line": the output closes with a newline, so the shell
+      // prompt starts on its own line.
+      expect(
+        run.output.endsWith('\n'),
+        `--version must end on a fresh line — the terminal ended with ${JSON.stringify(
+          run.output.slice(-40)
+        )}`
+      ).toBe(true)
+
+      // "Restores the tty": a key typed at the terminal after the run is echoed
+      // back by the terminal's own line discipline. Raw mode (echo off) would
+      // swallow it.
+      t.reset()
+      t.terminal.write('x')
+      await Bun.sleep(300)
+      expect(
+        t.read(),
+        'the wrapper left the tty raw: a key typed after the run was not echoed back'
+      ).toContain('x')
     } finally {
       t.terminal.close()
     }

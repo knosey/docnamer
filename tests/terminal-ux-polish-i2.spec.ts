@@ -25,6 +25,7 @@ import {
   header_still_visible,
   CONTROLS
 } from './terminal-ux-polish-harness.ts'
+import { ANSI } from './pty.ts'
 
 flow('terminal-ux-polish I2: review shows padded cards with a locked controls header', async () => {
   const s = new Session()
@@ -36,7 +37,9 @@ flow('terminal-ux-polish I2: review shows padded cards with a locked controls he
 
   // The Outcome, asserted once over the frame the scroll left behind: two cards
   // with padding between them, and the controls header still on screen.
-  if (!/\d+\/\d+/.test(s.reviewFrame) || !CONTROLS.test(s.reviewFrame.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, ''))) {
-    throw new Error(`I2 outcome: the scrolled frame lost its cards or its controls header:\n${s.reviewFrame}`)
+  if (!/\d+\/\d+/.test(s.reviewFrame) || !CONTROLS.test(s.reviewFrame.replace(ANSI, ''))) {
+    throw new Error(
+      `I2 outcome: the scrolled frame lost its cards or its controls header:\n${s.reviewFrame}`
+    )
   }
 })

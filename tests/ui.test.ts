@@ -21,6 +21,10 @@
  *  3. The ASCII fallback. `TERM=dumb` and a non-UTF-8 locale must produce a
  *     frame a terminal can actually draw, not mojibake.
  */
+// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
+// verdict follows it: keep this constant as it is and assert against it.
+export const reference = process.env.GRAPH_REFERENCE ?? 'locale charmap'
+
 import { expect, test } from 'bun:test'
 import { styleFrom, ui, type Style } from '../src/ui.ts'
 
@@ -186,4 +190,68 @@ test('a spinner on a terminal redraws in place and clears its own line', () => {
   const out = seen.join('')
   expect(out, 'a terminal spinner must return to the start of its line').toContain('\r')
   expect(out, 'a terminal spinner must erase what it drew').toContain(String.fromCharCode(27))
+})
+
+/**
+ * T2 — the block progress bar and its ASCII fallback.
+ *
+ * The reference is `locale charmap`: it prints the encoding this locale uses,
+ * and that is the truth about whether the block glyphs are drawable. On this
+ * machine it prints `UTF-8`, so the unicode style draws the block bar and the
+ * ASCII style must not. The completion bar the analysis flow asserts
+ * (tests/terminal-ux-polish-harness.ts FULL_BAR) is ten `▰` blocks, a space and
+ * `100%`; that is the format this bar must produce.
+ */
+/** Run the reference command and return its trimmed stdout. */
+const referenceOutput = (): string => {
+  const [cmd, ...args] = reference.split(/\s+/).filter(Boolean)
+  const proc = Bun.spawnSync([cmd as string, ...args])
+  return proc.stdout.toString().trim()
+}
+
+const FULL_BAR = '\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0 100%'
+const BLOCK_OR_RULE = /[\u25b0\u25b1\u2500-\u257f]/
+
+/** src/ui.ts after T2, read through the namespace so a missing export is a
+ *  failed check this suite prints, never an uncaught throw at load. */
+type Progress = { progressBar?: (done: number, total: number, style: Style) => string }
+const uiModule = async (): Promise<Progress> =>
+  (await import('../src/ui.ts')) as unknown as Progress
+
+const needProgressBar = async (): Promise<((d: number, t: number, s: Style) => string) | null> => {
+  const mod = await uiModule()
+  expect(typeof mod.progressBar, 'src/ui.ts must export progressBar').toBe('function')
+  return typeof mod.progressBar === 'function' ? mod.progressBar : null
+}
+
+test('the block bar follows the locale charmap', () => {
+  const charmap = referenceOutput()
+  expect(charmap, 'the reference locale must be UTF-8').toBe('UTF-8')
+  const glyphs = ui(PRETTY).glyphs as unknown as { full?: string; empty?: string }
+  expect(glyphs.full, 'a UTF-8 locale gets the full block glyph').toBe('\u25b0')
+  expect(glyphs.empty, 'a UTF-8 locale gets the empty block glyph').toBe('\u25b1')
+})
+
+test('a completed run draws the full ten-block bar', async () => {
+  const progressBar = await needProgressBar()
+  if (!progressBar) return
+  expect(progressBar(10, 10, PRETTY), '100% is the full bar the flow asserts').toBe(FULL_BAR)
+})
+
+test('a half-finished run fills half the bar', async () => {
+  const progressBar = await needProgressBar()
+  if (!progressBar) return
+  const bar = progressBar(5, 10, PRETTY)
+  expect((bar.match(/\u25b0/g) ?? []).length, 'half a ten-cell bar is filled').toBe(5)
+  expect((bar.match(/\u25b1/g) ?? []).length, 'half a ten-cell bar is empty').toBe(5)
+  expect(bar, 'the bar carries its percentage').toContain('50%')
+})
+
+test('an ASCII terminal gets an ASCII bar with no block glyph', async () => {
+  const progressBar = await needProgressBar()
+  if (!progressBar) return
+  const bar = progressBar(10, 10, PLAIN)
+  expect(bar, 'the ASCII fallback must not draw a block or rule glyph').not.toMatch(BLOCK_OR_RULE)
+  expect(bar, 'the ASCII bar must still show progress').toMatch(/[#=>-]/)
+  expect(bar, 'the ASCII bar must still show the percentage').toContain('100%')
 })
