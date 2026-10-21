@@ -86,3 +86,11 @@ across user-visible strings.
 
 - A1: How should the wrapper restore the tty and guarantee a trailing newline for non-interactive commands? — terms: rawmode, CRLF
 - A2: Which capability-detection rule gates unicode/colour output? — terms: NO_COLOR, isTTY
+
+## Decisions
+
+<!-- record:decisions -->
+- brainstorm · run `brainstorm-design-9b4e5a` · asked: Review screen: with controls locked as a header, how should each document be laid out — one document filling the viewport (scroll between docs), or several padded cards stacked in a list? — answered: in the operator's words: 2 and I want to be able to reselect and version already assessed and change, for example I complete the first 10 and a the… [+95 chars]
+- brainstorm · run `brainstorm-design-9b4e5a` · asked: Plainer wording: how far should it go — only user-visible strings (prompts, errors, help), or also command names and flags? — answered: Strings only, names unchanged (Recommended)
+- brainstorm · run `brainstorm-design-9b4e5a` · asked: How much may the UI depend on terminal features — is plain ANSI colour/box-drawing on any modern terminal enough, or must everything degrade gracefully to plain ASCII (no unicode ▰▱, no colour)? — answered: Unicode+colour with ASCII fallback (Recommended)
+<!-- /record:decisions -->
