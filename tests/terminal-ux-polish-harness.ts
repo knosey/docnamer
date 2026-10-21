@@ -1,0 +1,531 @@
+/**
+ * Shared e2e harness for the terminal-ux-polish feature
+ * (docs/features/terminal-ux-polish/INTERACTIONS.md).
+ *
+ * One exported function per node of the six digraphs. A flow test is its
+ * digraph's steps called in order plus the assertion of its Outcome:
+ *
+ *   const s = new Session()
+ *   await run_version(s); await capture_pty_frame(s); await no_stray_percent(s); await prompt_on_own_line(s)
+ *
+ * The steps drive the real artifact — the installed `~/bin/docnamer` wrapper on
+ * a real pty for the wrapper flows (I1), the CLI on a pty for the review and
+ * analysis flows (I2-I5), and the CLI on a pipe for the fallback flow (I6) — and
+ * observe the frame it drew, the plan it wrote and the exit it returned. Nothing
+ * is asserted about how a screen looked beyond the characters the interaction
+ * names; a frame is a byte stream and a redraw looks broken to a grep.
+ *
+ * Every run is self-contained: a fresh temp folder with a seeded plan, a CLI
+ * resolved per run, and nothing written into the repo outside
+ * `.audit/screenshots/` (the frame writer). The flows run side by side, so no
+ * step depends on a name another run could also hold.
+ *
+ * A step whose claim the current tree cannot yet satisfy throws — the flows are
+ * red until T1-T6 land. A step whose claim no observation surface can see
+ * throws `Skipped`, a machine-readable hole, rather than passing.
+ *
+ * This is test code, so `node:` built-ins and test helpers are fine here.
+ */
+import { writePlan, PLAN_FILE, type PlanRow } from '../src/commands.ts'
+import { wrapper } from './app-binary.ts'
+import { runChild, type ChildRun } from './child.ts'
+import { resolveCli } from './doc-renamer-apply-harness.ts'
+import { frame } from './frame.ts'
+import { ANSI, makeTerminal, type Run, type Term } from './pty.ts'
+import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
+import { scratch } from './scratch.ts'
+
+/** Repo root, so a spec can read the tree this run belongs to. */
+export const repo = import.meta.dir.replace(/\/tests$/, '')
+
+/** A named hole: the claim cannot be closed on the current observation surface. */
+export class Skipped extends Error {
+  readonly skip = true
+  constructor(readonly claim: string) {
+    super('SKIP: ' + claim)
+    this.name = 'Skipped'
+  }
+}
+
+/** The version line the wrapper prints, read off a captured frame. */
+export const VERSION_LINE = /^docnamer\s+\S+/m
+
+/** The controls header I2/I3 keep on screen: the keys and the position. */
+export const CONTROLS = /keys:.*accept.*skip.*edit/s
+
+/** The full completion bar I5 asserts. */
+export const FULL_BAR = '\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0\u25b0 100%'
+
+/** The block glyphs the unicode path draws and the ASCII path must not. */
+export const BLOCKS = /[\u25b0\u25b1\u2500-\u257f]/
+
+/** Three review rows, enough that scrolling and revisiting are both reachable. */
+function seedRows(): PlanRow[] {
+  const rows: Array<[string, string]> = [
+    ['a-receipt.pdf', '2024-03-12 acme receipt.pdf'],
+    ['b-receipt.pdf', '2024-03-13 globex receipt.pdf'],
+    ['c-receipt.pdf', '2024-03-14 initech receipt.pdf']
+  ]
+  return rows.map(([old, newName]) => ({
+    old,
+    new: newName,
+    type: 'receipt',
+    method: 'text',
+    fields: { date: '2024-03-12' },
+    evidence: { date: 'Date 12 March 2024' },
+    flags: [],
+    summary: `A receipt named ${old}.`,
+    size: 10,
+    mtime: 0,
+    status: 'pending'
+  }))
+}
+
+/** A live process on its own pty, with the wait that replaces a sleep. */
+type Live = {
+  term: Term
+  proc: ReturnType<typeof Bun.spawn>
+  write(keys: string): void
+  reset(): void
+  waitFor(marker: string, ms?: number): Promise<void>
+  seen(): string
+  finish(ms?: number): Promise<Run>
+  close(): void
+}
+
+export class Session {
+  /** Per-run working folder. */
+  dir = ''
+  /** `<dir>/.docnamer-plan.json`. */
+  planPath = ''
+  /** Resolved CLI argv, or null when no `docnamer` is reachable. */
+  cli: string[] | null = null
+  booted = false
+  /** The wrapper-on-a-shell run I1 drives. */
+  shell: Live | null = null
+  /** The review session I2/I3 drive. */
+  review: Live | null = null
+  /** The analysis session I4/I5 drive. */
+  analysis: Live | null = null
+  /** The latest captured review frame. */
+  reviewFrame = ''
+  /** Successive distinct analysis frames, in the order the terminal showed them. */
+  analysisFrames: string[] = []
+  /** The `--version` run I1 captured. */
+  version: Run | null = null
+  /** The piped, no-colour output I6 captured. */
+  output = ''
+  /** Last plain CLI invocation. */
+  last: ChildRun = { code: -1, stdout: '', stderr: '' }
+}
+
+const shellEnv = (extra: Record<string, string> = {}): Record<string, string> => {
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
+  env.TERM = 'xterm-256color'
+  return { ...env, ...extra }
+}
+
+/** Boot the isolated environment: temp folder, seeded plan, resolved CLI.
+ *  Exported for the smoke test, which proves the harness boots a run and stays
+ *  out of the repo without any feature code existing yet. */
+export async function boot(s: Session): Promise<void> {
+  if (s.booted) return
+  const dir = scratch('docnamer-ux')
+  s.dir = dir
+  s.planPath = `${dir}/${PLAN_FILE}`
+  // The plan is written by the PRODUCT's own writer, so review reads a file the
+  // product produced, not one this harness hand-rolled from a guessed envelope.
+  await writePlan(dir, seedRows())
+  s.cli = await resolveCli()
+  s.booted = true
+}
+
+const missingCli = (): Error =>
+  new Error(
+    'docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts'
+  )
+
+/** Boot if a prior step has not, and prove a CLI is reachable. */
+async function ensure(s: Session): Promise<void> {
+  if (!s.booted) await boot(s)
+  if (!s.cli) throw missingCli()
+}
+
+const argv = (s: Session): string[] => {
+  if (!s.cli) throw missingCli()
+  return s.cli
+}
+
+/** Spawn `cmd` on its own pty and collect every byte it writes. */
+function startPty(cmd: string[], env: Record<string, string>, cwd: string): Live {
+  const term = makeTerminal()
+  const proc = Bun.spawn(cmd, { terminal: term.terminal, env, cwd })
+  const plain = (): string => term.read().replace(ANSI, '')
+  const waitFor = async (marker: string, ms = 20000): Promise<void> => {
+    const start = Date.now()
+    for (;;) {
+      if (plain().includes(marker)) return
+      if (Date.now() - start > ms) {
+        throw new Error(
+          `the terminal never showed ${JSON.stringify(marker)}: it showed ${JSON.stringify(
+            plain().slice(-500)
+          )}`
+        )
+      }
+      await Bun.sleep(25)
+    }
+  }
+  return {
+    term,
+    proc,
+    write: (keys: string) => term.terminal.write(keys),
+    reset: () => term.reset(),
+    waitFor,
+    seen: () => term.read(),
+    finish: async (ms = 20000): Promise<Run> => {
+      const raced = await Promise.race([proc.exited, Bun.sleep(ms).then(() => 'hung' as const)])
+      if (raced === 'hung') {
+        proc.kill()
+        return { exited: false, code: null, output: term.read() }
+      }
+      await Bun.sleep(150)
+      return { exited: true, code: raced, output: term.read() }
+    },
+    close: () => term.terminal.close()
+  }
+}
+
+/** The plain text of a captured frame, escapes removed. */
+const strip = (text: string): string => text.replace(ANSI, '')
+
+// --- I1: version command leaves a clean terminal ------------------------------
+
+/** run_version: run `docnamer --version` under zsh on a real pty. The stray `%`
+ *  zsh prints comes from the wrapper's raw-mode tty losing the trailing CRLF, so
+ *  the wrapper — not the bare binary — is what this drives. */
+export async function run_version(s: Session): Promise<Session> {
+  await ensure(s)
+  if (!(await Bun.file(wrapper).exists())) {
+    throw new Skipped(`I1 run_version: no installed wrapper at ${wrapper} to drive`)
+  }
+  const live = startPty(['/bin/zsh', '-f'], shellEnv({ PS1: 'ux-ready> ' }), s.dir)
+  s.shell = live
+  await live.waitFor('ux-ready>', 10000)
+  live.reset()
+  live.write(`${wrapper} --version\r`)
+  await live.waitFor('ux-ready>', 30000)
+  s.version = { exited: true, code: 0, output: live.seen() }
+  return s
+}
+
+/** capture_pty_frame: write the captured version frame as the flow's evidence. */
+export async function capture_pty_frame(s: Session): Promise<Session> {
+  if (!s.version) throw new Error('I1 capture_pty_frame: run_version has not run')
+  await frame(strip(s.version.output), 'i1-version')
+  return s
+}
+
+/** no_stray_percent: no `%` marker sits between the version line and the prompt. */
+export async function no_stray_percent(s: Session): Promise<Session> {
+  if (!s.version) throw new Error('I1 no_stray_percent: run_version has not run')
+  const text = strip(s.version.output)
+  if (!VERSION_LINE.test(text)) {
+    throw new Error(`I1 no_stray_percent: the frame carries no version line:\n${text}`)
+  }
+  // zsh's partial-line marker is a lone `%` immediately before the prompt. The
+  // version line must end the output; a `%` after it is the defect.
+  const afterVersion = text.slice(text.search(VERSION_LINE))
+  if (/%(?=\s*ux-ready>)/.test(afterVersion)) {
+    throw new Error(`I1 no_stray_percent: zsh printed a stray % after the version:\n${text}`)
+  }
+  return s
+}
+
+/** prompt_on_own_line: the shell prompt returns on the line after the version. */
+export async function prompt_on_own_line(s: Session): Promise<Session> {
+  if (!s.version) throw new Error('I1 prompt_on_own_line: run_version has not run')
+  const lines = strip(s.version.output).split(/\r\n|\n|\r/)
+  const version = lines.findIndex(l => VERSION_LINE.test(l))
+  if (version < 0) throw new Error('I1 prompt_on_own_line: the frame carries no version line')
+  const promptAfter = lines.slice(version + 1).some(l => l.includes('ux-ready>'))
+  if (!promptAfter) {
+    throw new Error(
+      `I1 prompt_on_own_line: the prompt did not return on its own line after the version:\n${lines.join('\n')}`
+    )
+  }
+  return s
+}
+
+// --- I2: review screen shows padded cards with a locked controls header -------
+
+/** open_review: start `docnamer review` on a pty and wait for the header. */
+export async function open_review(s: Session): Promise<Session> {
+  await ensure(s)
+  const live = startPty([...argv(s), 'review', s.dir], shellEnv(), repo)
+  s.review = live
+  await live.waitFor('Reviewing', 30000)
+  return s
+}
+
+/** render_cards: wait for the first card and capture the frame. */
+export async function render_cards(s: Session): Promise<Session> {
+  const live = await reviewOf(s)
+  await live.waitFor('[1/', 30000)
+  s.reviewFrame = live.seen()
+  return s
+}
+
+/** two_cards_with_padding: at least two cards, with a blank line between them. */
+export async function two_cards_with_padding(s: Session): Promise<Session> {
+  const lines = strip(s.reviewFrame).split(/\r\n|\n|\r/)
+  const headers = lines.reduce<number[]>((at, l, i) => {
+    if (/\[\d+\/\d+\]/.test(l)) at.push(i)
+    return at
+  }, [])
+  if (headers.length < 2) {
+    throw new Error(`I2 two_cards_with_padding: ${headers.length} card(s) on screen:\n${s.reviewFrame}`)
+  }
+  const between = lines.slice((headers[0] as number) + 1, headers[1] as number)
+  if (!between.some(l => l.trim() === '')) {
+    throw new Error(
+      `I2 two_cards_with_padding: no blank padding line between the first two cards:\n${between.join('\n')}`
+    )
+  }
+  return s
+}
+
+/** scroll_down: move the cursor to the next document. */
+export async function scroll_down(s: Session): Promise<Session> {
+  const live = await reviewOf(s)
+  live.write('\x1b[B')
+  await live.waitFor('[2/', 30000)
+  s.reviewFrame = live.seen()
+  return s
+}
+
+/** header_still_visible: the controls header survives the scroll. */
+export async function header_still_visible(s: Session): Promise<Session> {
+  if (!CONTROLS.test(strip(s.reviewFrame))) {
+    throw new Error(
+      `I2 header_still_visible: the controls header scrolled away:\n${s.reviewFrame}`
+    )
+  }
+  return s
+}
+
+/** The review session, opened on demand so I3's steps stand alone. */
+async function reviewOf(s: Session): Promise<Live> {
+  if (s.review) return s.review
+  await open_review(s)
+  if (!s.review) throw new Error('I2 reviewOf: open_review left no session')
+  return s.review
+}
+
+// --- I3: revisit and change an already-assessed document ----------------------
+
+/** accept_doc1: accept document 1, then move on. */
+export async function accept_doc1(s: Session): Promise<Session> {
+  const live = await reviewOf(s)
+  live.write('\r')
+  await live.waitFor('[2/', 30000)
+  return s
+}
+
+/** navigate_back: ↑ returns to the already-accepted document 1. */
+export async function navigate_back(s: Session): Promise<Session> {
+  const live = await reviewOf(s)
+  live.write('\x1b[A')
+  await live.waitFor('[1/', 30000)
+  return s
+}
+
+/** edit_name: `e`, the new name, Enter, then quit so the plan is persisted. */
+export async function edit_name(s: Session): Promise<Session> {
+  const live = await reviewOf(s)
+  live.write('e')
+  await live.waitFor('new name', 30000)
+  live.write('2024-03-12 acme receipt revised.pdf\r')
+  await live.waitFor('[2/', 30000)
+  live.write('q')
+  const run = await live.finish(30000)
+  if (!run.exited || run.code !== 0) {
+    throw new Error(`I3 edit_name: review did not exit cleanly: ${JSON.stringify(run.output.slice(-400))}`)
+  }
+  return s
+}
+
+/** plan_updated_for_doc1: the plan on disk records the new name for document 1. */
+export async function plan_updated_for_doc1(s: Session): Promise<Session> {
+  const rows = JSON.parse(await Bun.file(s.planPath).text()) as PlanRow[]
+  const first = rows[0]
+  if (!first) throw new Error('I3 plan_updated_for_doc1: the plan has no first row')
+  if (first.new !== '2024-03-12 acme receipt revised.pdf') {
+    throw new Error(`I3 plan_updated_for_doc1: document 1 is "${first.new}", not the edited name`)
+  }
+  if (first.status !== 'accepted') {
+    throw new Error(`I3 plan_updated_for_doc1: document 1 is ${first.status}, not accepted`)
+  }
+  return s
+}
+
+/** later_docs_unchanged: documents 2 and 3 keep their prior state. */
+export async function later_docs_unchanged(s: Session): Promise<Session> {
+  const rows = JSON.parse(await Bun.file(s.planPath).text()) as PlanRow[]
+  for (const row of rows.slice(1)) {
+    if (row.new !== '2024-03-13 globex receipt.pdf' && row.new !== '2024-03-14 initech receipt.pdf') {
+      throw new Error(`I3 later_docs_unchanged: later document ${row.old} became "${row.new}"`)
+    }
+    if (row.status !== 'pending') {
+      throw new Error(`I3 later_docs_unchanged: later document ${row.old} is ${row.status}`)
+    }
+  }
+  return s
+}
+
+// --- I4: block progress bar next to the throbber during analysis --------------
+
+/** start_analysis: run `docnamer plan` on a pty and wait for the throbber. */
+export async function start_analysis(s: Session): Promise<Session> {
+  await ensure(s)
+  await ensureProviderKey()
+  const live = startPty([...argv(s), 'plan', s.dir], shellEnv(), repo)
+  s.analysis = live
+  await live.waitFor('reading', MODEL_CALL_MS)
+  return s
+}
+
+/** throbber_with_bar: a `▰`/`▱` bar followed by a percentage sits beside it. */
+export async function throbber_with_bar(s: Session): Promise<Session> {
+  const live = await analysisOf(s)
+  await live.waitFor('\u25b0', MODEL_CALL_MS)
+  const text = strip(live.seen())
+  if (!/\u25b0.*\d+%/.test(text)) {
+    throw new Error(`I4 throbber_with_bar: no block bar with a percentage in the frame:\n${text}`)
+  }
+  return s
+}
+
+/** capture_frames: collect the successive distinct frames the analysis drew. */
+export async function capture_frames(s: Session): Promise<Session> {
+  const live = await analysisOf(s)
+  const deadline = Date.now() + MODEL_CALL_MS
+  let last = ''
+  while (Date.now() < deadline && live.proc.exitCode === null) {
+    const text = strip(live.seen())
+    if (text !== last) {
+      s.analysisFrames.push(text)
+      last = text
+    }
+    await Bun.sleep(100)
+  }
+  if (s.analysisFrames.length === 0) {
+    throw new Error('I4 capture_frames: the analysis drew no frame to capture')
+  }
+  await frame(s.analysisFrames[s.analysisFrames.length - 1] as string, 'i4-analysis')
+  return s
+}
+
+/** percentage_increases: the percentage rises, never falls, as documents finish. */
+export async function percentage_increases(s: Session): Promise<Session> {
+  const seen: number[] = []
+  for (const f of s.analysisFrames) {
+    for (const m of f.matchAll(/(\d+)%/g)) seen.push(Number(m[1]))
+  }
+  if (seen.length < 2) {
+    throw new Error(`I4 percentage_increases: only ${seen.length} percentage(s) were drawn`)
+  }
+  for (let i = 1; i < seen.length; i += 1) {
+    if ((seen[i] as number) < (seen[i - 1] as number)) {
+      throw new Error(`I4 percentage_increases: ${seen[i - 1]}% fell to ${seen[i]}%`)
+    }
+  }
+  if ((seen[seen.length - 1] as number) <= (seen[0] as number)) {
+    throw new Error(`I4 percentage_increases: the percentage never rose from ${seen[0]}%`)
+  }
+  return s
+}
+
+/** The analysis session, opened on demand so I5's steps stand alone. */
+async function analysisOf(s: Session): Promise<Live> {
+  if (s.analysis) return s.analysis
+  await start_analysis(s)
+  if (!s.analysis) throw new Error('I4 analysisOf: start_analysis left no session')
+  return s.analysis
+}
+
+// --- I5: completion status uses the same block bar ----------------------------
+
+/** analysis_completes: wait for the analysis to exit cleanly. */
+export async function analysis_completes(s: Session): Promise<Session> {
+  const live = await analysisOf(s)
+  const run = await live.finish(MODEL_CALL_MS)
+  if (!run.exited || run.code !== 0) {
+    throw new Error(`I5 analysis_completes: analysis did not finish cleanly: ${run.code}`)
+  }
+  s.analysisFrames.push(strip(run.output))
+  return s
+}
+
+/** completion_line: the run's last line reports completion in the bar's format. */
+export async function completion_line(s: Session): Promise<Session> {
+  const last = s.analysisFrames[s.analysisFrames.length - 1]
+  if (last === undefined) throw new Error('I5 completion_line: analysis_completes has not run')
+  if (!/\d+%/.test(last)) {
+    throw new Error(`I5 completion_line: no completion line with a percentage:\n${last}`)
+  }
+  return s
+}
+
+/** full_bar_100_percent: the completion line shows the full ten-block bar. */
+export async function full_bar_100_percent(s: Session): Promise<Session> {
+  const last = s.analysisFrames[s.analysisFrames.length - 1]
+  if (last === undefined) throw new Error('I5 full_bar_100_percent: analysis_completes has not run')
+  if (!last.includes(FULL_BAR)) {
+    throw new Error(`I5 full_bar_100_percent: the completion line is not ${FULL_BAR}:\n${last}`)
+  }
+  return s
+}
+
+// --- I6: ASCII and no-colour fallback -----------------------------------------
+
+/** run_with_no_color_piped: run the CLI piped, with NO_COLOR set. */
+export async function run_with_no_color_piped(s: Session): Promise<Session> {
+  await ensure(s)
+  await ensureProviderKey()
+  const res = await runChild([...argv(s), 'plan', s.dir], {
+    cwd: repo,
+    env: { ...shellEnv({ NO_COLOR: '1' }) },
+    timeoutMs: MODEL_CALL_MS
+  })
+  s.last = res
+  s.output = res.stdout + res.stderr
+  if (s.output.trim() === '') throw new Error('I6 run_with_no_color_piped: the run wrote nothing')
+  return s
+}
+
+/** capture_output: write the piped output as the flow's evidence. */
+export async function capture_output(s: Session): Promise<Session> {
+  await frame(s.output, 'i6-no-colour')
+  return s
+}
+
+/** no_ansi_escapes: not one escape sequence reaches the pipe. */
+export async function no_ansi_escapes(s: Session): Promise<Session> {
+  const found = s.output.match(/\u001b\[[0-9;?]*[A-Za-z]/)
+  if (found) {
+    throw new Error(`I6 no_ansi_escapes: piped output carries the escape ${JSON.stringify(found[0])}`)
+  }
+  return s
+}
+
+/** ascii_progress_shown: no unicode glyph, and ASCII progress instead. */
+export async function ascii_progress_shown(s: Session): Promise<Session> {
+  if (BLOCKS.test(s.output)) {
+    throw new Error('I6 ascii_progress_shown: piped output carries a unicode block or rule glyph')
+  }
+  if (!/[#=>-]|%/.test(s.output)) {
+    throw new Error(`I6 ascii_progress_shown: no ASCII progress in the output:\n${s.output}`)
+  }
+  return s
+}
