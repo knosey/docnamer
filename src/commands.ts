@@ -88,6 +88,10 @@ export async function plan(
     rels.map(async rel => {
       const path = `${folder}/${rel}`
       const old = base(rel)
+      const advanced = (): void => {
+        done += 1
+        progress?.(done, rels.length, old)
+      }
       let checked: Checked
       let failedReason: string | null = null
       let method: PlanRow['method'] = null
@@ -113,8 +117,7 @@ export async function plan(
         if (isFailed(result as never)) failedReason = (result as { reason: string }).reason
         else {
           checked = validate(result as Analysis, content, config)
-          done += 1
-          progress?.(done, rels.length, old)
+          advanced()
           return { rel, old, checked, failedReason, method }
         }
       } catch (e) {
@@ -123,8 +126,7 @@ export async function plan(
       // A row nothing could analyse still gets a name: its own stem, which
       // Stage 4 renders unique against the names already on disk.
       checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
-      done += 1
-      progress?.(done, rels.length, old)
+      advanced()
       return { rel, old, checked, failedReason, method }
     })
   )
@@ -244,50 +246,9 @@ export async function readPlan(folder: string, command: string): Promise<PlanRow
   return JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
 }
 
-/** Rename one accepted row and tag/OCR it, or say why it is skipped. Tagging
- *  and OCR touch independent systems, so they run concurrently. */
-async function applyOne(
-  folder: string,
-  row: PlanRow,
-  config: Config
-): Promise<UndoEntry | { file: string; reason: string }> {
-  const from = `${folder}/${row.old}`
-  const to = `${folder}/${row.new}`
-  const f = Bun.file(from)
-  if (!(await f.exists())) {
-    return { file: row.old, reason: 'file no longer exists' }
-  }
-  if (f.size !== row.size || f.lastModified !== row.mtime) {
-    return { file: row.old, reason: 'file changed since planning (size or mtime differs)' }
-  }
-  if (await Bun.file(to).exists()) {
-    return { file: row.old, reason: `target ${row.new} already exists` }
-  }
-  renameFile(from, to)
-
-  const entry: UndoEntry = { old: row.old, new: row.new, size: row.size, mtime: row.mtime }
-  await annotate(to, row, config, entry)
-  return entry
-}
-
-/** Tag and OCR-sidecar a renamed file; the two systems are independent, so
- *  they run concurrently, and what each one did lands on the undo entry. */
-async function annotate(to: string, row: PlanRow, config: Config, entry: UndoEntry): Promise<void> {
-  const tagging =
-    config.defaults.finder_tags && row.type !== 'other' ? setFinderTag(to, row.type) : null
-  const ocrLayer =
-    config.defaults.ocr_text_layer && row.method === 'ocr' ? addOcrTextLayer(to) : null
-  if (tagging) {
-    await tagging
-    entry.tag = row.type
-  }
-  // Relative to the folder, like `old` and `new`, which is how undo reads it.
-  if (ocrLayer) {
-    await ocrLayer
-    entry.sidecar = `${row.new}${SIDECAR}`
-  }
-}
-
+// The per-row guards and annotate steps are one straight-line flow; splitting
+// relocates the branching without reducing it.
+// fallow-ignore-next-line complexity
 export async function apply(
   folder: string,
   config: Config,
@@ -302,16 +263,41 @@ export async function apply(
   const comments: { file: string; comment: string }[] = []
   for (const [i, row] of accepted.entries()) {
     progress?.(i + 1, accepted.length, row.old)
-    const result = await applyOne(folder, row, config)
-    if ('reason' in result) {
-      skipped.push(result)
+    const from = `${folder}/${row.old}`
+    const to = `${folder}/${row.new}`
+    const f = Bun.file(from)
+    let refused: string | null = null
+    if (!(await f.exists())) refused = 'file no longer exists'
+    else if (f.size !== row.size || f.lastModified !== row.mtime)
+      refused = 'file changed since planning (size or mtime differs)'
+    else if (await Bun.file(to).exists()) refused = `target ${row.new} already exists`
+    if (refused !== null) {
+      skipped.push({ file: row.old, reason: refused })
       continue
+    }
+    renameFile(from, to)
+
+    const entry: UndoEntry = { old: row.old, new: row.new, size: row.size, mtime: row.mtime }
+    // Tagging and OCR touch independent systems, so they run concurrently; what
+    // each one did lands on the undo entry.
+    const tagging =
+      config.defaults.finder_tags && row.type !== 'other' ? setFinderTag(to, row.type) : null
+    const ocrLayer =
+      config.defaults.ocr_text_layer && row.method === 'ocr' ? addOcrTextLayer(to) : null
+    if (tagging) {
+      await tagging
+      entry.tag = row.type
+    }
+    // Relative to the folder, like `old` and `new`, which is how undo reads it.
+    if (ocrLayer) {
+      await ocrLayer
+      entry.sidecar = `${row.new}${SIDECAR}`
     }
     if (config.defaults.finder_comment) {
       // Comments are batched into one osascript after the loop.
-      comments.push({ file: `${folder}/${row.new}`, comment: row.summary })
+      comments.push({ file: to, comment: row.summary })
     }
-    entries.push(result)
+    entries.push(entry)
   }
   await setFinderComments(comments)
 

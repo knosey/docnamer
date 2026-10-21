@@ -34,9 +34,13 @@ function utf8(env: Record<string, string | undefined>): boolean {
 }
 
 export function styleFrom(env: Record<string, string | undefined>, tty: boolean): Style {
+  // The explicit fallbacks live here, in the one capability gate: DOCNAMER_ASCII
+  // or NO_COLOR select the ASCII glyph set, so a redirected log never carries a
+  // block glyph a file cannot mean.
+  const ascii = 'DOCNAMER_ASCII' in env || 'NO_COLOR' in env
   return {
-    colour: tty && !('NO_COLOR' in env) && env.TERM !== 'dumb',
-    unicode: env.TERM !== 'dumb' && utf8(env),
+    colour: tty && !ascii && env.TERM !== 'dumb',
+    unicode: !ascii && env.TERM !== 'dumb' && utf8(env),
     tty
   }
 }
@@ -158,8 +162,10 @@ function pad(text: string, width: number): string {
  *  set: ten cells, a space, then the rounded percentage. */
 export function progressBar(done: number, total: number, style: Style): string {
   const glyphs = style.unicode ? UNICODE : ASCII
-  const filled = Math.round((done / total) * 10)
+  // One ratio, rounded once: the blocks are the percentage in tens, so the two
+  // can never disagree.
   const percent = Math.round((done / total) * 100)
+  const filled = Math.round(percent / 10)
   return `${glyphs.full.repeat(filled)}${glyphs.empty.repeat(10 - filled)} ${percent}%`
 }
 

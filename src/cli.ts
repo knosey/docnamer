@@ -350,15 +350,9 @@ export async function main(argv: string[]): Promise<number> {
   const device = parseDeviceArgs(argv)
   if (device.tty !== null) setDevice(device.tty, device.cols)
   // A device is always a tty of the size the wrapper measured, whatever the
-  // process's own fds are.
-  // The capability gate stays styleFrom; the CLI boundary then honours the
-  // explicit fallbacks: DOCNAMER_ASCII or NO_COLOR select the ASCII glyph set,
-  // so a redirected log never carries a block glyph a file cannot mean.
-  const detected = styleFrom(process.env, hasDevice() || process.stdout.isTTY === true)
-  const style: Style =
-    'DOCNAMER_ASCII' in process.env || 'NO_COLOR' in process.env
-      ? { ...detected, unicode: false, colour: false }
-      : detected
+  // process's own fds are. styleFrom is the whole capability gate, fallbacks
+  // included.
+  const style: Style = styleFrom(process.env, hasDevice() || process.stdout.isTTY === true)
   const u = ui(style)
   const [cmd, ...rest] = stripDeviceFlags(argv)
 
