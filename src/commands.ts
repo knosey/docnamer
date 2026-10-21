@@ -71,7 +71,8 @@ async function scan(folder: string, recursive: boolean): Promise<string[]> {
 export async function plan(
   folder: string,
   opts: { recursive: boolean; applyUnflagged: boolean },
-  config: Config
+  config: Config,
+  progress?: Progress
 ): Promise<PlanRow[]> {
   const rels = await scan(folder, opts.recursive)
   const planned = new Set<string>()
@@ -80,6 +81,9 @@ export async function plan(
 
   // Stages 1-3 are independent per file — one model call each — so they run
   // concurrently; Stage 4 below is serial because it mutates `planned`.
+  // Each completion reports how many documents are done, so a terminal can
+  // draw the bar rising beside the throbber while the rest are still read.
+  let done = 0
   const examined = await Promise.all(
     rels.map(async rel => {
       const path = `${folder}/${rel}`
@@ -109,6 +113,8 @@ export async function plan(
         if (isFailed(result as never)) failedReason = (result as { reason: string }).reason
         else {
           checked = validate(result as Analysis, content, config)
+          done += 1
+          progress?.(done, rels.length, old)
           return { rel, old, checked, failedReason, method }
         }
       } catch (e) {
@@ -117,6 +123,8 @@ export async function plan(
       // A row nothing could analyse still gets a name: its own stem, which
       // Stage 4 renders unique against the names already on disk.
       checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
+      done += 1
+      progress?.(done, rels.length, old)
       return { rel, old, checked, failedReason, method }
     })
   )
