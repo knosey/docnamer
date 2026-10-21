@@ -440,9 +440,11 @@ export async function main(argv: string[]): Promise<number> {
     return 0
   }
   if (cmd === 'plan') {
-    // The bar stands beside the throbber from the first frame, and rises as
+    // The throbber opens on the label alone: a percentage before the first
+    // document is measured would claim progress nobody made. The bar stands
+    // beside the throbber from the first document's completion and rises as
     // each document's analysis completes.
-    const spinner = u.spinner(`${progressBar(0, 1, style)} reading ${folder} and asking the model`)
+    const spinner = u.spinner(`reading ${folder} and asking the model`)
     const rows = await plan(
       folder,
       { recursive, applyUnflagged: false },
