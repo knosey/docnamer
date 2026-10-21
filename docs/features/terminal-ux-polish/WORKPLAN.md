@@ -66,7 +66,7 @@ prints, so the swapped reference turns the verdict.
 - done_when: `bun run test:e2e tests/terminal-ux-polish-i1.spec.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T1 -->
-**done** · run `ship-feature-909398` · built in run `ship-feature-e61fc5`
+**done** · run `ship-feature-612b6a` · built in run `ship-feature-e61fc5`
 - Commits: `c2d39ba..4207538`
 - Landed: [tests/pty.ts](../../../tests/pty.ts), [tests/terminal-ux-polish-harness.ts](../../../tests/terminal-ux-polish-harness.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -87,7 +87,7 @@ prints, so the swapped reference turns the verdict.
 - done_when: `bun test tests/ui.test.ts`
 - Reference: `locale charmap`
 <!-- record:T2 -->
-**done** · run `ship-feature-909398` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-612b6a` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/ui.ts](../../../src/ui.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -116,7 +116,7 @@ gate, not the unit test alone.
 - done_when: `bun run test:e2e tests/progress-bar.test.ts tests/terminal-ux-polish-i4.spec.ts tests/terminal-ux-polish-i5.spec.ts tests/terminal-ux-polish-i6.spec.ts`
 - Reference: `locale charmap`
 <!-- record:T3 -->
-**done** · run `ship-feature-909398` · built in run `ship-feature-ec5639`
+**done** · run `ship-feature-612b6a` · built in run `ship-feature-ec5639`
 - Commits: none — HEAD stayed at `68cead8`
 - Landed: [src/cli.ts](../../../src/cli.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -137,7 +137,7 @@ gate, not the unit test alone.
 - done_when: `bun test tests/review-screen.test.ts`
 - Reference: `tput cols`
 <!-- record:T4 -->
-**done** · run `ship-feature-909398` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-612b6a` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -158,7 +158,7 @@ gate, not the unit test alone.
 - done_when: `bun test tests/pty.test.ts`
 - Reference: `printf '%s\n' '2024-03-13 globex receipt.pdf'`
 <!-- record:T5 -->
-**done** · run `ship-feature-909398` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-612b6a` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -181,7 +181,7 @@ gate, not the unit test alone.
 - done_when: `bun test tests/cli-help.test.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T6 -->
-**done** · run `ship-feature-909398`
+**done** · run `ship-feature-612b6a`
 - Commits: none recorded
 - Landed: nothing
 - Gates: done_when ✓ · reference_decides ✓
@@ -190,8 +190,8 @@ gate, not the unit test alone.
 <!-- /record:T6 -->
 
 <!-- record:run -->
-**failed** · run `ship-feature-909398`
+**failed** · run `ship-feature-612b6a`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done
 - Commits: none recorded
-- Detail: simplify: fan-out child 'simplify-lane#0' failed: tests_green — gate tests_green gave no verdict in 105 s
+- Detail: repairs: fan-out child 'repair#0' failed: tests_green — exit 1 — output tail: … [+17 earlier line(s)] 1 fail 61 expect() calls Ran 8 tests across 1 file. [11.79s] error: script "test" exited with code 1 STILL RED AFTER THE BUILD: tests/wrapper-pty.test.ts - a test this run is graded on does not pass files named: tests/wrapper-pty.test.ts
 <!-- /record:run -->
