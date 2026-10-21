@@ -16,37 +16,47 @@
 
 - `true`
 
-## T1: the test pty answers zsh's cursor query, so I1 sees what a real terminal sees
+## T1: the test pty keeps a screen, so I1 asserts what a person sees
 
 R1's product half already shipped (ec5b904: the wrapper runs `stty raw -echo
 opost` and restores the snapshot): the installed wrapper's version run emits
 `docnamer 0.1.0\r\n`, verified byte-for-byte on a pty, and
 tests/wrapper-pty.test.ts pins it green (8/8). What is missing is the
-harness's ability to OBSERVE it, measured this session: zsh prints its
-inverse `%` partial-line marker after EVERY command on a Bun.Terminal pty —
-a plain `printf 'hi there\n'` gets it — because zsh's promptsp logic asks
-the terminal where the cursor is (`ESC[6n`, DSR) and nothing answers, and the
-capture's bare backspace byte is invalid XML 1.0, so sips refuses the raster
-("Cannot extract image from file") and I1's frame step crashes.
+harness's ability to OBSERVE it, and the first hypothesis (answer zsh's DSR
+`ESC[6n` and the marker goes away) was measured FALSE this session. The
+ground truth, captured byte-for-byte on the harness pty with the DSR answer
+active: after a clean CRLF zsh STILL prints `ESC[1m ESC[7m %` + resets +
+spaces to the right edge + `\r \r` + resets + `ESC[J` before every prompt —
+zsh's promptsp mark-then-erase is unconditional here (zsh Src/utils.c zputs
+of PROMPT_EOL_MARK, probed by part-build-0). On a real screen the `\r \r`
+erase overwrites the `%` at column 0 and nothing is ever visible; the marker
+only SURVIVES when output stopped mid-line — the wrapper bug — where the
+erase cannot reach it. So the marker is unobservable in a byte log: the
+harness must keep what a terminal keeps, the screen.
 
-This task teaches tests/pty.ts's makeTerminal to track the cursor the way a
-real terminal emulator does (printable bytes advance the column; CR, LF, BS
-and the CSI H/A/B/C/D/G/d sequences move it; clamp to the 100x40 box) and to
-answer each DSR query once by writing `ESC[{row};{col}R` to the terminal's
-input. Then the fixed wrapper's CRLF leaves the cursor at column 1, zsh
-prints no `%`, and the flow is green for the operator's reason; a wrapper
-regression that loses the CR leaves the column mid-line and the marker
-returns, so the test stays honest. tests/frame.ts strips C0 control bytes
-(the observed backspace; keep tab and newline) before rasterising. Build both
-patterns from String.fromCharCode the way tests/pty.ts's ANSI constant does,
-so oxlint's no-control-regex stays quiet. The i1 spec gains the reference
-constant and asserts the printed version equals what the reference prints.
+This task extends the cursor tracking already in tests/pty.ts's makeTerminal
+(printable bytes advance the column; CR, LF, BS and CSI H/A/B/C/D/G/d move
+it; DSR answered once per query; clamp to the 100x40 box) into a screen grid:
+a printable byte writes its cell then advances (clamp at the edge — the
+captured erase uses CR, never wrap), CSI J clears from the cursor to the end
+of the grid and CSI K to the end of the row, and Term exposes
+`screen(): string` (rows up to the last non-blank, right-trimmed, joined by
+newlines). Then the harness's no_stray_percent asserts on the SCREEN: the
+version row stands and no `%` appears between it and the prompt; with the
+fixed wrapper the screen is clean, and a wrapper regression that loses the
+CR leaves `%` standing mid-line, so the test stays honest. tests/frame.ts
+strips C0 control bytes (the observed backspace; keep tab and newline)
+before rasterising. Build every control-byte pattern from String.fromCharCode
+the way tests/pty.ts's ANSI constant does, so oxlint's no-control-regex
+stays quiet. The i1 spec keeps its reference constant asserting the printed
+version equals what the reference prints. 
 
 - Covers: R1, I1
 - Depends on: none
 - Files:
   - Modify: [pty.ts](../../../tests/pty.ts)
   - Modify: [frame.ts](../../../tests/frame.ts)
+  - Modify: [terminal-ux-polish-harness.ts](../../../tests/terminal-ux-polish-harness.ts)
   - Test: [terminal-ux-polish-i1.spec.ts](../../../tests/terminal-ux-polish-i1.spec.ts)
   - Test: [wrapper-pty.test.ts](../../../tests/wrapper-pty.test.ts)
 - Interfaces:
@@ -138,7 +148,7 @@ constant and asserts the printed version equals what the reference prints.
   - Consumes: none
   - Produces: none
 - done_when: `bun test tests/pty.test.ts`
-- Reference: `grep -om1 '2024-03-13 globex receipt.pdf' tests/terminal-ux-polish-harness.ts`
+- Reference: `printf '%s\n' '2024-03-13 globex receipt.pdf'`
 <!-- record:T5 -->
 **hole** · run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`

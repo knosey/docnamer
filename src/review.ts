@@ -21,12 +21,47 @@
 import type { Config } from './config.ts'
 import { buildName } from './name.ts'
 import { matchesKey } from '@earendil-works/pi-tui/dist/keys.js'
+import { truncateToWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import { editLine, nextStdinChunk, terminalKeys, type Keys } from './prompt.ts'
-import { extOf, PLAN_FILE, writePlan, type PlanRow } from './commands.ts'
+import { extOf, PLAN_FILE, readPlan, writePlan, type PlanRow } from './commands.ts'
 import type { Checked } from './validate.ts'
-import { hasDevice, type Ui } from './ui.ts'
+import { hasDevice, terminalWidth, type Ui } from './ui.ts'
 
-export type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
+type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
+
+/** Retype one row: the row takes the new type and its name is re-rendered
+ *  from that type's template; the other rows' names occupy the namespace so the
+ *  render cannot collide with a name it is not allowed to take. */
+async function retypeRow(
+  row: PlanRow,
+  value: string | null,
+  config: Config,
+  planned: Set<string>
+): Promise<void> {
+  if (!value) throw new Error('applyAction: retype needs the type as its value')
+  if (!config.types[value]) throw new Error(`applyAction: config has no type "${value}"`)
+  row.type = value
+  // SAFE: the plan format writes "no evidence" as an empty string, so a row
+  // read back from it legitimately has none; only `value` reaches the template.
+  const checked: Checked = {
+    type: value,
+    type_confidence: 1,
+    fields: Object.fromEntries(
+      Object.entries(row.fields).map(([k, v]) => [k, { value: v, evidence: row.evidence[k] ?? '' }])
+    ),
+    summary: row.summary,
+    flags: row.flags
+  }
+  row.new = await buildName(checked, config, { dir: '', ext: extOf(row.new) }, planned)
+  row.status = 'accepted'
+}
+
+/** Accept every pending flag-free row; a flagged row stays for the person. */
+function acceptUnflagged(out: PlanRow[]): void {
+  for (const r of out) {
+    if (r.status === 'pending' && r.flags.length === 0) r.status = 'accepted'
+  }
+}
 
 /**
  * Apply one review decision to the rows and return the updated array. Pure apart
@@ -56,34 +91,12 @@ export async function applyAction(
       row.status = 'accepted'
       break
     case 'retype': {
-      if (!value) throw new Error('applyAction: retype needs the type as its value')
-      if (!config.types[value]) throw new Error(`applyAction: config has no type "${value}"`)
-      row.type = value
-      // Re-render the name from the new type's template; the other rows' names
-      // occupy the namespace so the render cannot collide with them.
-      // SAFE: the plan format writes "no evidence" as an empty string, so a row
-      // read back from it legitimately has none; only `value` reaches the template.
-      const checked: Checked = {
-        type: value,
-        type_confidence: 1,
-        fields: Object.fromEntries(
-          Object.entries(row.fields).map(([k, v]) => [
-            k,
-            { value: v, evidence: row.evidence[k] ?? '' }
-          ])
-        ),
-        summary: row.summary,
-        flags: row.flags
-      }
       const planned = new Set(out.filter((_, i) => i !== index).map(r => r.new))
-      row.new = await buildName(checked, config, { dir: '', ext: extOf(row.new) }, planned)
-      row.status = 'accepted'
+      await retypeRow(row, value, config, planned)
       break
     }
     case 'accept-unflagged':
-      for (const r of out) {
-        if (r.status === 'pending' && r.flags.length === 0) r.status = 'accepted'
-      }
+      acceptUnflagged(out)
       break
   }
   return out
@@ -158,11 +171,29 @@ function current(s: Session): { row: PlanRow; index: number } | null {
   return index === undefined || row === undefined ? null : { row, index }
 }
 
-/** Show the row under the cursor, or say every row has been seen. */
+/** The controls, restated above each card so they stay on screen however far
+ *  the review has scrolled. */
+function controls(u: Ui): string {
+  return u.dim('keys: Enter accept · s skip · e edit · t retype · A accept unflagged · q quit')
+}
+
+/** Show the row under the cursor and the one after it as stacked padded cards,
+ *  or say every row has been seen. */
 function show(s: Session): void {
   const at = current(s)
-  if (at) s.u.log(renderRow(at.row, s.cursor + 1, s.order.length, s.u))
-  else s.u.log(s.u.dim(`every row seen — q saves and quits${s.keys ? ', ↑ goes back' : ''}`))
+  if (!at) {
+    s.u.log(s.u.dim(`every row seen — q saves and quits${s.keys ? ', ↑ goes back' : ''}`))
+    return
+  }
+  s.u.log('')
+  s.u.log(controls(s.u))
+  s.u.log(renderRow(at.row, s.cursor + 1, s.order.length, s.u))
+  const ahead = s.order[s.cursor + 1]
+  const next = ahead === undefined ? undefined : s.rows[ahead]
+  if (next !== undefined) {
+    s.u.log('')
+    s.u.log(renderRow(next, s.cursor + 2, s.order.length, s.u))
+  }
 }
 
 /** Move the cursor without deciding anything. */
@@ -205,7 +236,10 @@ async function valueFor(
         : rest.slice(0, end)
       : await editLine(
           s.u.dim(`    ${action === 'edit' ? 'new name' : 'type'}: `),
-          action === 'edit' ? row.new : row.type,
+          // A row already decided is being revisited: the person re-types its
+          // value, so the line opens empty and what is typed replaces, not
+          // appends. A pending row opens on what it holds now.
+          row.status === 'pending' ? (action === 'edit' ? row.new : row.type) : '',
           text => s.u.raw(text),
           s.keys
         )
@@ -291,10 +325,7 @@ async function readPipe(s: Session): Promise<void> {
  */
 export async function review(folder: string, config: Config, u: Ui): Promise<void> {
   const planPath = `${folder}/${PLAN_FILE}`
-  if (!(await Bun.file(planPath).exists())) {
-    throw new Error(`review: no plan file at ${planPath} — run docnamer plan first`)
-  }
-  const rows = JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
+  const rows = await readPlan(folder, 'review')
   // Flagged rows are where a person is needed; they go first.
   const order = rows
     .map((row, index) => ({ row, index }))
@@ -302,11 +333,15 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
     .sort((a, b) => Number(b.row.flags.length > 0) - Number(a.row.flags.length > 0))
     .map(({ index }) => index)
 
-  u.log(u.head(`Reviewing ${order.length} pending row(s)`, planPath))
+  // The plan path can run past the terminal; a line wider than the screen wraps
+  // and breaks the card layout, so the header is clipped to the width.
+  const width = terminalWidth()
   u.log(
-    u.dim(
-      'keys: ↑/↓ move · Enter accept · s skip · e edit name · t retype · A accept all unflagged · q quit'
-    )
+    u
+      .head(`Reviewing ${order.length} pending row(s)`, planPath)
+      .split('\n')
+      .map(line => truncateToWidth(line, width))
+      .join('\n')
   )
 
   const stdin = process.stdin

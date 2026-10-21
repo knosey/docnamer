@@ -3,31 +3,21 @@
  * value, config) applies one ReviewAction to a plan row and returns the updated rows, and the CLI
  * dispatches `plan`, `apply`, `undo` and `review`.
  *
- * Missing modules and missing exports are failed checks this test PRINTS, not load-time throws, so a
- * red run is the absence of the work and nothing else.
+ * applyAction ships, so it is imported statically; the CLI's `main` is still reached dynamically so
+ * a red run of the dispatch checks is the absence of the work and nothing else.
  */
 import { describe, expect, test } from 'bun:test'
 import { runChild } from './child.ts'
 import type { Config } from '../src/config.ts'
 import { loadConfig } from '../src/config.ts'
+import type { PlanRow } from '../src/commands.ts'
+import { applyAction } from '../src/review.ts'
 import { MODEL_CALL_MS } from './preload.ts'
 import { scratch } from './scratch.ts'
 
 const repo = import.meta.dir.replace(/\/tests$/, '')
 
-type Row = {
-  old: string
-  new: string
-  type: string
-  method: 'text' | 'ocr' | 'vision' | null
-  fields: Record<string, string>
-  evidence: Record<string, string>
-  flags: string[]
-  summary: string
-  size: number
-  mtime: number
-  status: 'pending' | 'accepted' | 'skipped'
-}
+type Row = PlanRow
 
 const row = (over: Partial<Row> = {}): Row => ({
   old: 'invoice-acme-2026-04.txt',
@@ -52,12 +42,6 @@ async function importOrNull(path: string): Promise<Record<string, unknown> | nul
   }
 }
 
-async function reviewModule(): Promise<Record<string, unknown>> {
-  const m = await importOrNull('../src/review.ts')
-  expect(m, 'src/review.ts must exist (T3)').not.toBeNull()
-  return m as Record<string, unknown>
-}
-
 function fn(mod: Record<string, unknown>, name: string): (...args: unknown[]) => unknown {
   const f = mod[name]
   expect(typeof f, `src/review.ts must export ${name} (T3)`).toBe('function')
@@ -68,46 +52,36 @@ const config = (): Config => loadConfig(`${repo}/docnamer.json`)
 
 describe('T3 applyAction', () => {
   test('accept marks the addressed row accepted and leaves the rest alone', async () => {
-    const m = await reviewModule()
-    const applyAction = fn(m, 'applyAction')
     const rows = [row(), row({ old: 'letter.txt', new: 'Letter.txt', type: 'letter' })]
-    const out = (await applyAction(rows, 0, 'accept', null, config())) as Row[]
+    const out = await applyAction(rows, 0, 'accept', null, config())
     expect(out[0]?.status).toBe('accepted')
     expect(out[1]?.status).toBe('pending')
   })
 
   test('skip marks the addressed row skipped', async () => {
-    const m = await reviewModule()
-    const applyAction = fn(m, 'applyAction')
-    const out = (await applyAction([row()], 0, 'skip', null, config())) as Row[]
+    const out = await applyAction([row()], 0, 'skip', null, config())
     expect(out[0]?.status).toBe('skipped')
   })
 
   test('edit writes the given name and accepts the row', async () => {
-    const m = await reviewModule()
-    const applyAction = fn(m, 'applyAction')
-    const out = (await applyAction([row()], 0, 'edit', 'Chosen Name.txt', config())) as Row[]
+    const out = await applyAction([row()], 0, 'edit', 'Chosen Name.txt', config())
     expect(out[0]?.new).toBe('Chosen Name.txt')
     expect(out[0]?.status).toBe('accepted')
   })
 
   test('retype changes the row type and accepts it', async () => {
-    const m = await reviewModule()
-    const applyAction = fn(m, 'applyAction')
-    const out = (await applyAction([row()], 0, 'retype', 'receipt', config())) as Row[]
+    const out = await applyAction([row()], 0, 'retype', 'receipt', config())
     expect(out[0]?.type).toBe('receipt')
     expect(out[0]?.status).toBe('accepted')
   })
 
   test('accept-unflagged accepts flag-free rows and leaves flagged rows pending', async () => {
-    const m = await reviewModule()
-    const applyAction = fn(m, 'applyAction')
     const rows = [
       row(),
       row({ old: 'scan.pdf', flags: ['low-confidence'] }),
       row({ old: 'letter.txt', flags: [] })
     ]
-    const out = (await applyAction(rows, 0, 'accept-unflagged', null, config())) as Row[]
+    const out = await applyAction(rows, 0, 'accept-unflagged', null, config())
     expect(out[0]?.status).toBe('accepted')
     expect(out[1]?.status).toBe('pending')
     expect(out[2]?.status).toBe('accepted')

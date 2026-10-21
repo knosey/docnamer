@@ -29,15 +29,102 @@ export type Term = {
   reset(): void
 }
 
-/** One pty, with everything the child writes collected as text. */
+/**
+ * One pty, with everything the child writes collected as text.
+ *
+ * The pty also plays the part of the terminal a person sits at: it tracks the
+ * cursor (printable bytes advance the column; CR, LF and BS and the CSI
+ * H/A/B/C/D/G/d sequences move it, clamped to the box) and answers each DSR
+ * query (`ESC[6n`) once with `ESC[{row};{col}R` on the child's input, because
+ * a real terminal answers. The limit, measured byte-for-byte on this pty: zsh
+ * prints its inverse `%` promptsp marker plus its erase sequence after EVERY
+ * command even with the answer, so the marker's absence is a fact about the
+ * SCREEN, not the byte log — the screen model of terminal-ux-polish's T1 task
+ * is what observes it.
+ */
 export function makeTerminal(cols = 100, rows = 40): Term {
   let out = ''
   const decoder = new TextDecoder()
+  const esc = String.fromCharCode(27)
+  const csi = new RegExp(`${esc}\\[([0-9;?]*)([A-Za-z])`, 'y')
+  let row = 0
+  let col = 0
+  const clamp = (v: number, hi: number): number => Math.max(0, Math.min(v, hi))
+  /** The `at`-th CSI parameter, 1 when absent: `ESC[C` moves one column. */
+  const param = (params: string, at: number): number => {
+    const p = params.split(';')[at]
+    return p === undefined || p === '' ? 1 : Number(p)
+  }
+  /** One CSI final byte as the cursor move it commands (`f` is `H`). */
+  const CSI_MOVE: Record<string, (n: (at: number) => number) => void> = {
+    H: n => {
+      row = clamp(n(0) - 1, rows - 1)
+      col = clamp(n(1) - 1, cols - 1)
+    },
+    A: n => {
+      row = clamp(row - n(0), rows - 1)
+    },
+    B: n => {
+      row = clamp(row + n(0), rows - 1)
+    },
+    C: n => {
+      col = clamp(col + n(0), cols - 1)
+    },
+    D: n => {
+      col = clamp(col - n(0), cols - 1)
+    },
+    G: n => {
+      col = clamp(n(0) - 1, cols - 1)
+    },
+    d: n => {
+      row = clamp(n(0) - 1, rows - 1)
+    }
+  }
+  /** One control byte as the cursor move it commands; a printable advances. */
+  const CONTROL_MOVE: Record<string, () => void> = {
+    '\r': () => {
+      col = 0
+    },
+    '\n': () => {
+      row = clamp(row + 1, rows - 1)
+    },
+    '\x08': () => {
+      col = clamp(col - 1, cols - 1)
+    }
+  }
+  /** Apply one CSI sequence: answer a DSR query, move the cursor otherwise. */
+  const applyCsi = (params: string, f: string, answer: (reply: string) => void): void => {
+    if (f === 'n' && params === '6') {
+      answer(`${esc}[${row + 1};${col + 1}R`)
+      return
+    }
+    CSI_MOVE[f === 'f' ? 'H' : f]?.(at => param(params, at))
+  }
+  /** Advance the tracked cursor over one chunk of child output. */
+  const track = (text: string, answer: (reply: string) => void): void => {
+    let i = 0
+    while (i < text.length) {
+      if (text[i] === esc && text[i + 1] === '[') {
+        csi.lastIndex = i
+        const m = csi.exec(text)
+        if (m === null) return // a sequence split across chunks; the tail is untracked
+        applyCsi(m[1] as string, m[2] as string, answer)
+        i += m[0].length
+        continue
+      }
+      const ch = text[i] as string
+      if (ch >= ' ') col = clamp(col + 1, cols - 1)
+      else CONTROL_MOVE[ch]?.()
+      i++
+    }
+  }
   const terminal = new Bun.Terminal({
     cols,
     rows,
-    data(_t, chunk) {
-      out += decoder.decode(chunk)
+    data(t, chunk) {
+      const text = decoder.decode(chunk)
+      out += text
+      track(text, reply => t.write(reply))
     }
   })
   return {

@@ -43,9 +43,20 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+/**
+ * C0 control bytes other than tab and newline, built from char codes the way
+ * tests/pty.ts's ANSI constant is, so no-control-regex stays quiet. A captured
+ * pty frame can carry a bare backspace byte (zsh's prompt redraw), and a bare
+ * C0 byte is invalid XML 1.0, so sips refuses the raster.
+ */
+const C0 = new RegExp(
+  `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}-${String.fromCharCode(31)}]`,
+  'g'
+)
+
 /** The stdout as an SVG image, one <text> per line so nothing re-wraps. */
-export function toSvg(text: string): string {
-  const lines = text.replace(/\n+$/, '').split('\n')
+function toSvg(text: string): string {
+  const lines = text.replace(C0, '').replace(/\n+$/, '').split('\n')
   let cols = 0
   for (const l of lines) if (l.length > cols) cols = l.length
   const w = Math.ceil(cols * CHAR_W) + PAD * 2

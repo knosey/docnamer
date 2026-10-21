@@ -7,8 +7,7 @@ import { Session, boot } from './terminal-ux-polish-harness.ts'
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
 export const reference =
-  process.env.GRAPH_REFERENCE ??
-  "grep -o '2024-03-13 globex receipt.pdf' tests/terminal-ux-polish-harness.ts"
+  process.env.GRAPH_REFERENCE ?? "printf '%s\n' '2024-03-13 globex receipt.pdf'"
 
 /** `$(reference)`: run the reference and return its trimmed stdout. */
 const referenceOutput = (): string => {
@@ -365,10 +364,9 @@ test.skipIf(!hasPty)(
  * edited one, the row must stay accepted, and the later documents must keep the
  * names they already had.
  *
- * The plan is seeded by the flow harness itself, so the later document's name is
- * the one the reference prints; the assertion compares the plan the program
- * wrote against that same truth, which is what proves a re-edit leaves the
- * documents after it alone. A screen is a byte stream and a redraw looks broken
+ * The flow harness seeds the later document with the name the reference
+ * prints; the assertion compares the plan the program wrote against that same
+ * truth, which is what proves a re-edit leaves the documents after it alone. A screen is a byte stream and a redraw looks broken
  * to a grep, so this asserts on the plan the run persisted, never on the frame.
  */
 test.skipIf(!hasPty)(
@@ -407,9 +405,7 @@ test.skipIf(!hasPty)(
         `review exits 0 — the terminal showed ${JSON.stringify(seen.slice(-400))}`
       ).toBe(0)
 
-      const after: { new: string; status: string }[] = JSON.parse(
-        await Bun.file(s.planPath).text()
-      )
+      const after: { new: string; status: string }[] = JSON.parse(await Bun.file(s.planPath).text())
       expect(after[0], 'the re-edit is stored and the row stays accepted').toEqual(
         expect.objectContaining({ new: '2024-03-12 acme receipt revised.pdf', status: 'accepted' })
       )

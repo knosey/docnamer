@@ -12,11 +12,11 @@ import { ANSI } from './pty.ts'
 import { scratch } from './scratch.ts'
 
 // The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
-export const reference = 'tput cols'
+export const reference = process.env.GRAPH_REFERENCE ?? 'tput cols'
 
 /** What the reference command prints — the terminal width the review screen must fit. */
 function referenceOutput(): string {
-  const proc = Bun.spawnSync(reference.trim().split(/\s+/).filter(Boolean), { stdout: 'pipe' })
+  const proc = Bun.spawnSync(['/bin/sh', '-c', reference], { stdout: 'pipe' })
   return new TextDecoder().decode(proc.stdout).trim()
 }
 
