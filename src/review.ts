@@ -160,24 +160,41 @@ function current(s: Session): { row: PlanRow; index: number } | null {
   return index === undefined || row === undefined ? null : { row, index }
 }
 
+/** Log review lines clipped to the terminal's width — a line wider than the
+ *  screen wraps and breaks the card layout. The one width rule, on every line. */
+function say(u: Ui, text: string): void {
+  for (const line of text.split('\n')) u.log(truncateToWidth(line, terminalWidth()))
+}
+
 /** Show the row under the cursor and the one after it as stacked padded cards,
  *  or say every row has been seen. */
 function show(s: Session): void {
   const at = current(s)
   if (!at) {
-    s.u.log(s.u.dim(`every row seen — q saves and quits${s.keys ? ', ↑ goes back' : ''}`))
+    say(
+      s.u,
+      s.u.dim(
+        `every row seen ${s.u.glyphs.dash} q saves and quits${s.keys ? `, ${s.u.glyphs.up} goes back` : ''}`
+      )
+    )
     return
   }
+  const dot = s.u.glyphs.dot
   s.u.log('')
   // The controls are restated above each card so they stay on screen however
   // far the review has scrolled.
-  s.u.log(s.u.dim('keys: Enter accept · s skip · e edit · t retype · A accept unflagged · q quit'))
-  s.u.log(renderRow(at.row, s.cursor + 1, s.order.length, s.u))
+  say(
+    s.u,
+    s.u.dim(
+      `keys: Enter accept ${dot} s skip ${dot} e edit ${dot} t retype ${dot} A accept unflagged ${dot} q quit`
+    )
+  )
+  say(s.u, renderRow(at.row, s.cursor + 1, s.order.length, s.u))
   const ahead = s.order[s.cursor + 1]
   const next = ahead === undefined ? undefined : s.rows[ahead]
   if (next !== undefined) {
     s.u.log('')
-    s.u.log(renderRow(next, s.cursor + 2, s.order.length, s.u))
+    say(s.u, renderRow(next, s.cursor + 2, s.order.length, s.u))
   }
 }
 
@@ -320,16 +337,7 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
     .sort((a, b) => Number(b.row.flags.length > 0) - Number(a.row.flags.length > 0))
     .map(({ index }) => index)
 
-  // The plan path can run past the terminal; a line wider than the screen wraps
-  // and breaks the card layout, so the header is clipped to the width.
-  const width = terminalWidth()
-  u.log(
-    u
-      .head(`Reviewing ${order.length} pending row(s)`, planPath)
-      .split('\n')
-      .map(line => truncateToWidth(line, width))
-      .join('\n')
-  )
+  say(u, u.head(`Reviewing ${order.length} pending row(s)`, planPath))
 
   const stdin = process.stdin
   const raw = stdin.isTTY && typeof stdin.setRawMode === 'function'

@@ -34,10 +34,9 @@ function utf8(env: Record<string, string | undefined>): boolean {
 }
 
 export function styleFrom(env: Record<string, string | undefined>, tty: boolean): Style {
-  // The explicit fallbacks live here, in the one capability gate: DOCNAMER_ASCII
-  // or NO_COLOR select the ASCII glyph set, so a redirected log never carries a
-  // block glyph a file cannot mean.
-  const ascii = 'DOCNAMER_ASCII' in env || 'NO_COLOR' in env
+  // NO_COLOR selects the ASCII glyph set too: a redirected log never carries
+  // a block glyph a file cannot mean.
+  const ascii = 'NO_COLOR' in env
   return {
     colour: tty && !ascii && env.TERM !== 'dumb',
     unicode: !ascii && env.TERM !== 'dumb' && utf8(env),
@@ -52,6 +51,8 @@ type Glyphs = {
   readonly warn: string
   readonly pointer: string
   readonly rule: string
+  readonly dash: string
+  readonly dot: string
   readonly up: string
   readonly down: string
   readonly frames: readonly string[]
@@ -64,6 +65,8 @@ const UNICODE: Glyphs = {
   warn: '!',
   pointer: '\u276f',
   rule: '\u2500',
+  dash: '\u2014',
+  dot: '\u00b7',
   up: '\u2191',
   down: '\u2193',
   frames: [
@@ -87,6 +90,8 @@ const ASCII: Glyphs = {
   warn: '!',
   pointer: '>',
   rule: '-',
+  dash: '-',
+  dot: '*',
   up: '^',
   down: 'v',
   frames: ['|', '/', '-', '\\']
@@ -162,9 +167,9 @@ function pad(text: string, width: number): string {
  *  set: ten cells, a space, then the rounded percentage. */
 export function progressBar(done: number, total: number, style: Style): string {
   const glyphs = style.unicode ? UNICODE : ASCII
-  // One ratio, floored: the blocks are the whole tens of the percentage, so
-  // the two can never disagree and the bar is full only at 100%.
-  const percent = Math.floor((done / total) * 100)
+  // One ratio, floored (0 of 0 is 0%): the blocks are the whole tens of the
+  // percentage, so the two can never disagree and the bar is full only at 100%.
+  const percent = total === 0 ? 0 : Math.floor((done / total) * 100)
   const filled = Math.floor(percent / 10)
   return `${glyphs.full.repeat(filled)}${glyphs.empty.repeat(10 - filled)} ${percent}%`
 }

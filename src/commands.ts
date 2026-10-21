@@ -233,10 +233,6 @@ function removeFile(path: string): void {
   }
 }
 
-function undoStamp(d: Date): string {
-  return d.toISOString().replace(/[:.]/g, '-')
-}
-
 /**
  * Apply the accepted rows of `<folder>/.docnamer-plan.json`: rename each in
  * place, tag and comment it per the config, and record every change in a
@@ -273,13 +269,16 @@ export async function apply(
     const from = `${folder}/${row.old}`
     const to = `${folder}/${row.new}`
     const f = Bun.file(from)
-    let refused: string | null = null
-    if (!(await f.exists())) refused = 'file no longer exists'
-    else if (f.size !== row.size || f.lastModified !== row.mtime)
-      refused = 'file changed since planning (size or mtime differs)'
-    else if (await Bun.file(to).exists()) refused = `target ${row.new} already exists`
-    if (refused !== null) {
-      skipped.push({ file: row.old, reason: refused })
+    if (!(await f.exists())) {
+      skipped.push({ file: row.old, reason: 'file no longer exists' })
+      continue
+    }
+    if (f.size !== row.size || f.lastModified !== row.mtime) {
+      skipped.push({ file: row.old, reason: 'file changed since planning (size or mtime differs)' })
+      continue
+    }
+    if (await Bun.file(to).exists()) {
+      skipped.push({ file: row.old, reason: `target ${row.new} already exists` })
       continue
     }
     renameFile(from, to)
@@ -309,28 +308,12 @@ export async function apply(
   await setFinderComments(comments)
 
   const now = new Date()
-  const stamp = undoStamp(now)
+  const stamp = now.toISOString().replace(/[:.]/g, '-')
   const undoFile = `.docnamer-undo-${stamp}.json`
   const record: UndoRecord = { run: stamp, at: now.toISOString(), entries }
   await Bun.write(`${folder}/${undoFile}`, JSON.stringify(record, null, 2) + '\n')
   removeFile(planPath)
   return { renamed: entries.length, skipped, undoFile }
-}
-
-/** The latest undo record file in the folder, or null. */
-async function latestUndoFile(folder: string): Promise<string | null> {
-  const found: string[] = []
-  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({
-    cwd: folder,
-    onlyFiles: true
-  })) {
-    found.push(rel)
-  }
-  found.sort()
-  // SAFE: a folder with no undo record is a legitimate state the caller reports,
-  // so `?? null` only normalises `at(-1)`'s undefined into this function's
-  // declared null; it does not stand in for data that should have been there.
-  return found.at(-1) ?? null
 }
 
 /** Put one entry back under its original name, with its tag and without its
@@ -367,7 +350,19 @@ export async function undo(
   config: Config,
   progress?: Progress
 ): Promise<UndoReport> {
-  const name = run === null ? await latestUndoFile(folder) : run
+  let name = run
+  if (name === null) {
+    const found: string[] = []
+    for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({
+      cwd: folder,
+      onlyFiles: true
+    })) {
+      found.push(rel)
+    }
+    // SAFE: a folder with no undo record is a legitimate state the error below
+    // reports; `at(-1)`'s undefined only names it.
+    name = found.sort().at(-1) ?? null
+  }
   if (name === null) {
     throw new Error(`undo: no .docnamer-undo-*.json in ${folder} — nothing to undo`)
   }

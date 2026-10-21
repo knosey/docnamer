@@ -444,14 +444,16 @@ export async function main(argv: string[]): Promise<number> {
       { recursive, applyUnflagged: false },
       config,
       (done, total, file) => {
-        spinner.update(`${progressBar(done, total, style)} ${done} of ${total} — ${file}`)
+        const bar = progressBar(done, total, style)
+        spinner.update(`${bar} ${done} of ${total} ${u.glyphs.dash} ${file}`)
       }
     )
     await writePlan(folder, rows)
-    // Completion is 100% by definition; the completion line draws the full bar
-    // in the same format the in-progress bars drew.
-    const total = Math.max(rows.length, 1)
-    spinner.stop(`${progressBar(total, total, style)} planned ${rows.length} document(s)`)
+    // The completion line draws the final bar in the same format the
+    // in-progress bars drew; an empty folder reads 0%, never a full bar.
+    spinner.stop(
+      `${progressBar(rows.length, rows.length, style)} planned ${rows.length} document(s)`
+    )
     // The table is what a person reads before anything is renamed: the count
     // alone never showed which name a file would get.
     u.log(renderTable(rows, style))
@@ -465,7 +467,7 @@ export async function main(argv: string[]): Promise<number> {
   if (cmd === 'apply') {
     const spinner = u.spinner(`renaming the documents in ${folder}`)
     const report = await apply(folder, config, (done, total, file) => {
-      spinner.update(`${done} of ${total} \u2014 ${file}`)
+      spinner.update(`${done} of ${total} ${u.glyphs.dash} ${file}`)
     })
     spinner.stop(`renamed ${report.renamed} file(s)`)
     for (const s of report.skipped) u.log(u.warn(`skipped ${s.file}: ${s.reason}`))
@@ -474,7 +476,7 @@ export async function main(argv: string[]): Promise<number> {
   }
   const spinner = u.spinner(`restoring the names in ${folder}`)
   const report = await undo(folder, run, config, (done, total, file) => {
-    spinner.update(`${done} of ${total} \u2014 ${file}`)
+    spinner.update(`${done} of ${total} ${u.glyphs.dash} ${file}`)
   })
   spinner.stop(`restored ${report.restored.length} file(s)`)
   // The names, not a count: after an operation whose whole point is
