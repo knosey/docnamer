@@ -65,12 +65,12 @@ version equals what the reference prints.
 - done_when: `bun run test:e2e tests/terminal-ux-polish-i1.spec.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T1 -->
-**hole** · run `ship-feature-47c841`
-- Commits: none — HEAD stayed at `3d6e3f5`
-- Landed: [tests/frame.ts](../../../tests/frame.ts), [tests/pty.test.ts](../../../tests/pty.test.ts), [tests/pty.ts](../../../tests/pty.ts), [tests/review-screen.test.ts](../../../tests/review-screen.test.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✗
+**hole** · run `ship-feature-e61fc5`
+- Commits: `c2d39ba..4207538`
+- Landed: [tests/pty.ts](../../../tests/pty.ts), [tests/terminal-ux-polish-harness.ts](../../../tests/terminal-ux-polish-harness.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✓ · reference_decides ✗
 - Tests: task-test#0 done
-- Summary: done_when — exit 1 — output tail: … [+19 earlier line(s)] 0 pass 1 fail Ran 1 test across 1 file. [407.00ms] error: script "test:e2e" exited with code 1 files named: tests/terminal-ux-polish-i1.spec.ts
+- Summary: reference_decides — `bun run test:e2e tests/terminal-ux-polish-i1.spec.ts` passed with its reference swapped for a wrong truth — the test's verdict does not depend on its reference; that is the test's defect, not this build's: … [+4 earlier line(s)] (pass) terminal-ux-polish I1: version command leaves a clean terminal [212.32ms] 1 pass 0 fail Ran 1 test across 1 file. [290.00ms]
 <!-- /record:T1 -->
 
 ## T2: block progress bar renderer with ASCII fallback
@@ -86,12 +86,12 @@ version equals what the reference prints.
 - done_when: `bun test tests/ui.test.ts`
 - Reference: `locale charmap`
 <!-- record:T2 -->
-**done** · run `ship-feature-47c841`
+**done** · run `ship-feature-e61fc5` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/ui.ts](../../../src/ui.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✓ · reference_decides ✓
+- Gates: done_when ✓ · reference_decides ✓
 - Tests: task-test#1 done
-- Summary: T2 built: added `progressBar(done, total, style)` to src/ui.ts plus `full`/`empty` glyphs (`▰`/`▱` unicode, `#`/`-` ASCII); `bun test tests/ui.test.ts` green (14 pass, 0 fail), and sibling tests/progress-bar.test.ts also fully green (5 pass, including T3 wiring).
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/ui.test.ts` passes as committed — the task shipped in an earlier run: src/ui.ts
 <!-- /record:T2 -->
 
 ## T3: progress bar wired next to the throbber and into completion lines
@@ -108,7 +108,7 @@ version equals what the reference prints.
 - done_when: `bun test tests/progress-bar.test.ts`
 - Reference: `locale charmap`
 <!-- record:T3 -->
-**done** · run `ship-feature-47c841`
+**done** · run `ship-feature-e61fc5`
 - Commits: none recorded
 - Landed: nothing
 - Gates: done_when ✓ · reference_decides ✓
@@ -129,12 +129,12 @@ version equals what the reference prints.
 - done_when: `bun test tests/review-screen.test.ts`
 - Reference: `tput cols`
 <!-- record:T4 -->
-**hole** · run `ship-feature-47c841`
+**done** · run `ship-feature-e61fc5` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✓ · reference_decides ✗
+- Gates: done_when ✓ · reference_decides ✓
 - Tests: task-test#3 done
-- Summary: reference_decides — `bun test tests/review-screen.test.ts` passed with its reference swapped for a wrong truth — the test's verdict does not depend on its reference; that is the test's defect, not this build's: … [+5 earlier line(s)] 2 pass 0 fail 30 expect() calls Ran 2 tests across 1 file. [273.00ms]
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/review-screen.test.ts` passes as committed — the task shipped in an earlier run: src/review.ts
 <!-- /record:T4 -->
 
 ## T5: revisit and re-edit any already-assessed document
@@ -150,12 +150,12 @@ version equals what the reference prints.
 - done_when: `bun test tests/pty.test.ts`
 - Reference: `printf '%s\n' '2024-03-13 globex receipt.pdf'`
 <!-- record:T5 -->
-**hole** · run `ship-feature-47c841`
+**done** · run `ship-feature-e61fc5` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
-- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✗
+- Gates: done_when ✓ · reference_decides ✓
 - Tests: task-test#4 done
-- Summary: done_when — exit 1 — output tail: … [+27 earlier line(s)] 6 pass 1 fail 28 expect() calls Ran 7 tests across 1 file. [1.97s] files named: tests/pty.test.ts
+- Summary: RE-RUN, ALREADY GREEN: `bun test tests/pty.test.ts` passes as committed — the task shipped in an earlier run: src/review.ts
 <!-- /record:T5 -->
 
 ## T6: plain-English wording across help, prompts and errors
@@ -173,7 +173,7 @@ version equals what the reference prints.
 - done_when: `bun test tests/cli-help.test.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T6 -->
-**done** · run `ship-feature-47c841`
+**done** · run `ship-feature-e61fc5`
 - Commits: none recorded
 - Landed: nothing
 - Gates: done_when ✓ · reference_decides ✓
@@ -182,8 +182,8 @@ version equals what the reference prints.
 <!-- /record:T6 -->
 
 <!-- record:run -->
-**failed** · run `ship-feature-47c841`
-- Tasks: T1 hole · T2 done · T3 done · T4 hole · T5 hole · T6 done
-- Commits: none — HEAD stayed at `3d6e3f5`
-- Detail: verify: exit 1 — output tail: … [+21662 earlier chars] the block bar follows the locale charmap [2.94ms] (pass) a completed run draws the full ten-block bar [0.14ms] (pass) a half-finished run fills half the bar [0.06ms] (pass) an ASCII terminal gets an ASCII bar with no block glyph [0.06ms] tests/failure-report.test.ts: (pass) a folder that cannot be read is named, with a way forward [88.66ms] te… [+3832 chars]
+**failed** · run `ship-feature-e61fc5`
+- Tasks: T1 hole · T2 done · T3 done · T4 done · T5 done · T6 done
+- Commits: `c2d39ba..4207538`
+- Detail: verify: exit 1 — output tail: … [+19045 earlier chars] ] (pass) colour off means not one escape sequence anywhere in the output [0.18ms] (pass) the plan margin stays raw so a colour terminal cannot hide the "!" [0.02ms] (pass) a table aligns its columns and never leaves trailing whitespace [0.10ms] (pass) a failure block names what broke and how to fix it [0.02ms] (pass) a failure with no fix prin… [+3587 chars]
 <!-- /record:run -->
