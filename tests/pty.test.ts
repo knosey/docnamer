@@ -2,6 +2,19 @@ import { expect, test } from 'bun:test'
 import { repo, resolveCli, closedFolder, reopen } from './doc-renamer-apply-harness.ts'
 import { ANSI, drive, hasPty, makeTerminal, paints } from './pty.ts'
 import { scratch } from './scratch.ts'
+import { Session, boot } from './terminal-ux-polish-harness.ts'
+
+// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
+// verdict follows it: keep this constant as it is and assert against it.
+export const reference =
+  process.env.GRAPH_REFERENCE ??
+  "grep -o '2024-03-13 globex receipt.pdf' tests/terminal-ux-polish-harness.ts"
+
+/** `$(reference)`: run the reference and return its trimmed stdout. */
+const referenceOutput = (): string => {
+  const proc = Bun.spawnSync(['/bin/sh', '-c', reference], { cwd: repo })
+  return proc.stdout.toString().trim()
+}
 
 /**
  * T9 — `docnamer login` on a REAL terminal.
@@ -336,6 +349,76 @@ test.skipIf(!hasPty)(
       )
       expect(after[2], 'an arrow key decides nothing: ↑ is not `A`').toEqual(
         expect.objectContaining({ status: 'pending' })
+      )
+    } finally {
+      t.terminal.close()
+    }
+  },
+  20000
+)
+
+/**
+ * T5 — an already-assessed document can be revisited and re-edited.
+ *
+ * R4/I3: a person accepts document 1, walks on to document 2, comes back to the
+ * accepted document 1 and edits its name. The name on disk must become the
+ * edited one, the row must stay accepted, and the later documents must keep the
+ * names they already had.
+ *
+ * The plan is seeded by the flow harness itself, so the later document's name is
+ * the one the reference prints; the assertion compares the plan the program
+ * wrote against that same truth, which is what proves a re-edit leaves the
+ * documents after it alone. A screen is a byte stream and a redraw looks broken
+ * to a grep, so this asserts on the plan the run persisted, never on the frame.
+ */
+test.skipIf(!hasPty)(
+  'an already-accepted document can be revisited and re-edited on a real pty',
+  async () => {
+    const cli = await cliOrThrow()
+    const home = await freshHome()
+    const s = new Session()
+    await boot(s)
+    const later = referenceOutput()
+    const t = makeTerminal()
+    try {
+      const run = await drive(
+        t,
+        [...cli, 'review', s.dir],
+        [
+          // accept document 1, then move on to document 2
+          ['[1/3]', '\r'],
+          // ↑ returns to the already-accepted document 1
+          ['[2/3]', '\x1b[A'],
+          // re-edit it: `e`, the new name, Enter
+          ['[1/3]', 'e'],
+          ['new name:', '2024-03-12 acme receipt revised.pdf\r'],
+          // quit so the plan is persisted
+          ['[2/3]', 'q']
+        ],
+        { cwd: repo, env: cleanEnv(home), ms: 8000 }
+      )
+      const seen = run.output.replace(ANSI, '')
+      expect(
+        run.exited,
+        `q must leave the review — the terminal showed ${JSON.stringify(seen.slice(-400))}`
+      ).toBe(true)
+      expect(
+        run.code,
+        `review exits 0 — the terminal showed ${JSON.stringify(seen.slice(-400))}`
+      ).toBe(0)
+
+      const after: { new: string; status: string }[] = JSON.parse(
+        await Bun.file(s.planPath).text()
+      )
+      expect(after[0], 'the re-edit is stored and the row stays accepted').toEqual(
+        expect.objectContaining({ new: '2024-03-12 acme receipt revised.pdf', status: 'accepted' })
+      )
+      expect(
+        after[1]?.new,
+        'a re-edit must leave the later document at the name the reference prints'
+      ).toBe(later)
+      expect(after[2], 'the document after that is untouched').toEqual(
+        expect.objectContaining({ new: '2024-03-14 initech receipt.pdf', status: 'pending' })
       )
     } finally {
       t.terminal.close()
