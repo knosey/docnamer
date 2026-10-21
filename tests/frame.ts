@@ -29,7 +29,7 @@
  */
 import { scratch } from './scratch.ts'
 
-const FRAMES_DIR = '.audit/screenshots'
+export const FRAMES_DIR = '.audit/screenshots'
 
 /** Menlo at 13px. The SVG box is sized from these, so nothing is clipped. */
 const CHAR_W = 7.9

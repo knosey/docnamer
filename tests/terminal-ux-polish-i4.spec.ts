@@ -3,7 +3,8 @@
  * during analysis" (docs/features/terminal-ux-polish/INTERACTIONS.md).
  *
  * The digraph is start_analysis -> throbber_with_bar -> capture_frames ->
- * percentage_increases; this file is those harness steps called in order, then
+ * analysis_frame_is_one_screen -> percentage_increases; this file is those
+ * harness steps called in order, then
  * the assertion of the Outcome: captured frames of the analysis phase show a
  * `▰`/`▱` block bar followed by a percentage beside the throbber, and the
  * percentage increases monotonically as documents complete.
@@ -18,6 +19,7 @@ import {
   start_analysis,
   throbber_with_bar,
   capture_frames,
+  analysis_frame_is_one_screen,
   percentage_increases
 } from './terminal-ux-polish-harness.ts'
 
@@ -26,5 +28,6 @@ flow('terminal-ux-polish I4: block progress bar next to the throbber during anal
   await start_analysis(s)
   await throbber_with_bar(s)
   await capture_frames(s)
+  await analysis_frame_is_one_screen(s)
   await percentage_increases(s)
 })

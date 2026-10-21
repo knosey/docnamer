@@ -3,7 +3,7 @@
  * header.
  *
  * Digraph steps in order:
- *   open_review -> render_cards -> two_cards_with_padding
+ *   open_review -> render_cards -> review_frame_captured -> two_cards_with_padding
  *   render_cards -> scroll_down -> header_still_visible
  *
  * Outcome: a captured review frame shows at least two document cards with
@@ -20,6 +20,7 @@ import {
   Session,
   open_review,
   render_cards,
+  review_frame_captured,
   two_cards_with_padding,
   scroll_down,
   header_still_visible,
@@ -31,6 +32,7 @@ flow('terminal-ux-polish I2: review shows padded cards with a locked controls he
   const s = new Session()
   await open_review(s)
   await render_cards(s)
+  await review_frame_captured(s)
   await two_cards_with_padding(s)
   await scroll_down(s)
   await header_still_visible(s)

@@ -30,7 +30,7 @@ import { writePlan, PLAN_FILE, type PlanRow } from '../src/commands.ts'
 import { wrapper } from './app-binary.ts'
 import { runChild, type ChildRun } from './child.ts'
 import { resolveCli } from './doc-renamer-apply-harness.ts'
-import { frame } from './frame.ts'
+import { frame, FRAMES_DIR } from './frame.ts'
 import { ANSI, makeTerminal, type Run, type Term } from './pty.ts'
 import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 import { scratch } from './scratch.ts'
@@ -138,6 +138,12 @@ export class Session {
   reviewFrame = ''
   /** Successive distinct analysis frames, in the order the terminal showed them. */
   analysisFrames: string[] = []
+  /** The text capture_pty_frame rasterised — asserted legible, not just written. */
+  versionFrame = ''
+  /** The screen with the throbber and bar on it, taken when the bar was seen. */
+  throbberFrame = ''
+  /** The text capture_frames rasterised for I4. */
+  framedAnalysis = ''
   /** The `--version` run I1 captured. */
   version: Run | null = null
   /** The piped, no-colour output I6 captured. */
@@ -250,7 +256,28 @@ export async function run_version(s: Session): Promise<Session> {
 /** capture_pty_frame: write the captured version frame as the flow's evidence. */
 export async function capture_pty_frame(s: Session): Promise<Session> {
   if (!s.version) throw new Error('I1 capture_pty_frame: run_version has not run')
-  await frame(strip(s.version.output), 'i1-version')
+  if (!s.shell) throw new Error('I1 capture_pty_frame: run_version left no shell session')
+  // The screen, not the byte log: the log carries every redraw and erase, which
+  // rasterises as mangled, over-wide lines no judge can read.
+  s.versionFrame = s.shell.screen()
+  await frame(s.versionFrame, 'i1-version')
+  return s
+}
+
+/** version_frame_legible: the evidence is the screen a person saw — the version
+ *  on a line of its own, not the byte log where the command echo and the output
+ *  collide (`--versiondocnamer 0.1.0`). A frame a judge cannot read is no frame. */
+export async function version_frame_legible(s: Session): Promise<Session> {
+  const lines = s.versionFrame.split('\n')
+  const long = lines.find(l => l.length > 100)
+  if (long !== undefined) {
+    throw new Error(
+      `I1 version_frame_legible: a line runs ${long.length} chars — wider than the 100-column screen, so this is the byte log's redraws, not what a person saw:\n${long}`
+    )
+  }
+  if (!lines.some(l => /^docnamer \d+\.\d+\.\d+$/.test(l.trim()))) {
+    throw new Error(`I1 version_frame_legible: no line holds the version alone:\n${s.versionFrame}`)
+  }
   return s
 }
 
@@ -304,7 +331,23 @@ export async function open_review(s: Session): Promise<Session> {
 export async function render_cards(s: Session): Promise<Session> {
   const live = await reviewOf(s)
   await live.waitFor('[1/', 30000)
-  s.reviewFrame = live.seen()
+  s.reviewFrame = live.screen()
+  await frame(s.reviewFrame, 'i2-review')
+  return s
+}
+
+/** review_frame_captured: the review flow leaves visual evidence — a rasterised
+ *  frame a judge can read the cards, the padding and the controls header off.
+ *  The judge reads every .png under .audit/screenshots/, so a flow that writes
+ *  none fails its elements sight unseen. */
+export async function review_frame_captured(s: Session): Promise<Session> {
+  const png = `${repo}/${FRAMES_DIR}/i2-review.png`
+  if (!(await Bun.file(png).exists())) {
+    throw new Error(`I2 review_frame_captured: render_cards wrote no frame to ${png}`)
+  }
+  if (!/\[\d+\/\d+\]/.test(strip(s.reviewFrame))) {
+    throw new Error(`I2 review_frame_captured: the frame shows no [n/m] card:\n${s.reviewFrame}`)
+  }
   return s
 }
 
@@ -334,7 +377,7 @@ export async function scroll_down(s: Session): Promise<Session> {
   const live = await reviewOf(s)
   live.write('\x1b[B')
   await live.waitFor('[2/', 30000)
-  s.reviewFrame = live.seen()
+  s.reviewFrame = live.screen()
   return s
 }
 
@@ -461,6 +504,9 @@ export async function throbber_with_bar(s: Session): Promise<Session> {
   const live = await analysisOf(s)
   const full = referenceFullBlock()
   await live.waitFor(full, BAR_WINDOW_MS)
+  // The throbber frame is transient — gone once the run completes — so the
+  // evidence screen is taken here, while the bar is provably on it.
+  s.throbberFrame = live.screen()
   const text = strip(live.seen())
   const pct = text.search(/\d+%/)
   if (!text.includes(full) || pct === -1 || text.indexOf(full) > pct) {
@@ -488,7 +534,33 @@ export async function capture_frames(s: Session): Promise<Session> {
   if (s.analysisFrames.length === 0) {
     throw new Error('I4 capture_frames: the analysis drew no frame to capture')
   }
-  await frame(s.analysisFrames[s.analysisFrames.length - 1] as string, 'i4-analysis')
+  if (!s.throbberFrame) throw new Error('I4 capture_frames: throbber_with_bar has not run')
+  s.framedAnalysis = s.throbberFrame
+  await frame(s.framedAnalysis, 'i4-analysis')
+  return s
+}
+
+/** analysis_frame_is_one_screen: the evidence is one screen — what a person saw
+ *  while the bar climbed — not the concatenation of every redraw the pty ever
+ *  received, which rasterises as hundreds of lines of history no judge can read. */
+export async function analysis_frame_is_one_screen(s: Session): Promise<Session> {
+  const lines = s.framedAnalysis.split('\n')
+  if (lines.length > 60) {
+    throw new Error(
+      `I4 analysis_frame_is_one_screen: the frame is ${lines.length} lines of redraw history, not one screen`
+    )
+  }
+  const long = lines.find(l => l.length > 100)
+  if (long !== undefined) {
+    throw new Error(
+      `I4 analysis_frame_is_one_screen: a line runs ${long.length} chars — wider than the 100-column screen, so this is the byte log's redraws, not one screen`
+    )
+  }
+  if (!s.framedAnalysis.includes(referenceFullBlock()) || !/\d+%/.test(s.framedAnalysis)) {
+    throw new Error(
+      `I4 analysis_frame_is_one_screen: the frame shows no bar with a percentage:\n${s.framedAnalysis}`
+    )
+  }
   return s
 }
 
