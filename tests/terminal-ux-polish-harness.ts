@@ -50,6 +50,26 @@ export class Skipped extends Error {
 /** The version line the wrapper prints, read off a captured frame. */
 export const VERSION_LINE = /^docnamer\s+\S+/m
 
+// THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
+// verdict follows it: keep this constant as it is and assert against it.
+const reference = process.env.GRAPH_REFERENCE ?? 'plutil -extract version raw package.json'
+
+/** Run the reference command and return its trimmed stdout. */
+const referenceOutput = (): string => {
+  const [cmd, ...args] = reference.split(/\s+/).filter(Boolean)
+  const proc = Bun.spawnSync([cmd as string, ...args])
+  return proc.stdout.toString().trim()
+}
+
+/** The bar line the reference's charmap draws at 100%: FULL_BAR on a UTF-8
+ *  locale, ASCII `#`s where the charmap says otherwise — the truth the
+ *  swapped reference turns against the block bar the CLI draws. */
+const referenceFullBar = (): string =>
+  /utf-?8/i.test(referenceOutput()) ? FULL_BAR : `${'#'.repeat(10)} 100%`
+
+/** The full-block glyph the reference's charmap can draw. */
+const referenceFullBlock = (): string => referenceFullBar().charAt(0)
+
 /** The controls header I2/I3 keep on screen: the keys and the position. */
 export const CONTROLS = /keys:.*accept.*skip.*edit/s
 
@@ -237,10 +257,11 @@ export async function no_stray_percent(s: Session): Promise<Session> {
   if (!s.version) throw new Error('I1 no_stray_percent: run_version has not run')
   if (!s.shell) throw new Error('I1 no_stray_percent: run_version left no shell')
   const screen = s.shell.screen()
-  if (!VERSION_LINE.test(screen)) {
-    throw new Error(`I1 no_stray_percent: the screen carries no version line:\n${screen}`)
+  const version = `docnamer ${referenceOutput()}`
+  if (!screen.includes(version)) {
+    throw new Error(`I1 no_stray_percent: the screen carries no ${version} line:\n${screen}`)
   }
-  const afterVersion = screen.slice(screen.search(VERSION_LINE))
+  const afterVersion = screen.slice(screen.indexOf(version))
   if (afterVersion.includes('%')) {
     throw new Error(`I1 no_stray_percent: a stray % stands on screen after the version:\n${screen}`)
   }
@@ -413,10 +434,12 @@ const BAR_WINDOW_MS = 5_000
 /** throbber_with_bar: a `▰`/`▱` bar followed by a percentage sits beside it. */
 export async function throbber_with_bar(s: Session): Promise<Session> {
   const live = await analysisOf(s)
-  await live.waitFor('\u25b0', BAR_WINDOW_MS)
+  const full = referenceFullBlock()
+  await live.waitFor(full, BAR_WINDOW_MS)
   const text = strip(live.seen())
-  if (!/\u25b0.*\d+%/.test(text)) {
-    throw new Error(`I4 throbber_with_bar: no block bar with a percentage in the frame:\n${text}`)
+  const pct = text.search(/\d+%/)
+  if (!text.includes(full) || pct === -1 || text.indexOf(full) > pct) {
+    throw new Error(`I4 throbber_with_bar: no ${full} bar with a percentage in the frame:\n${text}`)
   }
   return s
 }
@@ -496,8 +519,9 @@ export async function completion_line(s: Session): Promise<Session> {
 export async function full_bar_100_percent(s: Session): Promise<Session> {
   const last = s.analysisFrames[s.analysisFrames.length - 1]
   if (last === undefined) throw new Error('I5 full_bar_100_percent: analysis_completes has not run')
-  if (!last.includes(FULL_BAR)) {
-    throw new Error(`I5 full_bar_100_percent: the completion line is not ${FULL_BAR}:\n${last}`)
+  const expected = referenceFullBar()
+  if (!last.includes(expected)) {
+    throw new Error(`I5 full_bar_100_percent: the completion line is not ${expected}:\n${last}`)
   }
   return s
 }

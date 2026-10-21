@@ -48,8 +48,9 @@ CR leaves `%` standing mid-line, so the test stays honest. tests/frame.ts
 strips C0 control bytes (the observed backspace; keep tab and newline)
 before rasterising. Build every control-byte pattern from String.fromCharCode
 the way tests/pty.ts's ANSI constant does, so oxlint's no-control-regex
-stays quiet. The i1 spec keeps its reference constant asserting the printed
-version equals what the reference prints. 
+stays quiet. The harness carries the reference constant and
+no_stray_percent asserts the screen's version line equals what the reference
+prints, so the swapped reference turns the verdict.
 
 - Covers: R1, I1
 - Depends on: none
@@ -75,7 +76,7 @@ version equals what the reference prints.
 
 ## T2: block progress bar renderer with ASCII fallback
 
-- Covers: R8, I6
+- Covers: R8
 - Depends on: none
 - Files:
   - Modify: [ui.ts](../../../src/ui.ts#L36-L83)
@@ -94,18 +95,25 @@ version equals what the reference prints.
 - Summary: RE-RUN, ALREADY GREEN: `bun test tests/ui.test.ts` passes as committed — the task shipped in an earlier run: src/ui.ts
 <!-- /record:T2 -->
 
-## T3: progress bar wired next to the throbber and into completion lines
+## T3: progress bar wired next to the throbber, into completion lines, and the fallback plumbed
 
-- Covers: R5, R6, I4, I5
+The renderer (T2) is done; this task is the wiring the e2e flows watch: the
+bar stands next to the throbber while analysis runs (I4), the completion
+line draws the full bar (I5), and DOCNAMER_ASCII=1 / NO_COLOR / a pipe
+selects the ASCII style at the CLI boundary (I6). The three i-specs are the
+gate, not the unit test alone.
+
+- Covers: R5, R6, I4, I5, I6
 - Depends on: T2
 - Files:
   - Modify: [cli.ts](../../../src/cli.ts#L420-L455)
   - Modify: [commands.ts](../../../src/commands.ts#L197-L246)
+  - Modify: [ui.ts](../../../src/ui.ts#L36-L83)
   - Test: [progress-bar.test.ts](../../../tests/progress-bar.test.ts)
 - Interfaces:
   - Consumes: `progressBar(done: number, total: number, style: Style): string`; `Ui.spinner(label: string): Spinner`; `Progress = (done: number, total: number, file: string) => void`
   - Produces: none
-- done_when: `bun test tests/progress-bar.test.ts`
+- done_when: `bun run test:e2e tests/progress-bar.test.ts tests/terminal-ux-polish-i4.spec.ts tests/terminal-ux-polish-i5.spec.ts tests/terminal-ux-polish-i6.spec.ts`
 - Reference: `locale charmap`
 <!-- record:T3 -->
 **done** · run `ship-feature-e61fc5`
@@ -183,7 +191,7 @@ version equals what the reference prints.
 
 <!-- record:run -->
 **failed** · run `ship-feature-e61fc5`
-- Tasks: T1 hole · T2 done · T3 done · T4 done · T5 done · T6 done
+- Tasks: T1 done · T2 done · T3 hole · T4 done · T5 done · T6 done
 - Commits: `c2d39ba..4207538`
 - Detail: verify: exit 1 — output tail: … [+19045 earlier chars] ] (pass) colour off means not one escape sequence anywhere in the output [0.18ms] (pass) the plan margin stays raw so a colour terminal cannot hide the "!" [0.02ms] (pass) a table aligns its columns and never leaves trailing whitespace [0.10ms] (pass) a failure block names what broke and how to fix it [0.02ms] (pass) a failure with no fix prin… [+3587 chars]
 <!-- /record:run -->
