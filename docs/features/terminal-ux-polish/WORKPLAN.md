@@ -99,9 +99,9 @@ prints, so the swapped reference turns the verdict.
 
 The renderer (T2) is done; this task is the wiring the e2e flows watch: the
 bar stands next to the throbber while analysis runs (I4), the completion
-line draws the full bar (I5), and DOCNAMER_ASCII=1 / NO_COLOR / a pipe
-selects the ASCII style at the CLI boundary (I6). The three i-specs are the
-gate, not the unit test alone.
+line draws the full bar (I5), and NO_COLOR / a pipe selects the ASCII
+style at the CLI boundary (I6). The three i-specs are the gate, not the
+unit test alone.
 
 - Covers: R5, R6, I4, I5, I6
 - Depends on: T2
