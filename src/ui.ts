@@ -162,10 +162,10 @@ function pad(text: string, width: number): string {
  *  set: ten cells, a space, then the rounded percentage. */
 export function progressBar(done: number, total: number, style: Style): string {
   const glyphs = style.unicode ? UNICODE : ASCII
-  // One ratio, rounded once: the blocks are the percentage in tens, so the two
-  // can never disagree.
-  const percent = Math.round((done / total) * 100)
-  const filled = Math.round(percent / 10)
+  // One ratio, floored: the blocks are the whole tens of the percentage, so
+  // the two can never disagree and the bar is full only at 100%.
+  const percent = Math.floor((done / total) * 100)
+  const filled = Math.floor(percent / 10)
   return `${glyphs.full.repeat(filled)}${glyphs.empty.repeat(10 - filled)} ${percent}%`
 }
 

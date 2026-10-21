@@ -1,6 +1,6 @@
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? "locale charmap"
+export const reference = process.env.GRAPH_REFERENCE ?? 'locale charmap'
 
 import { expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -29,7 +29,9 @@ const referenceOutput = (): string => {
  * loaded at check time so a missing export is a printed failure, not a load
  * throw.
  */
-const loadProgressBar = async (): Promise<(done: number, total: number, style: Style) => string> => {
+const loadProgressBar = async (): Promise<
+  (done: number, total: number, style: Style) => string
+> => {
   const mod = (await import('../src/ui.ts')) as unknown as {
     progressBar?: (done: number, total: number, style: Style) => string
   }
@@ -63,6 +65,11 @@ test('a run in progress draws a partial block bar with a rising percentage (I4)'
   expect(half.endsWith(' 50%'), 'one of two documents is half done').toBe(true)
   expect(half.startsWith('\u25b0'), 'the filled blocks come first').toBe(true)
   expect(progressBar(1, 4, style).endsWith(' 25%'), 'the percentage follows the count').toBe(true)
+  // R5 pins four blocks beside 45%: the bar fills only whole tens, and is
+  // full only at 100%.
+  expect(progressBar(9, 20, style), 'the blocks are the whole tens of the percentage').toBe(
+    '\u25b0\u25b0\u25b0\u25b0\u25b1\u25b1\u25b1\u25b1\u25b1\u25b1 45%'
+  )
 })
 
 test('a non-UTF-8 terminal gets an ASCII bar, never the blocks (R5, R6)', async () => {

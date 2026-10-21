@@ -90,9 +90,16 @@ export async function plan(
       const old = base(rel)
       const advanced = (): void => {
         done += 1
-        progress?.(done, rels.length, old)
+        // The observer must fail open: a throwing display callback (a tty
+        // hiccup in the spinner's write) cannot demote a validated row or end
+        // the run.
+        try {
+          progress?.(done, rels.length, old)
+        } catch {
+          // The count already rose; what the terminal draws is cosmetic.
+        }
       }
-      let checked: Checked
+      let checked: Checked | null = null
       let failedReason: string | null = null
       let method: PlanRow['method'] = null
       try {
@@ -115,17 +122,17 @@ export async function plan(
           result = await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
         }
         if (isFailed(result as never)) failedReason = (result as { reason: string }).reason
-        else {
-          checked = validate(result as Analysis, content, config)
-          advanced()
-          return { rel, old, checked, failedReason, method }
-        }
+        else checked = validate(result as Analysis, content, config)
       } catch (e) {
         failedReason = e instanceof Error ? e.message : String(e)
       }
       // A row nothing could analyse still gets a name: its own stem, which
       // Stage 4 renders unique against the names already on disk.
-      checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
+      if (checked === null) {
+        checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
+      }
+      // Exactly once per file, whatever happened above: a row thrown mid-draw
+      // was already validated and keeps its name.
       advanced()
       return { rel, old, checked, failedReason, method }
     })
