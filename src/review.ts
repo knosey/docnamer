@@ -272,11 +272,10 @@ const current = (s: Session): { row: PlanRow; index: number } | null => {
   return index === undefined || row === undefined ? null : { row, index }
 }
 
-/** Log review lines clipped to the terminal's width — a line wider than the
- *  screen wraps and breaks the card layout. The one width rule, on every line. */
-const say = (u: Ui, text: string): void => {
+/** Clip each logged line: one wider than the screen wraps and breaks the card. */
+const say = (u: Ui, lines: readonly string[]): void => {
   const width = terminalWidth()
-  for (const line of text.split('\n')) u.log(u.clip(line, width))
+  for (const line of lines) u.log(u.clip(line, width))
 }
 
 /** On a pipe, log the row under the cursor and the one after it as stacked
@@ -286,18 +285,18 @@ const show = (s: Session): void => {
   if (s.keys !== null) return
   const at = current(s)
   if (!at) {
-    say(s.u, s.u.dim(`every row seen ${s.u.glyphs.dash} q saves and quits`))
+    say(s.u, [s.u.dim(`every row seen ${s.u.glyphs.dash} q saves and quits`)])
     return
   }
   s.u.log('')
   // The terminal's key list, minus its move hint: a pipe has no cursor to move.
-  say(s.u, s.u.dim(`keys: ${KEY_HINTS(s.u).slice(1).join(` ${s.u.glyphs.dot} `)}`))
-  say(s.u, card(at.row, s.cursor + 1, s.order.length, s.u).join('\n'))
+  say(s.u, [s.u.dim(`keys: ${KEY_HINTS(s.u).slice(1).join(` ${s.u.glyphs.dot} `)}`)])
+  say(s.u, card(at.row, s.cursor + 1, s.order.length, s.u))
   const ahead = s.order[s.cursor + 1]
   const next = ahead === undefined ? undefined : s.rows[ahead]
   if (next !== undefined) {
     s.u.log('')
-    say(s.u, card(next, s.cursor + 2, s.order.length, s.u).join('\n'))
+    say(s.u, card(next, s.cursor + 2, s.order.length, s.u))
   }
 }
 
@@ -523,7 +522,7 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
     note: null,
     drawn: 0
   }
-  if (keys === null) say(u, u.head(`Reviewing ${order.length} pending row(s)`, planPath))
+  if (keys === null) say(u, [u.head(`Reviewing ${order.length} pending row(s)`, planPath)])
   if (raw) stdin.setRawMode(true)
   // The frame draws its own cursor for the edit line; the terminal's would
   // blink below the frame.
