@@ -66,7 +66,7 @@ prints, so the swapped reference turns the verdict.
 - done_when: `bun run test:e2e tests/terminal-ux-polish-i1.spec.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T1 -->
-**done** · run `ship-feature-294260` · built in run `ship-feature-e61fc5`
+**done** · run `ship-feature-8d7ad3` · built in run `ship-feature-e61fc5`
 - Commits: `c2d39ba..4207538`
 - Landed: [tests/pty.ts](../../../tests/pty.ts), [tests/terminal-ux-polish-harness.ts](../../../tests/terminal-ux-polish-harness.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -87,7 +87,7 @@ prints, so the swapped reference turns the verdict.
 - done_when: `bun test tests/ui.test.ts`
 - Reference: `locale charmap`
 <!-- record:T2 -->
-**done** · run `ship-feature-294260` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-8d7ad3` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/ui.ts](../../../src/ui.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -116,7 +116,7 @@ unit test alone.
 - done_when: `bun run test:e2e tests/progress-bar.test.ts tests/terminal-ux-polish-i4.spec.ts tests/terminal-ux-polish-i5.spec.ts tests/terminal-ux-polish-i6.spec.ts`
 - Reference: `locale charmap`
 <!-- record:T3 -->
-**done** · run `ship-feature-294260`
+**done** · run `ship-feature-8d7ad3`
 - Commits: none recorded
 - Landed: nothing
 - Gates: done_when ✓ · reference_decides ✓
@@ -137,7 +137,7 @@ unit test alone.
 - done_when: `bun test tests/review-screen.test.ts`
 - Reference: `tput cols`
 <!-- record:T4 -->
-**done** · run `ship-feature-294260` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-8d7ad3` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -158,7 +158,7 @@ unit test alone.
 - done_when: `bun test tests/pty.test.ts`
 - Reference: `printf '%s\n' '2024-03-13 globex receipt.pdf'`
 <!-- record:T5 -->
-**done** · run `ship-feature-294260` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-8d7ad3` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -181,7 +181,7 @@ unit test alone.
 - done_when: `bun test tests/cli-help.test.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T6 -->
-**done** · run `ship-feature-294260`
+**done** · run `ship-feature-8d7ad3`
 - Commits: none recorded
 - Landed: nothing
 - Gates: done_when ✓ · reference_decides ✓
@@ -190,7 +190,7 @@ unit test alone.
 <!-- /record:T6 -->
 
 <!-- record:run -->
-**success** · run `ship-feature-294260`
+**success** · run `ship-feature-8d7ad3`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done
 - Commits: none recorded
 - Detail: every node succeeded
