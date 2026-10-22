@@ -138,8 +138,8 @@ const packed = (lead: string, items: readonly string[], sep: string, width: numb
   const lines: string[] = []
   let line = lead
   for (const item of items) {
-    const joined = line === lead || line === indent ? `${line}${item}` : `${line}${sep}${item}`
-    if (visibleWidth(joined) <= width || line === lead || line === indent) line = joined
+    const joined = line === lead ? `${line}${item}` : `${line}${sep}${item}`
+    if (visibleWidth(joined) <= width || line === lead) line = joined
     else {
       lines.push(line)
       line = `${indent}${item}`
