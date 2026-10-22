@@ -16,7 +16,7 @@ export type Style = {
   readonly tty: boolean
 }
 
-const ESC = String.fromCharCode(27)
+export const ESC = String.fromCharCode(27)
 
 /** LC_ALL, then LC_CTYPE, then LANG. An unset locale means UTF-8, not ASCII:
  *  that is the macOS terminal's own encoding. */

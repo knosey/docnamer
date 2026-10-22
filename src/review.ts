@@ -25,7 +25,7 @@ import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import { lineEdit, nextStdinChunk, terminalKeys, type Keys, type LineEdit } from './prompt.ts'
 import { extOf, PLAN_FILE, readPlan, writePlan, type PlanRow } from './commands.ts'
 import type { Checked } from './validate.ts'
-import { hasDevice, terminalHeight, terminalWidth, type Ui } from './ui.ts'
+import { ESC, hasDevice, progressBar, terminalHeight, terminalWidth, type Ui } from './ui.ts'
 
 type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
 
@@ -91,8 +91,6 @@ export async function applyAction(
   return out
 }
 
-const ESC = String.fromCharCode(27)
-
 /** How far a card's rows sit in from its title line. */
 const CARD_INDENT = '  '
 
@@ -101,7 +99,7 @@ const CARD_INDENT = '  '
  *  `at`/`of` are the row's place in the review, not its index in the plan: a
  *  plan index tells the person nothing about how much is left. A row already
  *  decided says so: moving back to it is how a decision is changed. */
-function card(row: PlanRow, at: number, of: number, u: Ui): string[] {
+const card = (row: PlanRow, at: number, of: number, u: Ui): string[] => {
   const decided = row.status === 'pending' ? '' : ` ${u.dim(`(${row.status})`)}`
   const lines = [
     `${u.dim(`[${at}/${of}]`)} ${u.bold(row.old)}${decided}`,
@@ -126,7 +124,7 @@ const KEY_HINTS = (u: Ui): string[] => [
   `${u.glyphs.up}/${u.glyphs.down} move`,
   'Enter accept',
   's skip',
-  'e edit name',
+  'e edit',
   't retype',
   'A accept unflagged',
   'q quit'
@@ -135,7 +133,7 @@ const KEY_HINTS = (u: Ui): string[] => [
 /** `items` packed into as few lines as fit `width`, the first after `lead` and
  *  the rest indented under it: the keys must all stay on screen, so they wrap
  *  between hints rather than being cut. */
-function packed(lead: string, items: readonly string[], sep: string, width: number): string[] {
+const packed = (lead: string, items: readonly string[], sep: string, width: number): string[] => {
   const indent = ' '.repeat(visibleWidth(lead))
   const lines: string[] = []
   let line = lead
@@ -159,7 +157,7 @@ export type ReviewView = {
   readonly cursor: number
   readonly planPath: string
   /** The edit line, drawn in place of the row it edits. */
-  readonly edit: { readonly field: 'new' | 'type'; render(width: number): string } | null
+  readonly edit: { readonly field: 'new' | 'type'; readonly render: LineEdit['render'] } | null
   readonly note: string | null
 }
 
@@ -171,14 +169,19 @@ export type ReviewView = {
  * redrawn in place and never runs past the screen. Below it, the cards from
  * the one under the cursor down, as many as fit, padded apart by a blank line.
  */
-export function reviewFrame(v: ReviewView, width: number, height: number, u: Ui): string[] {
-  const lines = [...frameHeader(v, width, u), ...frameCards(v, width, u)]
-  return lines.slice(0, height).map(l => u.clip(l, width))
+export const reviewFrame = (v: ReviewView, width: number, height: number, u: Ui): string[] => {
+  const header = frameHeader(v, width, u)
+  // Past the last card there are no cards to build, only the way out.
+  const body =
+    v.cursor >= v.order.length
+      ? frameDone(v.order.length, u)
+      : frameCards(v, width, u, height - header.length)
+  return [...header, ...body].slice(0, height).map(l => u.clip(l, width))
 }
 
 /** The locked header: the title with the position, its rule, the keys, the
  *  last note, and a blank line to pad it from the cards. */
-function frameHeader(v: ReviewView, width: number, u: Ui): string[] {
+const frameHeader = (v: ReviewView, width: number, u: Ui): string[] => {
   const of = v.order.length
   const where =
     v.cursor < of ? `Reviewing document ${v.cursor + 1} of ${of}` : `Reviewed all ${of} documents`
@@ -189,20 +192,20 @@ function frameHeader(v: ReviewView, width: number, u: Ui): string[] {
   return [title, rule, ...keys, ...note, '']
 }
 
+/** The way out once every document has a decision, in place of the cards. */
+const frameDone = (of: number, u: Ui): string[] => [
+  u.ok(`${progressBar(of, of, u.style)} every document has a decision`),
+  u.dim(`  q saves and quits ${u.glyphs.dot} ${u.glyphs.up} goes back`)
+]
+
 /** The cards from the one under the cursor to the end, padded apart, the
- *  current one pointed at and carrying the edit line when there is one; past
- *  the last card, the way out and the way back. The caller cuts them to the
- *  screen's height. */
-function frameCards(v: ReviewView, width: number, u: Ui): string[] {
+ *  current one pointed at and carrying the edit line when there is one.
+ *  `budget` is how many lines the screen has left: a card past it is never
+ *  drawn, so it is never built. */
+const frameCards = (v: ReviewView, width: number, u: Ui, budget: number): string[] => {
   const of = v.order.length
-  if (v.cursor >= of) {
-    return [
-      u.ok('every document has a decision'),
-      u.dim(`  q saves and quits ${u.glyphs.dot} ${u.glyphs.up} goes back`)
-    ]
-  }
   const lines: string[] = []
-  for (let at = v.cursor; at < of; at++) {
+  for (let at = v.cursor; at < of && lines.length < budget; at++) {
     const row = v.rows[v.order[at] as number]
     if (row === undefined) break
     if (at > v.cursor) lines.push('')
@@ -255,7 +258,7 @@ const CHAR_COMMANDS: Record<string, Command> = {
 /** A terminal key as the command it names. A key is a whole sequence, so ↑
  *  (`ESC [ A`) is never the `A` its last byte spells. Raw mode raises no
  *  SIGINT, so Ctrl-C quits here, as Esc does. */
-function commandOf(key: string): Command | undefined {
+const commandOf = (key: string): Command | undefined => {
   if (matchesKey(key, 'up')) return 'prev'
   if (matchesKey(key, 'down')) return 'next'
   if (matchesKey(key, 'escape') || matchesKey(key, 'ctrl+c')) return 'quit'
@@ -263,7 +266,7 @@ function commandOf(key: string): Command | undefined {
 }
 
 /** The row under the cursor and its plan index; past the last row, none. */
-function current(s: Session): { row: PlanRow; index: number } | null {
+const current = (s: Session): { row: PlanRow; index: number } | null => {
   const index = s.order[s.cursor]
   const row = index === undefined ? undefined : s.rows[index]
   return index === undefined || row === undefined ? null : { row, index }
@@ -279,21 +282,16 @@ const say = (u: Ui, text: string): void => {
 /** On a pipe, log the row under the cursor and the one after it as stacked
  *  padded cards, or say every row has been seen. A screen draws its frame
  *  after every key instead. */
-function show(s: Session): void {
+const show = (s: Session): void => {
   if (s.keys !== null) return
   const at = current(s)
   if (!at) {
     say(s.u, s.u.dim(`every row seen ${s.u.glyphs.dash} q saves and quits`))
     return
   }
-  const dot = s.u.glyphs.dot
   s.u.log('')
-  say(
-    s.u,
-    s.u.dim(
-      `keys: Enter accept ${dot} s skip ${dot} e edit ${dot} t retype ${dot} A accept unflagged ${dot} q quit`
-    )
-  )
+  // The terminal's key list, minus its move hint: a pipe has no cursor to move.
+  say(s.u, s.u.dim(`keys: ${KEY_HINTS(s.u).slice(1).join(` ${s.u.glyphs.dot} `)}`))
   say(s.u, card(at.row, s.cursor + 1, s.order.length, s.u).join('\n'))
   const ahead = s.order[s.cursor + 1]
   const next = ahead === undefined ? undefined : s.rows[ahead]
@@ -305,7 +303,7 @@ function show(s: Session): void {
 
 /** Tell the person what just happened: a log line on a pipe, the frame's note
  *  line on a screen. */
-function note(s: Session, text: string): void {
+const note = (s: Session, text: string): void => {
   if (s.keys === null) s.u.log(`    ${text}`)
   else s.note = text
 }
@@ -314,7 +312,7 @@ function note(s: Session, text: string): void {
  *  end, then the new lines, inside a synchronized update so the terminal shows
  *  the whole frame or the old one, never half of each. One line is left for
  *  the cursor, or the last newline would scroll the frame's first line away. */
-function draw(s: Session): void {
+const draw = (s: Session): void => {
   const lines = reviewFrame(
     {
       rows: s.rows,
@@ -338,13 +336,13 @@ function draw(s: Session): void {
 
 /** Take the frame off the screen, so the summary the review ends with is
  *  what stays behind in the terminal. */
-function erase(s: Session): void {
+const erase = (s: Session): void => {
   if (s.drawn > 0) s.u.raw(`${ESC}[${s.drawn}A\r${ESC}[J`)
   s.drawn = 0
 }
 
 /** Move the cursor without deciding anything. */
-function move(s: Session, delta: number): void {
+const move = (s: Session, delta: number): void => {
   const to = s.cursor + delta
   if (to < 0 || to >= s.order.length) return
   s.cursor = to
@@ -353,11 +351,11 @@ function move(s: Session, delta: number): void {
 }
 
 /** Decide the row on screen and move to the next one. */
-async function decide(
+const decide = async (
   s: Session,
   action: ReviewAction,
   value: string | null = null
-): Promise<void> {
+): Promise<void> => {
   const at = current(s)
   if (!at) return
   s.rows = await applyAction(s.rows, at.index, action, value, s.config)
@@ -366,15 +364,13 @@ async function decide(
   show(s)
 }
 
-/** The value `e` or `t` carries on a pipe: the rest of its line. */
-function pipedValue(rest: string): string {
-  const end = rest.search(/[\r\n]/)
-  return end < 0 ? rest : rest.slice(0, end)
-}
-
 /** Decide the row with the value an edit produced, or say why it stays as it
  *  was: nothing was given, or the type is not one the config has. */
-async function settle(s: Session, action: 'edit' | 'retype', typed: string | null): Promise<void> {
+const settle = async (
+  s: Session,
+  action: 'edit' | 'retype',
+  typed: string | null
+): Promise<void> => {
   const value = typed?.trim() ?? ''
   if (value === '') note(s, s.u.dim('unchanged'))
   else if (action === 'retype' && !s.config.types[value]) {
@@ -392,11 +388,12 @@ async function settle(s: Session, action: 'edit' | 'retype', typed: string | nul
 /** `e` or `t`: on a screen, open the row's name or type for editing in the
  *  frame; on a pipe, settle it with the rest of the line. False when no row is
  *  on screen, so nothing after the key was taken as its value. */
-async function editRow(s: Session, action: 'edit' | 'retype', rest: string): Promise<boolean> {
+const editRow = async (s: Session, action: 'edit' | 'retype', rest: string): Promise<boolean> => {
   const at = current(s)
   if (!at) return false
   if (s.keys === null) {
-    await settle(s, action, pipedValue(rest))
+    // On a pipe the key's value is the rest of its line.
+    await settle(s, action, rest.split(/[\r\n]/, 1)[0])
     return true
   }
   // The line opens on what the row holds now, decided or not: an empty line
@@ -417,7 +414,11 @@ async function editRow(s: Session, action: 'edit' | 'retype', rest: string): Pro
 
 /** Carry out one command other than quit; true when it took the rest of a
  *  piped line as its value. */
-async function run(s: Session, command: Exclude<Command, 'quit'>, rest: string): Promise<boolean> {
+const run = async (
+  s: Session,
+  command: Exclude<Command, 'quit'>,
+  rest: string
+): Promise<boolean> => {
   switch (command) {
     case 'prev':
       move(s, -1)
@@ -441,7 +442,7 @@ async function run(s: Session, command: Exclude<Command, 'quit'>, rest: string):
 
 /** One key while an edit is open: the edit line takes it, and Enter or Esc
  *  closes the edit and settles the row. */
-async function editKey(s: Session, key: string): Promise<void> {
+const editKey = async (s: Session, key: string): Promise<void> => {
   const editing = s.editing
   if (editing === null) return
   const answer = editing.line.key(key)
@@ -452,23 +453,28 @@ async function editKey(s: Session, key: string): Promise<void> {
 
 /** Review by key on a terminal, until q, Esc or Ctrl-C, or the input ends.
  *  The frame is redrawn after every key. */
-async function readTerminal(s: Session, keys: Keys): Promise<void> {
+const readTerminal = async (s: Session, keys: Keys): Promise<void> => {
   draw(s)
   for (;;) {
     const key = await keys.next()
     if (key === null) return
-    if (s.editing !== null) await editKey(s, key)
-    else {
-      const command = commandOf(key)
-      if (command === 'quit') return
-      if (command !== undefined) await run(s, command, '')
+    if (s.editing !== null) {
+      await editKey(s, key)
+      draw(s)
+      continue
     }
-    draw(s)
+    const command = commandOf(key)
+    if (command === 'quit') return
+    // A key naming no command changes nothing; the frame on screen stays.
+    if (command === undefined) continue
+    const at = s.cursor
+    await run(s, command, '')
+    if ((command !== 'prev' && command !== 'next') || s.cursor !== at) draw(s)
   }
 }
 
 /** Review from a pipe, one character a command, until q or the end of input. */
-async function readPipe(s: Session): Promise<void> {
+const readPipe = async (s: Session): Promise<void> => {
   const decoder = new TextDecoder()
   // The same reader the picker and the prompts use: a second consumer of
   // Bun's stdin stream takes the lock the first one holds and throws.
@@ -537,5 +543,12 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
   const accepted = s.rows.filter(r => r.status === 'accepted').length
   const skipped = s.rows.filter(r => r.status === 'skipped').length
   const pending = s.rows.filter(r => r.status === 'pending').length
-  u.log(u.ok(`review done: ${accepted} accepted, ${skipped} skipped, ${pending} pending`))
+  // The completion line draws the final bar in the same format plan, apply and
+  // undo draw theirs: a review carried to the end reads as the full bar, 100%.
+  const done = accepted + skipped
+  u.log(
+    u.ok(
+      `${progressBar(done, s.rows.length, u.style)} review done: ${accepted} accepted, ${skipped} skipped, ${pending} pending`
+    )
+  )
 }

@@ -464,7 +464,7 @@ export type LineEdit = {
  * screen, as one line of its frame: a line painted on its own beside a frame the
  * caller redraws is overwritten by the next redraw.
  */
-export function lineEdit(label: string, initial: string): LineEdit {
+export const lineEdit = (label: string, initial: string): LineEdit => {
   const input = new Input({ prompt: label })
   input.setValue(initial)
   input.handleInput(`${ESC}[F`)
