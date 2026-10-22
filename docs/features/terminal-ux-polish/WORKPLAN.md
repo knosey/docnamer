@@ -66,7 +66,7 @@ prints, so the swapped reference turns the verdict.
 - done_when: `bun run test:e2e tests/terminal-ux-polish-i1.spec.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T1 -->
-**done** · run `ship-feature-835925` · built in run `ship-feature-e61fc5`
+**done** · run `ship-feature-18a5f1` · built in run `ship-feature-e61fc5`
 - Commits: `c2d39ba..4207538`
 - Landed: [tests/pty.ts](../../../tests/pty.ts), [tests/terminal-ux-polish-harness.ts](../../../tests/terminal-ux-polish-harness.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -87,7 +87,7 @@ prints, so the swapped reference turns the verdict.
 - done_when: `bun test tests/ui.test.ts`
 - Reference: `locale charmap`
 <!-- record:T2 -->
-**done** · run `ship-feature-835925` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-18a5f1` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/ui.ts](../../../src/ui.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -116,7 +116,7 @@ unit test alone.
 - done_when: `bun run test:e2e tests/progress-bar.test.ts tests/terminal-ux-polish-i4.spec.ts tests/terminal-ux-polish-i5.spec.ts tests/terminal-ux-polish-i6.spec.ts`
 - Reference: `locale charmap`
 <!-- record:T3 -->
-**done** · run `ship-feature-835925`
+**done** · run `ship-feature-18a5f1`
 - Commits: none recorded
 - Landed: nothing
 - Gates: done_when ✓ · reference_decides ✓
@@ -137,7 +137,7 @@ unit test alone.
 - done_when: `bun test tests/review-screen.test.ts`
 - Reference: `tput cols`
 <!-- record:T4 -->
-**done** · run `ship-feature-835925` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-18a5f1` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -158,7 +158,7 @@ unit test alone.
 - done_when: `bun test tests/pty.test.ts`
 - Reference: `printf '%s\n' '2024-03-13 globex receipt.pdf'`
 <!-- record:T5 -->
-**done** · run `ship-feature-835925` · built in run `ship-feature-47c841`
+**done** · run `ship-feature-18a5f1` · built in run `ship-feature-47c841`
 - Commits: none — HEAD stayed at `3d6e3f5`
 - Landed: [src/review.ts](../../../src/review.ts)
 - Gates: done_when ✓ · reference_decides ✓
@@ -181,7 +181,7 @@ unit test alone.
 - done_when: `bun test tests/cli-help.test.ts`
 - Reference: `plutil -extract version raw package.json`
 <!-- record:T6 -->
-**done** · run `ship-feature-835925`
+**done** · run `ship-feature-18a5f1`
 - Commits: none recorded
 - Landed: nothing
 - Gates: done_when ✓ · reference_decides ✓
@@ -190,8 +190,8 @@ unit test alone.
 <!-- /record:T6 -->
 
 <!-- record:run -->
-**failed** · run `ship-feature-835925`
+**failed** · run `ship-feature-18a5f1`
 - Tasks: T1 done · T2 done · T3 done · T4 done · T5 done · T6 done
 - Commits: none recorded
-- Detail: visual-review: Read all 12 captured frames: every element in the plan's shows list is visible and legible (padded cards, locked controls header with n/N position after scroll, proposed names, evidence lines, throbber-side block bar with percentage, ▰×10 100% completion line, ASCII ########## fallback), but i5-complete.png renders a wrong state: two source documents share the identical proposed new… [+25 chars]
+- Detail: low-entropy: simplifications — simplifications[0]: src/review.ts is not a file the change edited simplifications[0]: src/review.ts:141 is no line the change added in its files simplifications[0]: src/review.ts:142 is no line the change added in its files simplifications[1]: src/review.ts is not a file the change edited simplifications[1]: src/review.ts:448 is no line the change added in its files … [+144 chars]
 <!-- /record:run -->
