@@ -54,9 +54,14 @@ const C0 = new RegExp(
   'g'
 )
 
-/** The stdout as an SVG image, one <text> per line so nothing re-wraps. */
-function toSvg(text: string): string {
-  const lines = text.replace(C0, '').replace(/\n+$/, '').split('\n')
+/** The text a frame draws: the stdout without its C0 bytes or trailing newlines. */
+function shownOf(text: string): string {
+  return text.replace(C0, '').replace(/\n+$/, '')
+}
+
+/** The shown text as an SVG image, one <text> per line so nothing re-wraps. */
+function toSvg(shown: string): string {
+  const lines = shown.split('\n')
   let cols = 0
   for (const l of lines) if (l.length > cols) cols = l.length
   const w = Math.ceil(cols * CHAR_W) + PAD * 2
@@ -79,13 +84,16 @@ function toSvg(text: string): string {
 }
 
 /**
- * Rasterise `text` to `<repo>/.audit/screenshots/<name>.png` and return the
- * path. Throws when the raster is missing or empty: a frame the judge cannot
- * open is worse than no frame, because capture counts it.
+ * Rasterise `text` to `<repo>/.audit/screenshots/<name>.png`, with the text it
+ * draws beside it as `<name>.txt`, and return the png's path. The judge takes
+ * the frame's characters from the text: a vision seat reads ▰ and ▱ at 13px as
+ * one shape. Throws when the raster is missing or empty: a frame the judge
+ * cannot open is worse than no frame, because capture counts it.
  */
 export async function frame(text: string, name: string): Promise<string> {
   if (!text.trim()) throw new Error(`frame ${name}: nothing to render, stdout was empty`)
-  const svgText = toSvg(text)
+  const shown = shownOf(text)
+  const svgText = toSvg(shown)
   // The regression guard for the ragged table. sips strips whitespace that
   // STARTS a run, so a run must never begin with one — the rows carrying a "!"
   // margin rendered two characters right of the rest, and a column nobody can
@@ -113,5 +121,6 @@ export async function frame(text: string, name: string): Promise<string> {
   const f = Bun.file(out)
   if (!(await f.exists()) || f.size === 0)
     throw new Error(`frame ${name}: ${out} is missing or empty`)
+  await Bun.write(`${dir}/${name}.txt`, shown + '\n')
   return out
 }
