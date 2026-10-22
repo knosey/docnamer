@@ -1,148 +1,62 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="docnamer" width="1200">
+  <img src="assets/banner.svg" alt="docnamer" width="800">
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/build-bun%20run%20build-black" alt="build">
-  <img src="https://img.shields.io/badge/tests-80%20passing%20%2F%200%20failing-brightgreen" alt="tests">
-  <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="platform">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
-</p>
+# docnamer
 
-**docnamer reads one folder of documents, classifies each file with one model call, extracts that type's fields, and renames the files in place — with Finder tags and comments, and a full undo.**
+Point it at a folder of scans and letters. Get files named the way you would have named them.
 
-Point it at a pile of `scan_0047.pdf` and `letter.txt`; get back `2024-03-12 Acme Services invoice INV-2024-0817.pdf`. Nothing is renamed until you have seen the plan, and every run is reversible.
+`scan_0047.pdf` becomes `2024-03-12 Acme Services invoice INV-2024-0817.pdf`. Finder gets a tag and a comment, so you can find it later. Nothing is renamed until you have seen the plan, and every run can be undone.
 
-## Quickstart
+## Start
+
+macOS. From this repo, build it with [Bun](https://bun.sh), then sign in to a model provider.
 
 ```sh
-# Build the single-file binary (~68 MB, macOS built-ins only) into ~/bin/docnamer
 bun run build
-
-# Hand it your model credential
-export FIREWORKS_API_KEY=…
-
-# Plan a folder — renames nothing, shows the table
+docnamer login
 docnamer plan ~/Documents/unsorted
-
-# Review row by row, then apply
 docnamer review ~/Documents/unsorted
 docnamer apply ~/Documents/unsorted
 ```
 
-## The eight commands
+`bun run build` installs the `docnamer` command at `~/bin/docnamer`.
 
-| Command | What it does |
+| Command | What you get |
 | --- | --- |
-| `docnamer plan [--recursive] <folder>` | Classifies and names every document, writes `<folder>/.docnamer-plan.json`. **Renames nothing.** |
-| `docnamer review <folder>` | Interactive per-row pass over the plan: accept, edit, retype, skip. |
-| `docnamer apply <folder>` | Performs the accepted renames and sets the Finder tag and comment. Writes an undo file. |
-| `docnamer undo [--run <file>] <folder>` | Restores the original names from the run record. |
-| `docnamer eval <testset>` | Scores a test set against its `expected.json`. **Renames nothing.** |
-| `docnamer login <provider>` | Signs in to a provider and stores the credential. |
-| `docnamer logout <provider>` | Removes the credential docnamer stored. |
-| `docnamer auth` | Reports where each provider the configured models use gets its credential. |
-
-## What a run looks like
-
-<p align="center">
-  <img src="assets/terminal.svg" alt="docnamer plan output" width="1000">
-</p>
-
-```text
-$ docnamer plan ~/Documents/unsorted
-OLD                  NEW                                               TYPE
-letter.txt           2024-03-12 Acme Services invoice INV-2024-0817.txt  invoice
-statement-text.pdf   2024-03-12 statement.pdf                            bank_statement
-planned 2 document(s)
-```
-
-## Reads what you actually have
-
-| Format | How it's read |
-| --- | --- |
-| PDF with a text layer | Text pulled straight from the file |
-| Scanned PDF, PNG, JPEG, TIFF | Apple Vision OCR; page images go to the vision model only when OCR is weak |
-| DOCX, DOC, RTF | `textutil` |
-| XLSX, PPTX, Pages | Unzipped, then the XML or QuickLook text extracted (`unzip`) |
-| `.txt`, `.md`, `.csv` | Read as-is |
-
-Runtime dependencies are macOS built-ins: Apple Vision OCR plus `sips`, `textutil`, `plutil`, `xattr`, `mdls`, `brctl`, `unzip`. iCloud placeholders are downloaded first with `brctl`.
-
-## Document types
-
-Sixteen types ship in `docnamer.json`, each with a plain-English description, its fields, and its own name template:
-
-| Type | Template | Type-specific fields |
-| --- | --- | --- |
-| `invoice` | `{date} {issuer} invoice {number}` | date, issuer, number |
-| `receipt` | `{date} {vendor} receipt` | date, vendor |
-| `bank_statement` | `{date} {bank} statement {last4}` | date, bank, last4 |
-| `payslip` | `{date} payslip {employer}` | date, employer |
-| `utility_bill` | `{date} {provider} utility bill` | date, provider |
-| `tax_document` | `{date} tax {form}` | date, form |
-| `insurance_policy` | `{date} {insurer} policy {number}` | date, insurer, number |
-| `contract` | `{date} contract {party}` | date, party |
-| `letter` | `{date} {sender} letter {subject}` | date, sender, subject (optional) |
-| `medical_letter` | `{date} medical {clinic}` | date, clinic |
-| `prescription` | `{date} prescription {prescriber}` | date, prescriber |
-| `boarding_pass` | `{date} boarding pass {flight}` | date, flight |
-| `ticket` | `{date} ticket {event}` | date, event |
-| `warranty` | `{date} warranty {product}` | date, product |
-| `government_letter` | `{date} government {agency}` | date, agency |
-| `other` | `{date} {title}` | date, title (both optional) |
-
-Every type requires `date` except `other`, the fallback of last resort. Field kinds are `text`, `date`, `entity` and `last4` — each with its own normaliser, so `BARCLAYS BANK PLC` becomes `Barclays` and a date becomes `YYYY-MM-DD`, whatever the document printed.
-
-## Configuration
-
-One file, `docnamer.json`, holds the whole behaviour. Drop it in the folder being planned and it replaces the roster the binary was built from.
-
-```json
-{
-  "defaults": { "date_format": "YYYY-MM-DD", "date_order": "day-first", "max_name_length": 120 },
-  "models":   { "cheap": "…", "vision": "…", "strong": "…" },
-  "types":    { "invoice": { "describe": "…", "template": "{date} {issuer} invoice {number}", "fields": { … } } },
-  "entities": { "Barclays": ["Barclays Bank UK PLC", "Barclays Bank", "BARCLAYS"] }
-}
-```
-
-- The `describe` strings **are** the prompt — tuning the tool mostly means editing this file.
-- The `entities` table maps aliases to one canonical name, so names stay consistent across banks, utilities and insurers.
-- A folder without its own `docnamer.json` is planned by the built-in roster.
-
-## How it works
-
-Four stages per file, then one command that touches anything:
-
-1. **Read, cheapest first.** PDF text layer → Apple Vision OCR → page images to the vision model, only when OCR is weak. Text is capped at 4000 characters.
-2. **Classify and extract in one call.** One model call returns the type, that type's fields, and the verbatim `evidence` each value came from — so invented values are caught in code.
-3. **Validate and normalise.** Code, not the model, has the last word on dates, entities and names. Doubtful rows are flagged for review, never silently accepted.
-4. **Build the name.** The type's template is filled, empty parts dropped, the result sanitised, shortened and made unique in its folder.
-5. **Plan, review, apply, undo.** Stages 1–4 only write a plan file. `apply` is the one step that touches your files; `undo` restores from the run record.
-
-Plan and undo files are plain JSON you can delete. There is no database, no library, no background process.
-
-## Model tiers
-
-| Tier | Model | Used for |
-| --- | --- | --- |
-| `cheap` | `fireworks/…/deepseek-v4p1-flash` | Text-only calls |
-| `vision` | `fireworks/…/qwen3p8-max` | Calls that carry page images |
-| `strong` | `fireworks/…/kimi-k3` | The heavy end of the roster |
-
-Model calls go through `@earendil-works/pi-ai` with the credential from `FIREWORKS_API_KEY`. Most files never reach a vision model — real text comes from the file itself or from local OCR.
-
-## Testing
-
-80 passing, 0 failing, across 22 test files.
+| `plan` | A plan for the folder. Renames nothing. |
+| `review` | Accept, edit, or skip each file. Uncertain ones come first. |
+| `apply` | Renames the accepted files, tags them, and writes an undo file. |
+| `undo` | Puts the last run's names back. |
 
 ```sh
-bun test        # runs the suite — note: it makes paid model calls
-bun run build   # compiles src/cli.ts to ~/bin/docnamer
+docnamer undo ~/Documents/unsorted
 ```
 
-`docnamer eval <testset>` scores a folder of real documents against its `expected.json` — type accuracy, per-field match, full-name match — and renames nothing.
+Include subfolders with `docnamer plan --recursive ~/Documents/unsorted`.
+
+## What a plan looks like
+
+```text
+OLD               NEW                                         TYPE
+dup-invoice.txt   2024-02-04 Globex invoice GLX-0091.txt      invoice
+receipt.png       2024-03-12 Acme Services receipt.png        receipt
+▰▰▰▰▰▰▰▰▰▰ 100% planned 2 document(s)
+```
+
+A row the program is not sure about is marked. Review shows it first, and you can change the name before anything is applied.
+
+## What it reads
+
+PDF, scans and photos, Word, Excel, PowerPoint, Pages, and plain text. Text comes from the file when the file has any. A scan is read on the Mac. A model is asked only for what the file does not already say, and the program checks the date and the name before they are used.
+
+Invoices, receipts, statements, payslips, bills, tax, insurance, contracts, letters, tickets, and the rest of ordinary paperwork each get their own name. Anything that fits none of those is still named, from its date and title.
+
+Drop a `docnamer.json` in the folder to change the types or the name shapes. A folder without one uses the built-in set.
+
+## Also
+
+`docnamer eval <testset>` scores a folder against an expected list and renames nothing. `docnamer auth` says where each provider key came from. `docnamer logout` removes a key this program stored.
 
 ## License
 
