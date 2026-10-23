@@ -110,13 +110,26 @@ export async function ocrPages(
 ): Promise<{ text: string; chars: number; meanConfidence: number | null }> {
   if (pages.length === 0) return { text: '', chars: 0, meanConfidence: null }
   const bin = await macOcrBinary()
-  const proc = Bun.spawnSync([bin, ...pages, '--format', 'json'])
-  if (proc.exitCode !== 0) {
-    throw new Error(
-      `ocrPages: Vision OCR failed on ${pages.join(', ')}: ${proc.stderr.toString().trim()}`
-    )
+  // spawn, not spawnSync: spawnSync blocks the thread, so the plan spinner's
+  // interval cannot paint until Vision returns.
+  const proc = Bun.spawn([bin, ...pages, '--format', 'json'], {
+    stdout: 'pipe',
+    stderr: 'pipe'
+  })
+  const stdout = proc.stdout
+  const stderr = proc.stderr
+  if (stdout === undefined || stderr === undefined) {
+    throw new Error('ocrPages: mac-ocr gave no stdout or stderr pipe')
   }
-  const results = JSON.parse(proc.stdout.toString()) as MacOcrPage[]
+  const [out, err, code] = await Promise.all([
+    new Response(stdout).text(),
+    new Response(stderr).text(),
+    proc.exited
+  ])
+  if (code !== 0) {
+    throw new Error(`ocrPages: Vision OCR failed on ${pages.join(', ')}: ${err.trim()}`)
+  }
+  const results = JSON.parse(out) as MacOcrPage[]
   const text = results
     .map(p => p.text)
     .filter(t => t.length > 0)
