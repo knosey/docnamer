@@ -26,11 +26,11 @@ export type CredentialStore = NonNullable<CreateModelsOptions['credentials']>
 /** One stored credential: `{type:'api_key', key}` or the OAuth arm. */
 export type Credential = NonNullable<Awaited<ReturnType<CredentialStore['read']>>>
 /** The non-secret metadata `list()` reports. */
-export type CredentialInfo = Awaited<ReturnType<CredentialStore['list']>>[number]
+type CredentialInfo = Awaited<ReturnType<CredentialStore['list']>>[number]
 /** What a login flow calls back into: one prompt, and progress notices. */
-export type AuthInteraction = Parameters<MutableModels['login']>[2]
+type AuthInteraction = Parameters<MutableModels['login']>[2]
 /** One question a login flow asks. */
-export type AuthPrompt = Parameters<AuthInteraction['prompt']>[0]
+type AuthPrompt = Parameters<AuthInteraction['prompt']>[0]
 /** App-supplied context for `Models.login`. */
 export type LoginOptions = NonNullable<Parameters<MutableModels['login']>[3]>
 
