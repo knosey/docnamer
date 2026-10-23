@@ -105,8 +105,8 @@ async function resolveCli(): Promise<string[] | null> {
   return null
 }
 
-/** Boot the isolated environment and seed this flow's files. Exported so the smoke can prove isolation before plan. */
-export async function boot(s: Session): Promise<void> {
+/** Boot the isolated environment and seed this flow's files. `entry` calls this; the smoke proves isolation through `s.booted`. */
+async function boot(s: Session): Promise<void> {
   if (s.booted) return
   const dir = scratch('naming-rules')
   await mkdir(dir, { recursive: true })

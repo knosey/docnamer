@@ -35,7 +35,7 @@ function tmpPath(name: string): string {
 }
 
 /** Pull a locally-evicted iCloud file back down before reading it. */
-export async function downloadICloud(file: string): Promise<void> {
+async function downloadICloud(file: string): Promise<void> {
   const f = Bun.file(file)
   if (await f.exists()) return
   const proc = Bun.spawnSync(['brctl', 'download', file])

@@ -66,7 +66,7 @@ export type UndoEntry = {
 export type UndoRecord = { run: string; at: string; entries: UndoEntry[] }
 
 /** A named hole: the claim cannot be closed on the current observation surface. */
-export class Skipped extends Error {
+class Skipped extends Error {
   readonly skip = true
   constructor(readonly claim: string) {
     super('SKIP: ' + claim)
@@ -76,9 +76,6 @@ export class Skipped extends Error {
 
 /** Repo root. Exported so a spec can read the real config the harness seeds. */
 export const repo = import.meta.dir.replace(/\/tests$/, '')
-
-/** The folder's own config: Stage 1 SKIPs it, so it is never a plan row. */
-export { CONFIG_FILE }
 
 /** One seeded file is mutated after the plan is written, so `apply` must skip
  *  it and report it (R7/I1). Its name is exported so a flow can name it. */

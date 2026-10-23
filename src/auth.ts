@@ -44,7 +44,7 @@ function home(): string {
 }
 
 /** pi's credential file. Read, never written. */
-export function piAuthPath(): string {
+function piAuthPath(): string {
   return `${home()}/.pi/agent/auth.json`
 }
 
@@ -102,7 +102,7 @@ async function withLock<T>(providerId: string, fn: () => Promise<T>): Promise<T>
 /**
  * pi's login first, docnamer's own store second, and every write to the second.
  */
-export class DocnamerCredentials implements CredentialStore {
+class DocnamerCredentials implements CredentialStore {
   /** Which FILE answers for a provider — the label `AuthResult.source` cannot
    *  give, because it names the mechanism (`FIREWORKS_API_KEY`) rather than the
    *  store. `docnamer auth` reports this. */

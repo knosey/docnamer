@@ -40,7 +40,7 @@ export type PlanRow = {
 }
 
 /** A named hole: the claim cannot be closed on the current observation surface. */
-export class Skipped extends Error {
+class Skipped extends Error {
   readonly skip = true
   constructor(readonly claim: string) {
     super('SKIP: ' + claim)
