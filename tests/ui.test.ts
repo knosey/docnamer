@@ -27,6 +27,9 @@ export const reference = process.env.GRAPH_REFERENCE ?? 'locale charmap'
 
 import { expect, test } from 'bun:test'
 import { styleFrom, ui, type Style } from '../src/ui.ts'
+import { runChild } from './child.ts'
+import { resolveCli } from './doc-renamer-apply-harness.ts'
+import { scratch } from './scratch.ts'
 
 const PLAIN: Style = { colour: false, unicode: false, tty: false }
 const PRETTY: Style = { colour: true, unicode: true, tty: true }
@@ -254,4 +257,41 @@ test('an ASCII terminal gets an ASCII bar with no block glyph', async () => {
   expect(bar, 'the ASCII fallback must not draw a block or rule glyph').not.toMatch(BLOCK_OR_RULE)
   expect(bar, 'the ASCII bar must still show progress').toMatch(/[#=>-]/)
   expect(bar, 'the ASCII bar must still show the percentage').toContain('100%')
+})
+
+/** The folder name `scratch` minted. Unique, so a hit cannot be some other path. */
+function leaf(dir: string): string {
+  const name = dir.split('/').pop()
+  if (name === undefined || name === '')
+    throw new Error(`ui.test: scratch path has no leaf: ${dir}`)
+  return name
+}
+
+test('plan . names the folder and says it is analysing, before any model reply', async () => {
+  const dir = scratch('docnamer-wait')
+  const argv = await resolveCli()
+  if (argv === null) throw new Error('no docnamer CLI')
+  // An empty folder never reaches the model. The spinner is created before plan(),
+  // so a pipe still logs the opening label. That label is the wait the person sees.
+  const run = await runChild([...argv, 'plan', '.'], { cwd: dir, timeoutMs: 15000 })
+  expect(run.code, run.stderr).toBe(0)
+  expect(
+    run.stdout,
+    'the dot the user typed must not be the folder the spinner names'
+  ).not.toContain('reading .')
+  expect(run.stdout, 'the spinner must name the folder it is reading').toContain(leaf(dir))
+  expect(run.stdout.toLowerCase(), 'the wait must say it is analysing the documents').toContain(
+    'analysing'
+  )
+})
+
+test('plan reports zero done as soon as the folder is counted', async () => {
+  const dir = scratch('docnamer-counted')
+  const { plan } = await import('../src/commands.ts')
+  const { BUILTIN_CONFIG } = await import('../src/config.ts')
+  const seen: number[] = []
+  await plan(dir, { recursive: false, applyUnflagged: false }, BUILTIN_CONFIG, done => {
+    seen.push(done)
+  })
+  expect(seen[0], 'the bar must be able to draw before any document is read').toBe(0)
 })

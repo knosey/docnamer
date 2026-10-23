@@ -57,15 +57,6 @@ export class Session {
 
 export const repo = import.meta.dir.replace(/\/tests$/, '')
 
-const INVOICE = [
-  'INVOICE',
-  'Crowdbuilding',
-  'Invoice number: INV-0006',
-  'Date: 06/02/2026',
-  'Total: 100.00 EUR',
-  ''
-].join('\n')
-
 /** A real fixture whose bytes the current reader can open, copied under the interaction's filename. */
 const PDF = 'tests/fixtures/statement-text.pdf'
 const PNG = 'tests/fixtures/receipt.png'
@@ -83,7 +74,9 @@ const SEED: Record<FlowId, Seed[]> = {
   I4: [{ name: 'Authority-Jac-EEAVISA.pdf', copy: PDF }],
   I5: [{ name: 'photo-not-a-document.png', copy: PNG }],
   I6: [{ name: 'screenshot-of-invoice.png', copy: PNG }],
-  I7: [{ name: 'notes (2).txt', body: 'A note with a Finder collision suffix and no version field.\n' }],
+  I7: [
+    { name: 'notes (2).txt', body: 'A note with a Finder collision suffix and no version field.\n' }
+  ],
   smoke: [
     {
       name: 'invoice-acme-2026-04.txt',

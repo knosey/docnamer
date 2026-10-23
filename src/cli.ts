@@ -6,6 +6,7 @@
  * glyph set, the colour and the ASCII fallback, so a command cannot print
  * something the rest of the program would not.
  */
+import { resolve } from 'node:path'
 import pkg from '../package.json'
 import { loadConfig, CONFIG_FILE, BUILTIN_CONFIG, type Config } from './config.ts'
 import {
@@ -188,6 +189,25 @@ function column(rows: readonly Example[]): string {
 /** The one progress line plan, apply and undo draw beside the throbber. */
 const progressLine = (u: Ui, done: number, total: number, file: string): string =>
   `${progressBar(done, total, u.style)} ${done} of ${total} ${u.glyphs.dash} ${file}`
+
+/** The folder a person can recognise. `.` is what they typed, not where the files are. */
+function shownFolder(folder: string): string {
+  const abs = resolve(folder)
+  const home = process.env.HOME
+  if (home === undefined || home === '') return abs
+  return tilde(abs)
+}
+
+/** Lines the throbber cycles while the model has not answered yet. The first
+ *  one is the sentence a pipe logs, so it has to name the work and the folder. */
+function planQuips(where: string): readonly string[] {
+  return [
+    `analysing the documents in ${where}`,
+    `the paperwork in ${where} is pretending to be organised`,
+    `asking the model to admit what ${where} contains`,
+    `still in ${where}. nothing has a name yet`
+  ]
+}
 
 /** The help for the program, or for one command when `cmd` names one. */
 function helpText(cmd?: Command): string {
@@ -438,18 +458,51 @@ export async function main(argv: string[]): Promise<number> {
     return 0
   }
   if (cmd === 'plan') {
-    // The throbber opens on the label alone: a percentage before the first
-    // document is measured would claim progress nobody made. The bar stands
-    // beside the throbber from the first document's completion and rises as
-    // each document's analysis completes.
-    const spinner = u.spinner(`reading ${folder} and asking the model`)
-    const rows = await plan(
-      folder,
-      { recursive, applyUnflagged: false },
-      config,
-      (done, total, file) => spinner.update(progressLine(u, done, total, file))
-    )
-    await writePlan(folder, rows)
+    // The throbber opens on a sentence: a percentage before the folder is
+    // counted would claim progress nobody made. Once the count is known the
+    // bar sits at 0% beside that sentence until a document actually finishes.
+    const where = shownFolder(folder)
+    const quips = planQuips(where)
+    let q = 0
+    let counted = false
+    let known = 0
+    let live = true
+    const waiting = (): string => {
+      const joke = quips[q]
+      if (joke === undefined) throw new Error(`cli: plan quip ${q} missing`)
+      if (!counted) return joke
+      return `${progressBar(0, known, style)} ${joke}`
+    }
+    const spinner = u.spinner(waiting())
+    const tease = setInterval(() => {
+      if (!live) return
+      q = (q + 1) % quips.length
+      spinner.update(waiting())
+    }, 2500)
+    tease.unref()
+    let rows: Awaited<ReturnType<typeof plan>>
+    try {
+      rows = await plan(
+        folder,
+        { recursive, applyUnflagged: false },
+        config,
+        (done, total, file) => {
+          counted = true
+          known = total
+          if (done === 0) {
+            spinner.update(waiting())
+            return
+          }
+          live = false
+          clearInterval(tease)
+          spinner.update(progressLine(u, done, total, file))
+        }
+      )
+      await writePlan(folder, rows)
+    } finally {
+      live = false
+      clearInterval(tease)
+    }
     // The completion line draws the final bar in the same format the
     // in-progress bars drew; an empty folder reads 0%, never a full bar.
     spinner.stop(

@@ -77,7 +77,12 @@ export async function applyAction(
       // The other rows' names occupy the namespace, so the re-render cannot
       // collide with a name it is not allowed to take.
       const planned = new Set(out.filter((_, i) => i !== index).map(r => r.new))
-      row.new = await buildName(checked, config, { dir: '', ext: extOf(row.new) }, planned)
+      row.new = await buildName(
+        checked,
+        config,
+        { dir: '', ext: extOf(row.new), name: row.new },
+        planned
+      )
       row.status = 'accepted'
       break
     }

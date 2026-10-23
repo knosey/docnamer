@@ -233,7 +233,7 @@ test.skipIf(!hasPty)(
  * `stop` clears the spinner's line with a carriage return and an erase, so a command that throws must
  * stop the spinner before the error is written or the error lands on the end of the frame:
  *
- *   ⠋ reading . and asking the modeldocnamer: EPERM: operation not permitted, open '.'
+ *   ⠋ analysing the documents in /tmp/closeddocnamer: EPERM: operation not permitted, open '.'
  *
  * A pipe cannot show this: with no line to return to the spinner writes the label once and the error
  * follows on its own line, which is why the assertion lives here, on a real terminal.

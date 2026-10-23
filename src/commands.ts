@@ -75,6 +75,9 @@ export async function plan(
   progress?: Progress
 ): Promise<PlanRow[]> {
   const rels = await scan(folder, opts.recursive)
+  // The count is known before any document is read. Report it so the bar can
+  // sit at zero during the model calls, instead of appearing only after the first reply.
+  progress?.(0, rels.length, '')
   const planned = new Set<string>()
   // Names already on disk are occupied too: no row may propose one.
   for (const rel of rels) planned.add(base(rel).toLowerCase())
@@ -149,7 +152,12 @@ export async function plan(
     // its own name would propose a name already on disk by definition. buildName
     // seeds `planned` with every name on disk, so the failed row lands on the
     // stem plus a Finder-style " (2)".
-    const name = await buildName(checked, config, { dir: folder, ext: extOf(old) }, planned)
+    const name = await buildName(
+      checked,
+      config,
+      { dir: folder, ext: extOf(old), name: rel },
+      planned
+    )
 
     const f = Bun.file(`${folder}/${rel}`)
     rows.push({
