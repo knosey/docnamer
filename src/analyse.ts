@@ -18,6 +18,7 @@ import { getModel, getProviders } from '@earendil-works/pi-ai/compat'
 import type { AssistantMessage, Message, Tool, ToolCall } from '@earendil-works/pi-ai/compat'
 import { docnamerModels } from './auth.ts'
 import type { Config, DocType } from './config.ts'
+import { tokensFromName } from './name.ts'
 import type { Content } from './read.ts'
 
 export type Analysis = {
@@ -149,12 +150,13 @@ function analysisTool(types: Record<string, DocType>): Tool {
   }
 }
 
-function buildPrompt(content: Content, fileName: string, config: Config): string {
+export function buildPrompt(content: Content, fileName: string, config: Config): string {
   const entities = JSON.stringify(config.entities)
   const dateOrder =
     config.defaults.date_order === 'day-first'
       ? 'Ambiguous slashed dates are day-first (03/04/2026 is 3 April 2026).'
       : 'Ambiguous slashed dates are month-first (03/04/2026 is March 4, 2026).'
+  const tokens = tokensFromName(fileName)
   return [
     `Classify the document "${fileName}" into exactly one of the configured types and extract that type's fields.`,
     `Call ${TOOL_NAME}. Its schema has one branch per type; pick the branch whose enum matches the type, and name the fields exactly as that branch names them. The configured types and their fields: ${rosterLine(config.types)}`,
@@ -162,6 +164,10 @@ function buildPrompt(content: Content, fileName: string, config: Config): string
     `Dates use the format ${config.defaults.date_format}. ${dateOrder}`,
     'Every field value must come with its verbatim evidence line from the document; use null when absent.',
     `The summary is at most 20 words.`,
+    `When the page is silent, copy version, status and person from the old filename. Filename tokens already read: ${JSON.stringify(tokens)}. Never treat Finder (2) as a version.`,
+    'The passport type word is the English word passport, never REISEPASS, and holder comes from the filename when the page is silent.',
+    'agency is a short name, and Immigration And Naturalisation Service is IND, never the full ministry title.',
+    'A photo title is about six words. A screenshot of a readable document uses that document\'s type, not a photo and not other.',
     '',
     'Document text:',
     content.text.slice(0, TEXT_CAP)
