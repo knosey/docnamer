@@ -12,16 +12,17 @@
     "vision": "fireworks/accounts/fireworks/models/qwen3p8-max",
     "strong": "fireworks/accounts/fireworks/models/kimi-k3"
   },
-  "self": ["Knosey", "Once"],
+  "self": ["Knosey", "Once", "Saulx", "Saulx B.V."],
   "types": {
     "invoice": {
       "describe": "A bill requesting payment for goods or services.",
-      "template": "{date} {issuer} invoice {number}",
+      "template": "{date} {issuer} invoice {number} {version}",
       "fields": {
         "date": { "kind": "date", "required": true },
         "issuer": { "kind": "entity", "required": true, "counterparty": "customer" },
         "customer": { "kind": "entity", "required": false },
-        "number": { "kind": "text", "required": true }
+        "number": { "kind": "text", "required": true },
+        "version": { "kind": "text", "required": false }
       }
     },
     "receipt": {
@@ -76,10 +77,14 @@
     },
     "contract": {
       "describe": "A signed agreement between parties.",
-      "template": "{date} contract {party}",
+      "template": "{date} contract {customer} {subject} {status} {version}",
       "fields": {
         "date": { "kind": "date", "required": true },
-        "party": { "kind": "entity", "required": true }
+        "customer": { "kind": "entity", "required": true, "counterparty": "issuer" },
+        "issuer": { "kind": "entity", "required": false },
+        "subject": { "kind": "text", "required": false },
+        "status": { "kind": "text", "required": false },
+        "version": { "kind": "text", "required": false }
       }
     },
     "letter": {
@@ -133,10 +138,27 @@
     },
     "government_letter": {
       "describe": "Official correspondence from a government body.",
-      "template": "{date} government {agency}",
+      "template": "{date} {person} {kind} {agency}",
       "fields": {
         "date": { "kind": "date", "required": true },
+        "person": { "kind": "text", "required": false },
+        "kind": { "kind": "text", "required": false },
         "agency": { "kind": "entity", "required": true }
+      }
+    },
+    "passport": {
+      "describe": "A passport identifying its holder.",
+      "template": "{date} {holder} passport",
+      "fields": {
+        "date": { "kind": "date", "required": true },
+        "holder": { "kind": "text", "required": false }
+      }
+    },
+    "photo": {
+      "describe": "A picture that is not a document.",
+      "template": "{title}",
+      "fields": {
+        "title": { "kind": "text", "required": false }
       }
     },
     "other": {

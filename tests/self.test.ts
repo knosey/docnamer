@@ -42,12 +42,12 @@ function invoice(issuer: string, customer: string | null) {
 
 test('the shipped invoice names its issuer and gives way to its customer', () => {
   const invoiceType = BUILTIN_CONFIG.types.invoice
-  expect(invoiceType?.template).toBe('{date} {issuer} invoice {number}')
+  expect(invoiceType?.template).toBe('{date} {issuer} invoice {number} {version}')
   expect(invoiceType?.fields.issuer).toEqual(
     expect.objectContaining({ kind: 'entity', counterparty: 'customer' })
   )
   expect(invoiceType?.fields.customer).toEqual(expect.objectContaining({ kind: 'entity' }))
-  expect(BUILTIN_CONFIG.self).toEqual(['Knosey', 'Once'])
+  expect(BUILTIN_CONFIG.self).toEqual(['Knosey', 'Once', 'Saulx', 'Saulx B.V.'])
 })
 
 test('an invoice an own company issued is named after its customer, under any alias', () => {
