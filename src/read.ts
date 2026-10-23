@@ -110,22 +110,7 @@ export async function ocrPages(
 ): Promise<{ text: string; chars: number; meanConfidence: number | null }> {
   if (pages.length === 0) return { text: '', chars: 0, meanConfidence: null }
   const bin = await macOcrBinary()
-  // spawn, not spawnSync: spawnSync blocks the thread, so the plan spinner's
-  // interval cannot paint until Vision returns.
-  const proc = Bun.spawn([bin, ...pages, '--format', 'json'], {
-    stdout: 'pipe',
-    stderr: 'pipe'
-  })
-  const stdout = proc.stdout
-  const stderr = proc.stderr
-  if (stdout === undefined || stderr === undefined) {
-    throw new Error('ocrPages: mac-ocr gave no stdout or stderr pipe')
-  }
-  const [out, err, code] = await Promise.all([
-    new Response(stdout).text(),
-    new Response(stderr).text(),
-    proc.exited
-  ])
+  const { out, err, code } = await spawnPiped([bin, ...pages, '--format', 'json'], 'ocrPages')
   if (code !== 0) {
     throw new Error(`ocrPages: Vision OCR failed on ${pages.join(', ')}: ${err.trim()}`)
   }
@@ -184,12 +169,37 @@ function pdfPageCount(raw: string): number {
   return Math.max(n, 1)
 }
 
+/**
+ * Run a child without blocking the thread. `spawnSync` freezes the plan
+ * spinner: its 80ms interval cannot paint until the child exits.
+ */
+async function spawnPiped(
+  cmd: string[],
+  label: string
+): Promise<{ out: string; err: string; code: number }> {
+  const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' })
+  const stdout = proc.stdout
+  const stderr = proc.stderr
+  if (stdout === undefined || stderr === undefined) {
+    throw new Error(`${label}: ${cmd[0]} gave no stdout or stderr pipe`)
+  }
+  const [out, err, code] = await Promise.all([
+    new Response(stdout).text(),
+    new Response(stderr).text(),
+    proc.exited
+  ])
+  return { out, err, code }
+}
+
 /** Rasterize the first page of a PDF to a PNG via sips; returns the PNG path. */
-function pdfToPng(file: string): string {
+async function pdfToPng(file: string): Promise<string> {
   const out = tmpPath(`page-${crypto.randomUUID()}.png`)
-  const proc = Bun.spawnSync(['sips', '-s', 'format', 'png', file, '--out', out])
-  if (proc.exitCode !== 0) {
-    throw new Error(`read: sips could not rasterize ${file}: ${proc.stderr.toString().trim()}`)
+  const { code, err } = await spawnPiped(
+    ['sips', '-s', 'format', 'png', file, '--out', out],
+    'read'
+  )
+  if (code !== 0) {
+    throw new Error(`read: sips could not rasterize ${file}: ${err.trim()}`)
   }
   return out
 }
@@ -199,10 +209,10 @@ function pdfToPng(file: string): string {
  * PDF as an image — sips writes page 1 only — so a vision fallback sees the
  * document's first page, which carries its issuer, date and reference.
  */
-export function pageImages(file: string): string[] {
+export async function pageImages(file: string): Promise<string[]> {
   const ext = extOf(file)
   if (IMAGE_EXTS.has(ext)) return [file]
-  if (ext === '.pdf') return [pdfToPng(file)]
+  if (ext === '.pdf') return [await pdfToPng(file)]
   return []
 }
 
@@ -318,7 +328,7 @@ export async function read(file: string): Promise<Content | null> {
         pages
       }
     }
-    const png = pdfToPng(file)
+    const png = await pdfToPng(file)
     // mac-ocr reads every page of a PDF itself (--pdf-dpi, --password), so the
     // whole document is OCRed, not the first page alone.
     const ocr = await ocrPages([file])

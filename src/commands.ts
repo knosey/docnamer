@@ -109,7 +109,7 @@ export async function plan(
         // A reply the tool contract could not read is the one case worth a
         // second, stronger look: hand the first page's image to the strong seat
         // and take whatever name it returns.
-        const images = isFailed(result as never) ? pageImages(path) : []
+        const images = isFailed(result as never) ? await pageImages(path) : []
         if (images.length > 0) {
           result = await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
         }

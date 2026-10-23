@@ -4,12 +4,12 @@ import { repo, resolveCli } from './doc-renamer-apply-harness.ts'
 import { hasPty, makeTerminal } from './pty.ts'
 import { scratch } from './scratch.ts'
 
-// `ocrPages` calls `Bun.spawnSync`. That blocks the thread, so the 80ms spinner
-// interval cannot paint. This drives real `plan` and samples the screen twice
-// while the mac-ocr child is still alive. A sleep beside a fake spinner does
+// A `Bun.spawnSync` on the plan path blocks the thread, so the 80ms spinner
+// interval cannot paint. These drive real `plan` and sample the screen twice
+// while the child under test is still alive. A sleep beside a fake spinner does
 // not count: the second sample is taken only if that child has not exited.
-// The fixture is a 4-page image PDF with no text operators, so `read` reaches
-// OCR and mac-ocr holds long enough to sample twice.
+// The OCR fixture is a 4-page image PDF with no text operators. The sips fixture
+// is receipt.png scaled to 8000px: a normal scan rasterizes in under one tick.
 
 const FIXTURE = `${repo}/tests/fixtures/ocr-stall.pdf`
 const SCAN = 'scan.pdf'
@@ -74,6 +74,47 @@ function stopOcr(file: string): void {
   for (const pid of ocrPids(file)) process.kill(pid, 'SIGTERM')
 }
 
+function sipsPids(file: string): number[] {
+  const proc = Bun.spawnSync(['ps', '-axo', 'pid,command'])
+  if (proc.exitCode !== 0) {
+    throw new Error(`ps exited ${proc.exitCode}: ${proc.stderr.toString()}`)
+  }
+  const pids: number[] = []
+  for (const line of proc.stdout.toString().split('\n')) {
+    if (!line.includes(file) || !line.includes('sips')) continue
+    const pid = Number(line.trim().split(' ', 1)[0])
+    if (!Number.isInteger(pid)) throw new Error(`ps line had no pid: ${line}`)
+    pids.push(pid)
+  }
+  return pids
+}
+
+function stopSips(file: string): void {
+  for (const pid of sipsPids(file)) process.kill(pid, 'SIGTERM')
+}
+
+function scaledScan(dir: string): string {
+  const png = `${scratch('docnamer-sips-src')}/page.png`
+  const file = `${dir}/${SCAN}`
+  const up = Bun.spawnSync([
+    'sips',
+    '-z',
+    '8000',
+    '8000',
+    `${repo}/tests/fixtures/receipt.png`,
+    '--out',
+    png
+  ])
+  if (up.exitCode !== 0) {
+    throw new Error(`could not scale receipt.png: ${up.stderr.toString()}`)
+  }
+  const pdf = Bun.spawnSync(['sips', '-s', 'format', 'pdf', png, '--out', file])
+  if (pdf.exitCode !== 0) {
+    throw new Error(`could not wrap the scaled page as a pdf: ${pdf.stderr.toString()}`)
+  }
+  return file
+}
+
 test('Bun.Terminal is present, so the spinner sample runs rather than skips', () => {
   expect(hasPty, 'Bun.Terminal is absent; the spinner sample would skip and stay green').toBe(true)
 })
@@ -135,4 +176,61 @@ test.skipIf(!hasPty)(
     }
   },
   20000
+)
+
+test.skipIf(!hasPty)(
+  'plan spinner glyph changes while sips is still rasterizing the first file',
+  async () => {
+    const dir = scratch('docnamer-spinner-sips')
+    const home = scratch('docnamer-spinner-home')
+    const file = scaledScan(dir)
+    const cli = await resolveCli()
+    if (cli === null) throw new Error('plan-spinner: no docnamer CLI to drive')
+    const term = makeTerminal()
+    const proc = Bun.spawn([...cli, 'plan', dir], {
+      terminal: term.terminal,
+      cwd: dir,
+      env: cleanEnv(home)
+    })
+    try {
+      const started = Date.now()
+      while (sipsPids(file).length === 0) {
+        if (proc.exitCode !== null) {
+          throw new Error(
+            `plan exited ${proc.exitCode} before sips started: ${JSON.stringify(await term.screen())}`
+          )
+        }
+        if (Date.now() - started > 15000) {
+          throw new Error(`sips never started on ${file}: ${JSON.stringify(await term.screen())}`)
+        }
+        await Bun.sleep(15)
+      }
+      const first = firstLine(await term.screen())
+      await Bun.sleep(200)
+      if (sipsPids(file).length === 0) {
+        throw new Error(
+          'sips exited before the second sample; the page is too fast to prove the stall'
+        )
+      }
+      const second = firstLine(await term.screen())
+      const before = glyphOf(first)
+      const after = glyphOf(second)
+      expect(
+        FRAMES.has(before),
+        `first paint was not a spinner frame: ${JSON.stringify(first)}`
+      ).toBe(true)
+      expect(first.toLowerCase()).toContain('analysing the documents')
+      expect(
+        after,
+        `spinner glyph frozen while sips still running: ${JSON.stringify(second)}`
+      ).not.toBe(before)
+    } finally {
+      stopSips(file)
+      stopOcr(file)
+      proc.kill('SIGTERM')
+      await Promise.race([proc.exited, Bun.sleep(3000)])
+      term.terminal.close()
+    }
+  },
+  30000
 )
