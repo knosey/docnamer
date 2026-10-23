@@ -27,6 +27,12 @@
 - done_when: `bun test tests/naming-rules-roster.test.ts`
 - Reference: `python3 -c "print('Knosey|Once|Saulx|Saulx B.V.|120|{date} {holder} passport|{date} {person} {kind} {agency}|{date} contract {customer} {subject} {status} {version}')"`
 <!-- record:T1 -->
+**done** · run `ship-feature-c8c792`
+- Commits: none — HEAD stayed at `4e02aad`
+- Landed: [docnamer.json](../../../docnamer.json), [tests/self.test.ts](../../../tests/self.test.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✓ · reference_decides ✓
+- Tests: task-test#0 done
+- Summary: Shipped roster now includes Saulx and Saulx B.V., plus passport, photo, rewritten contract and government_letter, and optional invoice version. bun test tests/naming-rules-roster.test.ts exited 0 (1 pass).
 <!-- /record:T1 -->
 
 ## T2: print filename tokens, shorten, and cap photo names
@@ -44,6 +50,12 @@
 - done_when: `bun test tests/naming-rules-name.test.ts`
 - Reference: `python3 -c "print('v3|V4|draft|Jacqui|Jac|IND|100|120|(2)')"`
 <!-- record:T2 -->
+**hole** · run `ship-feature-c8c792`
+- Commits: none — HEAD stayed at `4e02aad`
+- Landed: [src/commands.ts](../../../src/commands.ts), [src/name.ts](../../../src/name.ts), [src/review.ts](../../../src/review.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✗
+- Tests: task-test#1 done
+- Summary: done_when — exit 1 — output tail: … [+24 earlier line(s)] 7 pass 1 fail 31 expect() calls Ran 8 tests across 1 file. [110.00ms] files named: tests/naming-rules-name.test.ts
 <!-- /record:T2 -->
 
 ## T3: prompt copies silent filename tokens and keeps document screenshots
@@ -59,6 +71,16 @@ Export the existing `buildPrompt`. It still quotes `fileName` and still requires
 - done_when: `bun test tests/naming-rules-prompt.test.ts`
 - Reference: `python3 -c "print('passport|IND|about six words|not a photo|(2)')"`
 <!-- record:T3 -->
+**done** · run `ship-feature-c8c792`
+- Commits: none — HEAD stayed at `4e02aad`
+- Landed: [src/analyse.ts](../../../src/analyse.ts)
+- Gates: envelope ✓ · touches_only ✓ · lands ✓ · done_when ✓ · reference_decides ✓
+- Tests: task-test#2 done
+- Summary: Exported buildPrompt and added silent-filename token, passport, IND, photo-length, and screenshot-type instructions. bun test tests/naming-rules-prompt.test.ts passed (1 pass, 0 fail).
 <!-- /record:T3 -->
 <!-- record:run -->
+**failed** · run `ship-feature-c8c792`
+- Tasks: T1 done · T2 hole · T3 done
+- Commits: none — HEAD stayed at `4e02aad`
+- Detail: verify: exit 1 — output tail: … [+25441 earlier chars] tatuses in the plan file [93.45ms] (pass) T3 review() and the CLI wiring > the CLI accepts the row on Enter and the prompt names Enter as accept [93.82ms] analysing the documents in /var/folders/z8/pztf_rjx3y55l7hhjw7krf280000gn/T/docnamer-review-0816508e-c8b0-477b-b0e4-913657a4368b ✓ ▰▰▰▰▰▰▰▰▰▰ 100% planned 1 document(s) OLD NEW TYPE FLAGS ──… [+3816 chars]
 <!-- /record:run -->

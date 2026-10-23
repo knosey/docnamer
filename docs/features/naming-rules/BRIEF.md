@@ -65,3 +65,9 @@ undo, or the review TUI.
 - D3 (2026-10-23): Passport template is `{date} {holder} passport`. Government letters are `{date} {person} {kind} {agency}` with a short agency. Shapes R3 and R4.
 - D4 (2026-10-23): Photos and other non-documents get a short title, about six words, hard max 100 characters. A screenshot of a readable document uses that document's type. Global `max_name_length` stays 120. Shapes R5 and R6.
 - D5 (2026-10-23): Contract template is `{date} contract {customer} {subject}`, draft and version appended, same give-way as invoice. Employer's statement typed as payslip is out of scope. Shapes R7.
+
+## Decisions
+
+<!-- record:decisions -->
+- plan · run `ship-feature-c8c792` · asked: When a government-letter agency is not Immigration And Naturalisation Service, how should the planned name shorten it? — answered: in the operator's words: cant you search for the abreviation?
+<!-- /record:decisions -->
