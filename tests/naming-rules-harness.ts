@@ -57,25 +57,39 @@ export class Session {
 
 export const repo = import.meta.dir.replace(/\/tests$/, '')
 
-/** A real fixture whose bytes the current reader can open, copied under the interaction's filename. */
-const PDF = 'tests/fixtures/statement-text.pdf'
-const PNG = 'tests/fixtures/receipt.png'
+/**
+ * Each flow is seeded with bytes that ARE the document its interaction describes:
+ * the reader takes the type and fields from the page, so a statement's bytes
+ * under a passport's filename can only ever produce a statement.
+ */
+const CONTRACT = 'tests/fixtures/contract-saulx-crowdbuilding.pdf'
+const INVOICE = 'tests/fixtures/invoice-crowdbuilding.pdf'
+const PASSPORT = 'tests/fixtures/passport-reisepass.pdf'
+const AUTHORITY = 'tests/fixtures/eeavisa-authority.pdf'
+const PHOTO = 'tests/fixtures/receipt.png'
+const SCREENSHOT = 'tests/fixtures/invoice-page-screenshot.png'
 
 type Seed = { name: string; body?: string; copy?: string }
 
+/** One note under two names, so both render the same name and one must take a (2). */
+const NOTE = 'A note with a Finder collision suffix and no version field.\n'
+
 /** The file each interaction tells `docnamer plan` to name, under that exact filename. */
 const SEED: Record<FlowId, Seed[]> = {
-  I1: [{ name: '20260217 - Contract - Based Platform - Crowdbuilding (draft).pdf', copy: PDF }],
-  I2: [
-    { name: '20260006 Crowdbuilding February v3.pdf', copy: PDF },
-    { name: '20260006 Crowdbuilding V4.pdf', copy: PDF }
+  I1: [
+    { name: '20260217 - Contract - Based Platform - Crowdbuilding (draft).pdf', copy: CONTRACT }
   ],
-  I3: [{ name: 'passport-jacqui-with-stamps.pdf', copy: PDF }],
-  I4: [{ name: 'Authority-Jac-EEAVISA.pdf', copy: PDF }],
-  I5: [{ name: 'photo-not-a-document.png', copy: PNG }],
-  I6: [{ name: 'screenshot-of-invoice.png', copy: PNG }],
+  I2: [
+    { name: '20260006 Crowdbuilding February v3.pdf', copy: INVOICE },
+    { name: '20260006 Crowdbuilding V4.pdf', copy: INVOICE }
+  ],
+  I3: [{ name: 'passport-jacqui-with-stamps.pdf', copy: PASSPORT }],
+  I4: [{ name: 'Authority-Jac-EEAVISA.pdf', copy: AUTHORITY }],
+  I5: [{ name: 'photo-not-a-document.png', copy: PHOTO }],
+  I6: [{ name: 'screenshot-of-invoice.png', copy: SCREENSHOT }],
   I7: [
-    { name: 'notes (2).txt', body: 'A note with a Finder collision suffix and no version field.\n' }
+    { name: 'notes (2).txt', body: NOTE },
+    { name: 'notes.txt', body: NOTE }
   ],
   smoke: [
     {
