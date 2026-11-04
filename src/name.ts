@@ -203,8 +203,12 @@ export const buildName = async (
   let base = compose()
   if (base === '') base = nameOrDocument(checked.summary)
 
+  // The photo/other cap is a ceiling of its own, not a lift on the configured
+  // one: a config that asks for shorter names than PHOTO_CAP gets them.
   const photo = checked.type === 'photo' || checked.type === 'other'
-  const cap = photo ? PHOTO_CAP : config.defaults.max_name_length
+  const cap = photo
+    ? Math.min(PHOTO_CAP, config.defaults.max_name_length)
+    : config.defaults.max_name_length
   if (base.length + file.ext.length > cap) {
     base = shrinkToCap(base, fields, compose, cap, file.ext, checked.summary)
   }

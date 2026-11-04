@@ -1,6 +1,7 @@
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? "python3 -c \"print('v3|V4|draft|Jacqui|Jac|IND|100|120|(2)')\""
+export const reference =
+  process.env.GRAPH_REFERENCE ?? 'python3 -c "print(\'v3|V4|draft|Jacqui|Jac|IND|100|120|(2)\')"'
 
 import { expect, test } from 'bun:test'
 
@@ -88,12 +89,12 @@ const checked = (type: string, fields: Record<string, string | null>): Checked =
   type_confidence: 1,
   fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, field(v)])),
   summary: 'summary',
-  flags: [],
+  flags: []
 })
 
 const config = (max: number, types: Record<string, string>): Config => ({
   defaults: { max_name_length: max },
-  types: Object.fromEntries(Object.entries(types).map(([k, template]) => [k, { template }])),
+  types: Object.fromEntries(Object.entries(types).map(([k, template]) => [k, { template }]))
 })
 
 const build = async (
@@ -140,7 +141,13 @@ test('buildName fills empty version, status and person from file.name', async ()
   const [vLow, , status, personFull, , , , maxLen] = truth()
   const max = Number(maxLen)
   const name = await build(
-    checked('invoice', { date: '2026-02-01', version: '', status: '', person: '', subject: 'Crowdbuilding' }),
+    checked('invoice', {
+      date: '2026-02-01',
+      version: '',
+      status: '',
+      person: '',
+      subject: 'Crowdbuilding'
+    }),
     config(max, { invoice: '{date} {person} {subject} {version} {status}' }),
     { dir: '/docs', ext: '.pdf', name: `20260006 ${personFull} ${status} ${vLow}.pdf` }
   )
@@ -163,12 +170,22 @@ test('agency rendering shortens the ministry and keeps a first word otherwise', 
   const [, , , , , agency, , maxLen] = truth()
   const max = Number(maxLen)
   const ind = await build(
-    checked('letter', { date: '2024-03-01', person: 'Jac', kind: 'visa', agency: 'Immigration And Naturalisation Service' }),
+    checked('letter', {
+      date: '2024-03-01',
+      person: 'Jac',
+      kind: 'visa',
+      agency: 'Immigration And Naturalisation Service'
+    }),
     config(max, { letter: '{date} {person} {kind} {agency}' }),
     { dir: '/docs', ext: '.pdf', name: 'Authority-Jac-EEAVISA.pdf' }
   )
   const other = await build(
-    checked('letter', { date: '2024-03-01', person: 'Jac', kind: 'visa', agency: 'Belastingdienst Toeslagen' }),
+    checked('letter', {
+      date: '2024-03-01',
+      person: 'Jac',
+      kind: 'visa',
+      agency: 'Belastingdienst Toeslagen'
+    }),
     config(max, { letter: '{date} {person} {kind} {agency}' }),
     { dir: '/docs', ext: '.pdf' }
   )
@@ -185,21 +202,21 @@ test('photo and other cap below max_name_length; a real clash still suffixes', a
   const cfg = config(max, {
     photo: '{subject} {number}',
     other: '{subject}',
-    invoice: '{subject} {number}',
+    invoice: '{subject} {number}'
   })
-  const photo = await build(
-    checked('photo', { subject, number: '99999' }),
-    cfg,
-    { dir: '/docs', ext: '.jpg', name: 'IMG_0001.jpg' }
-  )
+  const photo = await build(checked('photo', { subject, number: '99999' }), cfg, {
+    dir: '/docs',
+    ext: '.jpg',
+    name: 'IMG_0001.jpg'
+  })
   const other = await build(checked('other', { subject }), cfg, { dir: '/docs', ext: '.pdf' })
   const invoice = await build(
-    checked('invoice', { subject: 'short', number: '12' }),
+    checked('invoice', { subject: 'word '.repeat(20).trim(), number: '12' }),
     cfg,
     { dir: '/docs', ext: '.pdf' }
   )
   const again = await build(
-    checked('invoice', { subject: 'short', number: '12' }),
+    checked('invoice', { subject: 'word '.repeat(20).trim(), number: '12' }),
     cfg,
     { dir: '/docs', ext: '.pdf' },
     new Set([invoice])
@@ -210,6 +227,23 @@ test('photo and other cap below max_name_length; a real clash still suffixes', a
   expect(invoice.length).toBeGreaterThan(cap)
   expect(photo.endsWith('.jpg')).toBe(true)
   expect(again).toBe(invoice.replace(/\.pdf$/, ` ${clash}.pdf`))
+})
+
+test('the photo/other cap never lifts above a configured max_name_length', async () => {
+  const [, , , , , , photoCap] = truth()
+  const cap = Number(photoCap)
+  const max = cap - 40
+  const subject = 'word '.repeat(40).trim()
+  const other = await build(checked('other', { subject }), config(max, { other: '{subject}' }), {
+    dir: '/docs',
+    ext: '.pdf'
+  })
+  const photo = await build(checked('photo', { subject }), config(max, { photo: '{subject}' }), {
+    dir: '/docs',
+    ext: '.jpg'
+  })
+  expect(other.length).toBeLessThanOrEqual(max)
+  expect(photo.length).toBeLessThanOrEqual(max)
 })
 
 test('length clamp drops subject words then number before slicing', async () => {
