@@ -240,10 +240,21 @@ export const readPlan = async (folder: string, command: string): Promise<PlanRow
   return JSON.parse(await Bun.file(planPath).text()) as PlanRow[]
 }
 
+/**
+ * True when `rel` is absolute or climbs out of the folder it is joined onto.
+ * apply and undo join plan-row and undo-record paths onto the folder unchecked,
+ * so every path read out of a JSON record passes this guard first: a hostile or
+ * corrupt record must never move or delete a file outside the folder.
+ */
+const escapesFolder = (rel: string): boolean => rel.startsWith('/') || rel.split('/').includes('..')
+
 /** Why `row` cannot be renamed right now, or null when it can. Kept as its own
  *  unit: inlined into `apply`'s loop the guard chain pushes that function past
  *  the complexity gate. */
 const skipReason = async (folder: string, row: PlanRow): Promise<string | null> => {
+  if (escapesFolder(row.old) || escapesFolder(row.new)) {
+    return 'path is absolute or escapes the folder'
+  }
   const f = Bun.file(`${folder}/${row.old}`)
   if (!(await f.exists())) return 'file no longer exists'
   if (f.size !== row.size || f.lastModified !== row.mtime) {
@@ -269,9 +280,20 @@ export const apply = async (
   const rows = await readPlan(folder, 'apply')
   const accepted = rows.filter(r => r.status === 'accepted')
 
+  const now = new Date()
+  const stamp = now.toISOString().replace(/[:.]/g, '-')
+  const undoFile = `.docnamer-undo-${stamp}.json`
+  // The record lands before the first rename and is rewritten as each entry is
+  // added, so a failure mid-run never leaves renamed files without their record.
+  const writeRecord = async (entries: UndoEntry[]): Promise<void> => {
+    const record: UndoRecord = { run: stamp, at: now.toISOString(), entries }
+    await Bun.write(`${folder}/${undoFile}`, JSON.stringify(record, null, 2) + '\n')
+  }
+
   const entries: UndoEntry[] = []
   const skipped: { file: string; reason: string }[] = []
   const comments: { file: string; comment: string }[] = []
+  await writeRecord(entries)
   for (const [i, row] of accepted.entries()) {
     progress?.(i + 1, accepted.length, row.old)
     const reason = await skipReason(folder, row)
@@ -301,14 +323,10 @@ export const apply = async (
     // Comments are batched into one osascript after the loop.
     if (config.defaults.finder_comment) comments.push({ file: to, comment: row.summary })
     entries.push(entry)
+    await writeRecord(entries)
   }
   await setFinderComments(comments)
 
-  const now = new Date()
-  const stamp = now.toISOString().replace(/[:.]/g, '-')
-  const undoFile = `.docnamer-undo-${stamp}.json`
-  const record: UndoRecord = { run: stamp, at: now.toISOString(), entries }
-  await Bun.write(`${folder}/${undoFile}`, JSON.stringify(record, null, 2) + '\n')
   removeFile(planPath)
   return { renamed: entries.length, skipped, undoFile }
 }
@@ -327,19 +345,49 @@ async function restore(
   if (await Bun.file(to).exists()) return { file: entry.old, reason: 'original name is occupied' }
   renameFile(from, to)
   if (entry.tag && config.defaults.finder_tags) await setFinderTag(to, entry.tag)
-  // Records written before the sidecar was recorded relative hold its absolute
-  // path; joined onto the folder again it named nothing, and `rm -f` of nothing
-  // succeeds.
-  if (entry.sidecar) {
-    removeFile(entry.sidecar.startsWith('/') ? entry.sidecar : `${folder}/${entry.sidecar}`)
+  // A sidecar path that is absolute or escapes the folder is never deleted:
+  // the record may be corrupt or hostile, and the file it restores is still
+  // put back — only the removal is refused. Records written before the sidecar
+  // was recorded relative hold absolute paths; their sidecars are now left in
+  // place rather than trusted.
+  if (entry.sidecar && !escapesFolder(entry.sidecar)) {
+    removeFile(`${folder}/${entry.sidecar}`)
   }
   return null
+}
+
+/** The newest undo record's file name in `folder`, or null when it holds none. */
+async function latestUndoName(folder: string): Promise<string | null> {
+  const found: string[] = []
+  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({
+    cwd: folder,
+    onlyFiles: true
+  })) {
+    found.push(rel)
+  }
+  found.sort()
+  return found.at(-1) ?? null
+}
+
+/** Refuse a record whole, before anything is replayed, when an entry's path is
+ *  absolute or climbs out of the folder: replaying the good entries first would
+ *  leave a hostile record half-applied. */
+function refuseEscapedPaths(entries: UndoEntry[], name: string): void {
+  for (const entry of entries) {
+    if (escapesFolder(entry.old) || escapesFolder(entry.new)) {
+      throw new Error(
+        `undo: record ${name} holds a path outside the folder ` +
+          `(${entry.old} -> ${entry.new}) — refusing to replay it`
+      )
+    }
+  }
 }
 
 /**
  * Undo a run: rename every recorded entry back to its original name, in reverse
  * order, never overwriting. `run` names the undo file; null takes the latest.
- * The undo file is deleted once restored.
+ * The undo file is deleted once every entry is restored, and rewritten holding
+ * only the entries that could not go back when any was skipped.
  */
 export async function undo(
   folder: string,
@@ -347,19 +395,7 @@ export async function undo(
   config: Config,
   progress?: Progress
 ): Promise<UndoReport> {
-  let name = run
-  if (name === null) {
-    const found: string[] = []
-    for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({
-      cwd: folder,
-      onlyFiles: true
-    })) {
-      found.push(rel)
-    }
-    // SAFE: a folder with no undo record is a legitimate state the error below
-    // reports; `at(-1)`'s undefined only names it.
-    name = found.sort().at(-1) ?? null
-  }
+  const name = run ?? (await latestUndoName(folder))
   if (name === null) {
     throw new Error(`undo: no .docnamer-undo-*.json in ${folder} — nothing to undo`)
   }
@@ -368,16 +404,25 @@ export async function undo(
     throw new Error(`undo: undo record ${path} does not exist`)
   }
   const record = JSON.parse(await Bun.file(path).text()) as UndoRecord
+  refuseEscapedPaths(record.entries, name)
 
   const skipped: { file: string; reason: string }[] = []
   const restored: string[] = []
+  const remaining: UndoEntry[] = []
   const back = [...record.entries].reverse()
   for (const [i, entry] of back.entries()) {
     progress?.(i + 1, back.length, entry.new)
     const refused = await restore(folder, entry, config)
     if (refused === null) restored.push(entry.old)
-    else skipped.push(refused)
+    else {
+      skipped.push(refused)
+      remaining.push(entry)
+    }
   }
-  removeFile(path)
+  // The record is what a retry replays: an entry that could not go back leaves
+  // the record on disk holding exactly what is left, so the next undo picks up
+  // there instead of losing those files' way home with the file itself.
+  if (remaining.length === 0) removeFile(path)
+  else await Bun.write(path, JSON.stringify({ ...record, entries: remaining }, null, 2) + '\n')
   return { restored, skipped }
 }
