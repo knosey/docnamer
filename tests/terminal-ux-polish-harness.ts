@@ -586,13 +586,18 @@ async function analysisDir(s: Session): Promise<string> {
   return dir
 }
 
+/** The label names the work and the folder, and the throbber cycles it from the
+ *  first frame; a window of MODEL_CALL_MS would only burn the test's own timeout
+ *  when the label moved, and say nothing. */
+const ANALYSIS_LABEL = 'analysing the documents in'
+
 /** start_analysis: run `docnamer plan` on a pty and wait for the throbber. */
 export async function start_analysis(s: Session): Promise<Session> {
   await ensure(s)
   await ensureProviderKey()
   const live = startPty([...argv(s), 'plan', await analysisDir(s)], shellEnv(), repo)
   s.analysis = live
-  await live.waitFor('reading', MODEL_CALL_MS)
+  await live.waitFor(ANALYSIS_LABEL, 30000)
   return s
 }
 
@@ -610,10 +615,21 @@ export async function throbber_with_bar(s: Session): Promise<Session> {
   // The throbber frame is transient — gone once the run completes — so the
   // evidence screen is taken here, while the bar is provably on it.
   s.throbberFrame = await live.screen()
-  const text = strip(live.seen())
-  const pct = text.search(/\d+%/)
-  if (!text.includes(full) || pct === -1 || text.indexOf(full) > pct) {
-    throw new Error(`I4 throbber_with_bar: no ${full} bar with a percentage in the frame:\n${text}`)
+  // The bar and its percentage are read on ONE line of the latest frame: the
+  // stream holds every redraw the run drew, so a search over all of it finds the
+  // 0% of an earlier frame before the first filled block and calls a correct
+  // frame wrong.
+  const line = strip(live.seen())
+    .split(/[\r\n]/)
+    .filter(l => l.includes('%'))
+    .at(-1)
+  if (
+    line === undefined ||
+    !line.includes(full) ||
+    !/\d+%/.test(line) ||
+    line.indexOf(full) > line.search(/\d+%/)
+  ) {
+    throw new Error(`I4 throbber_with_bar: no ${full} bar with a percentage in the frame:\n${line}`)
   }
   return s
 }
