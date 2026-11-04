@@ -60,6 +60,18 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;')
 }
 
+/** One line of Finder metadata: control characters (newlines, tabs) become spaces. */
+export function oneLine(s: string): string {
+  return s.replace(/\p{Cc}+/gu, ' ')
+}
+
+/** Warn when a value had to be flattened to one line before reaching Finder. */
+function warnFlattened(what: string, original: string, cleaned: string): void {
+  if (cleaned !== original) {
+    console.warn(`spotlight: ${what} held a newline or control character; written as one line`)
+  }
+}
+
 // --- Finder tags --------------------------------------------------------------
 
 /** Every Finder tag on the file; [] when the xattr is absent. */
@@ -76,8 +88,10 @@ export async function readFinderTags(file: string): Promise<string[]> {
 
 /** Add a Finder tag to the file, keeping the tags already there. */
 export async function setFinderTag(file: string, tag: string): Promise<void> {
+  const flat = oneLine(tag)
+  warnFlattened('a Finder tag', tag, flat)
   const tags = await readFinderTags(file)
-  if (!tags.includes(tag)) tags.push(tag)
+  if (!tags.includes(flat)) tags.push(flat)
   const hex = [...encodeTagPlist(tags)].map(b => b.toString(16).padStart(2, '0')).join(' ')
   const proc = Bun.spawnSync(['xattr', '-wx', TAG_XATTR, hex, file])
   if (proc.exitCode !== 0) {
@@ -93,9 +107,13 @@ export async function setFinderTag(file: string, tag: string): Promise<void> {
 export async function setFinderComments(pairs: { file: string; comment: string }[]): Promise<void> {
   if (pairs.length === 0) return
   const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-  const lines = pairs.map(
-    p => `set comment of (POSIX file "${esc(p.file)}" as alias) to "${esc(p.comment)}"`
-  )
+  const lines = pairs.map(p => {
+    const file = oneLine(p.file)
+    const comment = oneLine(p.comment)
+    warnFlattened('a Finder comment path', p.file, file)
+    warnFlattened('a Finder comment', p.comment, comment)
+    return `set comment of (POSIX file "${esc(file)}" as alias) to "${esc(comment)}"`
+  })
   const proc = Bun.spawnSync([
     'osascript',
     '-e',
