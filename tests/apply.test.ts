@@ -52,3 +52,20 @@ test('T2 undo restores the reference set and deletes the undo record', async () 
   expect(await names(dir)).toEqual(fixtures)
   expect(await latestUndo(dir)).toBeNull()
 })
+
+test('T2 apply and undo keep a document in its subfolder, never the folder root', async () => {
+  const c = await loadCommands()
+  const fixture = referenceOutput()[0] as string
+  const dir = await seed([fixture], 'sub')
+  await writeAcceptedPlan(dir, [fixture], 'sub')
+
+  const applied = await c.apply(dir, CONFIG)
+  expect(applied.renamed).toBe(1)
+  expect(await Bun.file(`${dir}/sub/renamed-${fixture}`).exists()).toBe(true)
+  expect(await Bun.file(`${dir}/sub/${fixture}`).exists()).toBe(false)
+  expect(await Bun.file(`${dir}/renamed-${fixture}`).exists()).toBe(false)
+
+  await c.undo(dir, null, CONFIG)
+  expect(await Bun.file(`${dir}/sub/${fixture}`).exists()).toBe(true)
+  expect(await Bun.file(`${dir}/sub/renamed-${fixture}`).exists()).toBe(false)
+})

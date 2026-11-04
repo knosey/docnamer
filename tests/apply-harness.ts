@@ -126,24 +126,31 @@ export const CONFIG: Config = {
 
 export const PLAN = '.docnamer-plan.json'
 
-/** A throwaway folder in /tmp (outside the tree) seeded with the fixture files. */
-export async function seed(fixtures: string[]): Promise<string> {
+/** A throwaway folder in /tmp (outside the tree) seeded with the fixture files,
+ *  named under `prefix` when the case needs them in a subfolder. */
+export async function seed(fixtures: string[], prefix = ''): Promise<string> {
   const dir = scratch('docnamer-apply')
   for (const name of fixtures) {
     const bytes = await Bun.file(`${repo}/tests/fixtures/${name}`).arrayBuffer()
-    await Bun.write(`${dir}/${name}`, bytes)
+    await Bun.write(prefix === '' ? `${dir}/${name}` : `${dir}/${prefix}/${name}`, bytes)
   }
   return dir
 }
 
-/** One accepted plan row per seeded fixture, with its current size and mtime. */
-export async function writeAcceptedPlan(dir: string, fixtures: string[]): Promise<PlanRow[]> {
+/** One accepted plan row per seeded fixture, with its current size and mtime.
+ *  `prefix` puts the rows in a subfolder, the way a recursive plan finds them. */
+export async function writeAcceptedPlan(
+  dir: string,
+  fixtures: string[],
+  prefix = ''
+): Promise<PlanRow[]> {
+  const at = (name: string): string => (prefix === '' ? name : `${prefix}/${name}`)
   const rows: PlanRow[] = []
   for (const name of fixtures) {
-    const f = Bun.file(`${dir}/${name}`)
+    const f = Bun.file(`${dir}/${at(name)}`)
     rows.push({
-      old: name,
-      new: `renamed-${name}`,
+      old: at(name),
+      new: at(`renamed-${name}`),
       type: 'other',
       method: 'text',
       fields: {},

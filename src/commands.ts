@@ -37,6 +37,21 @@ function base(p: string): string {
   return i < 0 ? p : p.slice(i + 1)
 }
 
+/** The directory part of a folder-relative path, or '' at the folder root. */
+function dirOf(rel: string): string {
+  const i = rel.lastIndexOf('/')
+  return i < 0 ? '' : rel.slice(0, i)
+}
+
+/** The path pair a row renames: `old` is the relative path the document was
+ *  found at, `new` that path with the generated name in it. A recursive plan
+ *  therefore renames in place, instead of aiming every document at the folder
+ *  root — where apply would find no such file and skip it. */
+export function rowPaths(rel: string, name: string): { old: string; new: string } {
+  const dir = dirOf(rel)
+  return { old: rel, new: dir === '' ? name : `${dir}/${name}` }
+}
+
 export function extOf(p: string): string {
   const m = /\.[^./]+$/.exec(base(p))
   return m ? m[0] : ''
@@ -68,6 +83,31 @@ async function scan(folder: string, recursive: boolean): Promise<string[]> {
   return out
 }
 
+/** Run `fn` over `items` with at most `limit` in flight, keeping the order of
+ *  the results. A folder of 500 documents is one model call each: unbounded they
+ *  all open at once and the provider answers 429s, so the concurrency is capped
+ *  and the rest queue behind it. */
+export async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const out: R[] = Array.from({ length: items.length })
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next
+      next += 1
+      out[i] = await fn(items[i] as T)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return out
+}
+
+/** The document reads in flight at once in `plan`. */
+const PLAN_LIMIT = 4
+
 export async function plan(
   folder: string,
   opts: { recursive: boolean; applyUnflagged: boolean },
@@ -78,63 +118,83 @@ export async function plan(
   // The count is known before any document is read. Report it so the bar can
   // sit at zero during the model calls, instead of appearing only after the first reply.
   progress?.(0, rels.length, '')
-  const planned = new Set<string>()
-  // Names already on disk are occupied too: no row may propose one.
-  for (const rel of rels) planned.add(base(rel).toLowerCase())
+  const planned = new Map<string, Set<string>>()
+  // Names already on disk are occupied too: no row may propose one. Two
+  // directories are two namespaces, so the set is per directory: a recursive
+  // plan may reuse a name that is taken only one folder over.
+  for (const rel of rels) {
+    const dir = dirOf(rel)
+    // SAFE: the first document in a directory starts with nothing taken there.
+    const set = planned.get(dir) ?? new Set<string>()
+    set.add(base(rel).toLowerCase())
+    planned.set(dir, set)
+  }
 
   // Stages 1-3 are independent per file — one model call each — so they run
-  // concurrently; Stage 4 below is serial because it mutates `planned`.
+  // concurrently, four at a time (mapLimit); Stage 4 below is serial because it
+  // mutates `planned`.
   // Each completion reports how many documents are done, so a terminal can
   // draw the bar rising beside the throbber while the rest are still read.
   let done = 0
-  const examined = await Promise.all(
-    rels.map(async rel => {
-      const path = `${folder}/${rel}`
-      const old = base(rel)
-      let checked: Checked | null = null
-      let failedReason: string | null = null
-      let method: PlanRow['method'] = null
-      try {
-        const content = await read(path)
-        // Stage 1 SKIPped the file (unsupported type): it is not a document, so
-        // it gets no row. The folder's own docnamer.json is the case in point —
-        // a row for it would propose its own name back at it and collide.
-        if (content === null) return null
-        method = content.method
-        let result: Analysis | { failed: true; reason: string } = await analyse(
-          content,
-          old,
-          config
-        )
-        // A reply the tool contract could not read is the one case worth a
-        // second, stronger look: hand the first page's image to the strong seat
-        // and take whatever name it returns.
-        const images = isFailed(result as never) ? await pageImages(path) : []
-        if (images.length > 0) {
-          result = await analyse({ ...content, images, method: 'vision' }, old, config, 'strong')
-        }
-        if (isFailed(result as never)) failedReason = (result as { reason: string }).reason
-        else checked = validate(result as Analysis, content, config)
-      } catch (e) {
-        failedReason = e instanceof Error ? e.message : String(e)
+  const examined = await mapLimit(rels, PLAN_LIMIT, async rel => {
+    const path = `${folder}/${rel}`
+    const found = base(rel)
+    let checked: Checked | null = null
+    let failedReason: string | null = null
+    let method: PlanRow['method'] = null
+    try {
+      const content = await read(path)
+      // Stage 1 SKIPped the file (unsupported type): it is not a document, so
+      // it gets no row. The folder's own docnamer.json is the case in point —
+      // a row for it would propose its own name back at it and collide.
+      if (content === null) return null
+      method = content.method
+      let result: Analysis | { failed: true; reason: string } = await analyse(
+        content,
+        found,
+        config
+      )
+      // A reply the tool contract could not read is the one case worth a
+      // second, stronger look: hand the first page's image to the strong seat
+      // and take whatever name it returns.
+      const images = isFailed(result as never) ? await pageImages(path) : []
+      if (images.length > 0) {
+        result = await analyse({ ...content, images, method: 'vision' }, found, config, 'strong')
       }
-      // A row nothing could analyse still gets a name: its own stem, which
-      // Stage 4 renders unique against the names already on disk.
-      if (checked === null) {
-        checked = { type: 'other', type_confidence: 0, fields: {}, summary: stemOf(old), flags: [] }
+      if (isFailed(result as never)) failedReason = (result as { reason: string }).reason
+      else checked = validate(result as Analysis, content, config)
+    } catch (e) {
+      failedReason = e instanceof Error ? e.message : String(e)
+    }
+    // A row nothing could analyse still gets a name: its own stem, which
+    // Stage 4 renders unique against the names already on disk.
+    if (checked === null) {
+      checked = {
+        type: 'other',
+        type_confidence: 0,
+        fields: {},
+        summary: stemOf(found),
+        flags: []
       }
-      // Exactly once per file, whatever happened above: a row thrown mid-draw
-      // was already validated and keeps its name.
-      done += 1
-      progress?.(done, rels.length, old)
-      return { rel, old, checked, failedReason, method }
-    })
-  )
+    }
+    // Exactly once per file, whatever happened above: a row thrown mid-draw
+    // was already validated and keeps its name.
+    done += 1
+    progress?.(done, rels.length, rel)
+    return { rel, checked, failedReason, method }
+  })
 
   const rows: PlanRow[] = []
   for (const ex of examined) {
     if (ex === null) continue
-    const { rel, old, checked, failedReason, method } = ex
+    const { rel, checked, failedReason, method } = ex
+    const dir = dirOf(rel)
+    const taken = planned.get(dir)
+    if (taken === undefined) {
+      throw new Error(
+        `plan: no name set for ${dir || 'the folder root'} — the walk and the row loop disagree`
+      )
+    }
     const fields: Record<string, string> = {}
     const evidence: Record<string, string> = {}
     for (const [k, v] of Object.entries(checked.fields)) {
@@ -155,14 +215,15 @@ export async function plan(
     const name = await buildName(
       checked,
       config,
-      { dir: folder, ext: extOf(old), name: rel },
-      planned
+      { dir: folder, ext: extOf(rel), name: base(rel) },
+      taken
     )
+    const { old, new: renamed } = rowPaths(rel, name)
 
     const f = Bun.file(`${folder}/${rel}`)
     rows.push({
       old,
-      new: name,
+      new: renamed,
       type: checked.type,
       method,
       fields,

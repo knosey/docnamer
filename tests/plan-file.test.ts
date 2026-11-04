@@ -46,3 +46,31 @@ test('assertPlanCovers passes a plan that covers every seeded document', () => {
     assertPlanCovers(rows, ['a.txt', 'b.txt', 'docnamer.json'], 'docnamer.json')
   ).not.toThrow()
 })
+
+// Loaded inside the check, like every other product module under test: a module
+// that fails to load is a failed check, not a throw at load (tests/apply-harness.ts).
+test('rowPaths renames a document inside the directory it was found in', async () => {
+  const { rowPaths } = await import('../src/commands.ts')
+  expect(rowPaths('a.pdf', 'b.pdf')).toEqual({ old: 'a.pdf', new: 'b.pdf' })
+  expect(rowPaths('sub/a.pdf', 'b.pdf')).toEqual({ old: 'sub/a.pdf', new: 'sub/b.pdf' })
+  expect(rowPaths('sub/deep/a.pdf', 'b.pdf')).toEqual({
+    old: 'sub/deep/a.pdf',
+    new: 'sub/deep/b.pdf'
+  })
+})
+
+test('mapLimit keeps at most `limit` runs in flight and returns them in order', async () => {
+  const { mapLimit } = await import('../src/commands.ts')
+  let inFlight = 0
+  let peak = 0
+  const results = await mapLimit([1, 2, 3, 4, 5, 6, 7], 3, async n => {
+    inFlight += 1
+    peak = Math.max(peak, inFlight)
+    // Yield so the other workers really are concurrent while this one runs.
+    await Bun.sleep(2)
+    inFlight -= 1
+    return n * 10
+  })
+  expect(peak).toBe(3)
+  expect(results).toEqual([10, 20, 30, 40, 50, 60, 70])
+})
