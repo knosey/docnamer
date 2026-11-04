@@ -130,8 +130,13 @@ test(
 
     const report = await mod.evalTestset(TESTSET, config)
 
-    // The truth: the report covers exactly the reference file set.
-    expect(report.files).toBe(referenceOutput().length)
+    // The truth: the report covers exactly the documents the graded set holds.
+    // The fixtures folder also carries ocr-stall.pdf, which the graded set leaves
+    // out on purpose, so the count is the testset's own — and every one of those
+    // documents must still be a real fixture.
+    expect(report.files).toBe(before.length)
+    const fixtures = referenceOutput()
+    for (const file of before) expect(fixtures).toContain(file)
     expect(typeof report.typeAccuracy).toBe('number')
     expect(report.typeAccuracy).toBeGreaterThanOrEqual(0)
     expect(report.typeAccuracy).toBeLessThanOrEqual(1)
