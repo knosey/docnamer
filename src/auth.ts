@@ -15,6 +15,9 @@
  * map, and every one of these names appears in a public signature, so deriving
  * them cannot drift from the shipped version.
  */
+import { renameSync, mkdirSync } from 'node:fs'
+import { open, rm } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import type { CreateModelsOptions, MutableModels } from '@earendil-works/pi-ai/models'
 import { builtinModels } from '@earendil-works/pi-ai/providers/all'
 import type { Config } from './config.ts'
@@ -72,15 +75,22 @@ async function readStore(path: string): Promise<StoreFile> {
   return JSON.parse(await file.text()) as StoreFile
 }
 
-/** A secret file is written owner-only: it holds a key that can spend money. */
+/** A secret file is written owner-only from the moment it exists: the mode is
+ *  set by the create, never by a chmod after the write, because until that
+ *  chmod lands the key that can spend money is readable by anyone else on the
+ *  machine. The bytes go to a sibling and are renamed over the store, so a crash
+ *  cannot leave a half-written credential either. */
 async function writeStore(path: string, store: StoreFile): Promise<void> {
-  await Bun.write(path, `${JSON.stringify(store, null, 2)}\n`)
-  const proc = Bun.spawnSync(['chmod', '600', path])
-  if (proc.exitCode !== 0) {
-    throw new Error(
-      `auth: wrote ${path} but could not make it owner-only: ${proc.stderr.toString().trim()}`
-    )
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
+  const tmp = `${path}.tmp`
+  await rm(tmp, { force: true })
+  const handle = await open(tmp, 'wx', 0o600)
+  try {
+    await handle.writeFile(`${JSON.stringify(store, null, 2)}\n`)
+  } finally {
+    await handle.close()
   }
+  renameSync(tmp, path)
 }
 
 /** One promise chain per provider id, so `modify` is a serialized
@@ -204,28 +214,36 @@ async function withoutEcho<T>(read: () => Promise<T>, u: Ui): Promise<T> {
   }
 }
 
+/** A `select` printed as a numbered list, answered with a digit or with the
+ *  option's own id. */
+async function askSelect(
+  prompt: Extract<AuthPrompt, { type: 'select' }>,
+  next: () => Promise<string>,
+  u: Ui
+): Promise<string> {
+  u.log(`? ${u.bold(prompt.message)}`)
+  const width = prompt.options.reduce((w, o) => Math.max(w, o.label.length), 0)
+  for (const [i, option] of prompt.options.entries()) {
+    const about = option.description === undefined ? '' : u.dim(option.description)
+    u.log(u.row(`  ${i + 1}) `, [option.label, about], [width, 0]))
+  }
+  const answer = (await next()).trim()
+  const index = Number.parseInt(answer, 10)
+  if (Number.isInteger(index) && index >= 1 && index <= prompt.options.length) {
+    return prompt.options[index - 1].id
+  }
+  const chosen = prompt.options.find(o => o.id === answer)
+  if (chosen === undefined) {
+    throw new Error(`login: "${answer}" is not one of the offered options`)
+  }
+  return chosen.id
+}
+
 /** One question, printed, with the answer read from stdin. A `select` is
  *  numbered so a person can answer with a digit or with the option's id. */
 function prompter(next: () => Promise<string>, u: Ui): (prompt: AuthPrompt) => Promise<string> {
   return async prompt => {
-    if (prompt.type === 'select') {
-      u.log(`? ${u.bold(prompt.message)}`)
-      const width = prompt.options.reduce((w, o) => Math.max(w, o.label.length), 0)
-      for (const [i, option] of prompt.options.entries()) {
-        const about = option.description === undefined ? '' : u.dim(option.description)
-        u.log(u.row(`  ${i + 1}) `, [option.label, about], [width, 0]))
-      }
-      const answer = (await next()).trim()
-      const index = Number.parseInt(answer, 10)
-      if (Number.isInteger(index) && index >= 1 && index <= prompt.options.length) {
-        return prompt.options[index - 1].id
-      }
-      const chosen = prompt.options.find(o => o.id === answer)
-      if (chosen === undefined) {
-        throw new Error(`login: "${answer}" is not one of the offered options`)
-      }
-      return chosen.id
-    }
+    if (prompt.type === 'select') return askSelect(prompt, next, u)
     u.log(`? ${u.bold(prompt.message)}`)
     if (prompt.placeholder !== undefined) u.log(u.note(prompt.placeholder))
     return prompt.type === 'secret' ? withoutEcho(next, u) : next()

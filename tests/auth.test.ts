@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { readdirSync, statSync } from 'node:fs'
 import { runCliAs } from './doc-renamer-apply-harness.ts'
 import { scratch } from './scratch.ts'
 
@@ -103,6 +104,13 @@ test('login stores the key it was given, owner-only, and auth then finds it', as
 
   const mode = (await Bun.file(store).stat()).mode & 0o777
   expect(mode.toString(8), 'the stored key is readable by anyone else on the machine').toBe('600')
+
+  const dirMode = statSync(`${home}/.config/docnamer`).mode & 0o777
+  expect(dirMode.toString(8), 'the credential folder is readable by anyone else').toBe('700')
+  expect(
+    readdirSync(`${home}/.config/docnamer`),
+    'a login left a partial store behind beside the real one'
+  ).toEqual(['credentials.json'])
 
   const after = await runCliAs(home, ['auth'])
   expect(after.code, `auth after login exited ${after.code}: ${after.stderr}`).toBe(0)
