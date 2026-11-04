@@ -167,7 +167,7 @@ export function buildPrompt(content: Content, fileName: string, config: Config):
     `When the page is silent, copy version, status and person from the old filename. Filename tokens already read: ${JSON.stringify(tokens)}. Never treat Finder (2) as a version.`,
     'The passport type word is the English word passport, never REISEPASS, and holder comes from the filename when the page is silent.',
     'agency is a short name, and Immigration And Naturalisation Service is IND, never the full ministry title.',
-    'A photo title is about six words. A screenshot of a readable document uses that document\'s type, not a photo and not other.',
+    "A photo title is about six words. A screenshot of a readable document uses that document's type, not a photo and not other.",
     '',
     'Document text:',
     content.text.slice(0, TEXT_CAP)
@@ -211,19 +211,30 @@ function readCall(
  * turn and, if that also fails, into a `Failed`. The reason names the offending
  * fields, because the repair turn quotes it verbatim.
  *
- * The field-name check is the one that matters: the provider does not enforce
- * the schema, so this is what stops an invented `invoice_number` from reaching
- * validate(), where it would be looked up in the roster, found nowhere, and
- * silently dropped — leaving every template slot empty.
+ * A field the chosen type does not declare is DROPPED, never a refusal: the
+ * schema's `fields` object carries every name the roster declares, so a reply
+ * that fills several types' fields is conforming output, and refusing it threw
+ * away a document's whole analysis (I1 planned its own name back with " (2)"
+ * appended for exactly this). A typo'd name still costs its required field,
+ * which the check below refuses.
  */
-function asAnalysis(
+export function asAnalysis(
   args: Record<string, unknown>,
   types: Record<string, DocType>
 ): Analysis | string {
-  const type = args.type
-  const confidence = args.type_confidence
-  const summary = args.summary
-  const rawFields = args.fields
+  const head = readHead(args, types)
+  if (typeof head === 'string') return head
+  const fields = readFields(args.fields, head.t, head.type)
+  if (typeof fields === 'string') return fields
+  return { type: head.type, type_confidence: head.confidence, fields, summary: head.summary }
+}
+
+/** The reply's type, its confidence and its summary, checked against the roster. */
+function readHead(
+  args: Record<string, unknown>,
+  types: Record<string, DocType>
+): { t: DocType; type: string; confidence: number; summary: string } | string {
+  const { type, type_confidence: confidence, summary } = args
   if (typeof type !== 'string') return 'the type argument is missing or not a string'
   const t = Object.hasOwn(types, type) ? types[type] : undefined
   if (t === undefined) {
@@ -232,37 +243,47 @@ function asAnalysis(
   if (typeof confidence !== 'number')
     return 'the type_confidence argument is missing or not a number'
   if (typeof summary !== 'string') return 'the summary argument is missing or not a string'
+  return { t, type, confidence, summary }
+}
+
+/** Every field the chosen type declares, in the order the roster lists it. */
+function readFields(rawFields: unknown, t: DocType, type: string): Analysis['fields'] | string {
   if (typeof rawFields !== 'object' || rawFields === null || Array.isArray(rawFields)) {
     return 'the fields argument is missing or not an object'
   }
-
   const declared = Object.keys(t.fields)
-  const got = Object.keys(rawFields)
-  const unknown = got.filter(name => !declared.includes(name))
-  if (unknown.length > 0) {
-    return `the fields object named ${unknown.join(', ')}, which type "${type}" does not declare; "${type}" declares exactly ${declared.join(', ')}`
-  }
+  const raw = rawFields as Record<string, unknown>
+  const got = Object.keys(raw)
   const missing = declared.filter(name => t.fields[name].required && !got.includes(name))
   if (missing.length > 0) {
     return `the fields object omitted ${missing.join(', ')}, which type "${type}" requires; a required field that the document does not state takes a null value, it is not left out`
   }
-
   const fields: Analysis['fields'] = {}
-  for (const [name, entry] of Object.entries(rawFields)) {
-    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-      return `the field "${name}" is not an object with a value and an evidence`
-    }
-    const value = (entry as Record<string, unknown>).value
-    const evidence = (entry as Record<string, unknown>).evidence
-    if (typeof value !== 'string' && value !== null) {
-      return `the field "${name}" has a value that is neither a string nor null`
-    }
-    if (typeof evidence !== 'string' && evidence !== null) {
-      return `the field "${name}" has an evidence that is neither a string nor null`
-    }
-    fields[name] = { value, evidence }
+  for (const name of declared) {
+    if (raw[name] === undefined) continue
+    const field = readField(name, raw[name])
+    if (typeof field === 'string') return field
+    fields[name] = field
   }
-  return { type, type_confidence: confidence, fields, summary }
+  return fields
+}
+
+/** One `{ value, evidence }` pair, each half a string or null. */
+function readField(
+  name: string,
+  entry: unknown
+): { value: string | null; evidence: string | null } | string {
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+    return `the field "${name}" is not an object with a value and an evidence`
+  }
+  const { value, evidence } = entry as Record<string, unknown>
+  if (typeof value !== 'string' && value !== null) {
+    return `the field "${name}" has a value that is neither a string nor null`
+  }
+  if (typeof evidence !== 'string' && evidence !== null) {
+    return `the field "${name}" has an evidence that is neither a string nor null`
+  }
+  return { value, evidence }
 }
 
 /** Page images ride along in the same call as the text. */

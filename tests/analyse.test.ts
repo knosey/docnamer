@@ -21,6 +21,7 @@ type Analyser = {
   analyse: (content: Content, fileName: string, config: Config) => Promise<Analysis | Failed>
   buildSchema: (types: Record<string, DocType>) => unknown
   isFailed: (r: Analysis | Failed) => r is Failed
+  asAnalysis: (args: Record<string, unknown>, types: Record<string, DocType>) => Analysis | string
 }
 
 // Declared here so this suite loads with no `src/` module present; bun strips the types at run time.
@@ -171,3 +172,26 @@ test(
   },
   MODEL_CALL_MS
 )
+
+// The schema's `fields` object carries every name the roster declares, so a
+// reply that fills several types' fields is conforming, not wrong.
+test('a reply carrying fields the chosen type does not declare is accepted, and the rest are dropped', async () => {
+  const mod = await load()
+  const reply = {
+    type: 'invoice',
+    type_confidence: 0.9,
+    summary: 'a bill from Acme',
+    fields: {
+      date: { value: '2026-04-03', evidence: 'Date: 03/04/2026' },
+      vendor: { value: 'Acme', evidence: 'Acme Ltd' },
+      number: { value: 'INV-0042', evidence: 'Invoice number: INV-0042' },
+      amount: { value: '482.50', evidence: 'Total: 482.50 GBP' },
+      agency: { value: 'IND', evidence: 'Immigration And Naturalisation Service' }
+    }
+  }
+  const got = mod.asAnalysis(reply, config.types)
+  if (typeof got === 'string') {
+    throw new Error(`asAnalysis refused a schema-conforming reply: ${got}`)
+  }
+  expect(Object.keys(got.fields).sort()).toEqual(['amount', 'date', 'number', 'vendor'])
+})
