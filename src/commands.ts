@@ -245,7 +245,7 @@ export async function writePlan(folder: string, rows: PlanRow[]): Promise<void> 
 
 // --- Stage 5: apply and undo --------------------------------------------------
 
-type UndoEntry = {
+export type UndoEntry = {
   old: string
   new: string
   size: number
@@ -254,7 +254,7 @@ type UndoEntry = {
   sidecar?: string
 }
 
-type UndoRecord = { run: string; at: string; entries: UndoEntry[] }
+export type UndoRecord = { run: string; at: string; entries: UndoEntry[] }
 
 export type ApplyReport = {
   renamed: number

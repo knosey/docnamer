@@ -16,24 +16,10 @@
  * Every run stands alone: a fresh temp dir, a CLI resolved per run, nothing
  * written into the repo except a frame under `.audit/screenshots/`.
  */
-import { mkdir } from "node:fs/promises"
-import { CONFIG_FILE } from "../src/config.ts"
-import { appBin } from "./app-binary.ts"
-import { runChild } from "./child.ts"
 import { frame } from "./frame.ts"
-import { planRows } from "./plan-file.ts"
-import { ensureProviderKey, MODEL_CALL_MS } from "./preload.ts"
-import { scratch } from "./scratch.ts"
+import { bootRun, repo, runPlan, type PlanRow } from "./harness.ts"
 
-export type PlanRow = {
-  old: string
-  new: string
-  type: string
-  fields: Record<string, string>
-  flags: string[]
-  summary: string
-  status: string
-}
+export { repo }
 
 /** Which interaction this run plans. `smoke` is the harness's own boot file. */
 export type FlowId = "I1" | "I2" | "I3" | "I4" | "I5" | "I6" | "I7" | "smoke"
@@ -46,6 +32,9 @@ export class Session {
   plan: PlanRow[] = []
   /** Proposed filenames, in plan order. Flow tests assert their Outcome on these. */
   names: string[] = []
+  // Written by bootRun and read through RunFolder inside it; a Session never
+  // reads its own cli.
+  // fallow-ignore-next-line unused-class-member
   cli: string[] | null = null
   last: { code: number; stdout: string; stderr: string } = { code: -1, stdout: "", stderr: "" }
   booted = false
@@ -54,8 +43,6 @@ export class Session {
     this.flow = flow
   }
 }
-
-export const repo = import.meta.dir.replace(/\/tests$/, "")
 
 /**
  * Each flow is seeded with bytes that ARE the document its interaction describes:
@@ -106,26 +93,10 @@ const SEED: Record<FlowId, Seed[]> = {
   ]
 }
 
-async function shell(cmd: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
-  return runChild(cmd, { env: { ...Bun.env }, timeoutMs: MODEL_CALL_MS })
-}
-
-async function resolveCli(): Promise<string[] | null> {
-  const override = Bun.env.DOCNAMER_BIN
-  if (override && override.trim()) return override.trim().split(/\s+/)
-  const src = `${repo}/src/cli.ts`
-  if (await Bun.file(src).exists()) return [Bun.which("bun") ?? "bun", src]
-  if (await Bun.file(appBin).exists()) return [appBin]
-  return null
-}
-
-/** Boot the isolated environment and seed this flow's files. `entry` calls this; the smoke proves isolation through `s.booted`. */
+/** Boot the isolated folder and seed this flow's files; the smoke proves isolation through `s.booted`. */
 async function boot(s: Session): Promise<void> {
   if (s.booted) return
-  const dir = scratch("naming-rules")
-  await mkdir(dir, { recursive: true })
-  s.dir = dir
-  s.planPath = `${dir}/.docnamer-plan.json`
+  const dir = await bootRun(s, "naming-rules")
   const files = SEED[s.flow]
   if (!files) throw new Error(`boot: no seed for flow ${s.flow}`)
   for (const f of files) {
@@ -138,28 +109,6 @@ async function boot(s: Session): Promise<void> {
       throw new Error(`boot: seed ${f.name} has neither body nor copy`)
     }
   }
-  const config = `${repo}/${CONFIG_FILE}`
-  if (await Bun.file(config).exists()) await Bun.write(`${dir}/${CONFIG_FILE}`, Bun.file(config))
-  s.cli = await resolveCli()
-  s.booted = true
-}
-
-const missingCli = (): Error =>
-  new Error(
-    "docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts"
-  )
-
-async function runPlan(s: Session): Promise<void> {
-  if (!s.cli) throw missingCli()
-  await ensureProviderKey()
-  const res = await shell([...s.cli, "plan", s.dir])
-  s.last = res
-  if (res.code !== 0) {
-    throw new Error(`docnamer plan exited ${res.code}\n${res.stderr}${res.stdout}`)
-  }
-  const parsed = JSON.parse(await Bun.file(s.planPath).text()) as unknown
-  s.plan = planRows<PlanRow>(parsed)
-  s.names = s.plan.map(r => r.new)
 }
 
 /** entry: boot the isolated folder and seed the file this interaction plans. */
@@ -171,7 +120,10 @@ export async function entry(s: Session): Promise<Session> {
 /** step: give the seeded file to `docnamer plan` — the action every interaction names. */
 export async function step(s: Session): Promise<Session> {
   if (!s.booted) await boot(s)
-  if (s.last.code !== 0) await runPlan(s)
+  if (s.last.code !== 0) {
+    await runPlan(s)
+    s.names = s.plan.map(r => r.new)
+  }
   return s
 }
 

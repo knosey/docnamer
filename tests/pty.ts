@@ -87,15 +87,14 @@ export function makeTerminal(cols = SCREEN_COLS, rows = 40): Term {
 }
 
 /**
- * Wait until the terminal has shown `marker` in the output written since byte
- * `from`, or fail naming what it showed instead. This is the wait that replaces
- * a sleep: it costs what the child actually needs and no more. `from` is where
- * the log stood when the keys this wait answers were typed: a marker already on
- * screen before them proves nothing about what they did.
+ * Wait until `since()` has shown `marker`, or fail naming what it showed
+ * instead. This is the wait that replaces a sleep: it costs what the child
+ * actually needs and no more. `since()` closes over where the log stood when
+ * the keys this wait answers were typed — a marker already on screen before
+ * them proves nothing about what they did.
  */
-async function waitFor(t: Term, marker: string, ms: number, from = 0): Promise<void> {
+export async function waitUntil(since: () => string, marker: string, ms: number): Promise<void> {
   const start = Date.now()
-  const since = (): string => t.read().slice(from).replace(ANSI, "")
   for (;;) {
     if (since().includes(marker)) return
     if (Date.now() - start > ms) {
@@ -107,6 +106,11 @@ async function waitFor(t: Term, marker: string, ms: number, from = 0): Promise<v
     }
     await Bun.sleep(25)
   }
+}
+
+/** `waitUntil` over a whole terminal's log from byte `from` on. */
+async function waitFor(t: Term, marker: string, ms: number, from = 0): Promise<void> {
+  await waitUntil(() => t.read().slice(from).replace(ANSI, ""), marker, ms)
 }
 
 /**

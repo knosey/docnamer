@@ -29,24 +29,14 @@
 import { writePlan, PLAN_FILE, type PlanRow } from "../src/commands.ts"
 import { wrapper } from "./app-binary.ts"
 import { runChild, type ChildRun } from "./child.ts"
-import { resolveCli } from "./doc-renamer-apply-harness.ts"
 import { readdirSync, rmSync } from "node:fs"
 import { frame, FRAMES_DIR } from "./frame.ts"
-import { ANSI, makeTerminal, SCREEN_COLS, type Run, type Term } from "./pty.ts"
+import { missingCli, repo, resolveCli, Skipped } from "./harness.ts"
+import { ANSI, makeTerminal, SCREEN_COLS, waitUntil, type Run, type Term } from "./pty.ts"
 import { ensureProviderKey, MODEL_CALL_MS } from "./preload.ts"
 import { scratch } from "./scratch.ts"
 
-/** Repo root, so a spec can read the tree this run belongs to. */
-export const repo = import.meta.dir.replace(/\/tests$/, "")
-
-/** A named hole: the claim cannot be closed on the current observation surface. */
-class Skipped extends Error {
-  readonly skip = true
-  constructor(readonly claim: string) {
-    super("SKIP: " + claim)
-    this.name = "Skipped"
-  }
-}
+export { repo }
 
 /** The version line the wrapper prints, read off a captured frame. */
 const VERSION_LINE = /^docnamer\s+\S+/m
@@ -181,11 +171,6 @@ export async function boot(s: Session): Promise<void> {
   s.booted = true
 }
 
-const missingCli = (): Error =>
-  new Error(
-    "docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts"
-  )
-
 /** Boot if a prior step has not, and prove a CLI is reachable. */
 async function ensure(s: Session): Promise<void> {
   if (!s.booted) await boot(s)
@@ -207,20 +192,7 @@ function startPty(cmd: string[], env: Record<string, string>, cwd: string): Live
   const proc = Bun.spawn(cmd, { terminal: term.terminal, env, cwd })
   let mark = 0
   const since = (): string => term.read().slice(mark).replace(ANSI, "")
-  const waitFor = async (marker: string, ms = 20000): Promise<void> => {
-    const start = Date.now()
-    for (;;) {
-      if (since().includes(marker)) return
-      if (Date.now() - start > ms) {
-        throw new Error(
-          `the terminal never showed ${JSON.stringify(marker)}: it showed ${JSON.stringify(
-            since().slice(-500)
-          )}`
-        )
-      }
-      await Bun.sleep(25)
-    }
-  }
+  const waitFor = (marker: string, ms = 20000): Promise<void> => waitUntil(since, marker, ms)
   const waitForScreen = async (state: string, ms = 20000): Promise<string> => {
     const start = Date.now()
     for (;;) {

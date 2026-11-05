@@ -1,6 +1,13 @@
 // The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`ls tests/fixtures`
 
+import {
+  type ApplyReport,
+  type PlanRow,
+  type UndoRecord,
+  type UndoReport
+} from "../src/commands.ts"
+import { type Config } from "../src/config.ts"
 import { scratch } from "./scratch.ts"
 
 /**
@@ -11,52 +18,7 @@ import { scratch } from "./scratch.ts"
  * has renamed them and `undo` has restored them.
  */
 
-// --- consumed shapes (structural mirrors of the interfaces T2 consumes) -----
-
-export type Config = {
-  defaults: {
-    date_format: string
-    date_order: "day-first" | "month-first"
-    max_name_length: number
-    ocr_text_layer: boolean
-    finder_tags: boolean
-    finder_comment: boolean
-  }
-  models: { cheap: string; vision: string; strong: string }
-  types: Record<string, unknown>
-  entities: Record<string, string[]>
-}
-
-type PlanRow = {
-  old: string
-  new: string
-  type: string
-  method: "text" | "ocr" | "vision" | null
-  fields: Record<string, string>
-  evidence: Record<string, string>
-  flags: string[]
-  summary: string
-  size: number
-  mtime: number
-  status: "pending" | "accepted" | "skipped"
-}
-
-export type UndoEntry = {
-  old: string
-  new: string
-  size: number
-  mtime: number
-  tag?: string
-  sidecar?: string
-}
-export type UndoRecord = { run: string; at: string; entries: UndoEntry[] }
-
-type ApplyReport = {
-  renamed: number
-  skipped: { file: string; reason: string }[]
-  undoFile: string
-}
-type UndoReport = { restored: string[]; skipped: { file: string; reason: string }[] }
+export type { ApplyReport, Config, PlanRow, UndoRecord, UndoReport }
 
 export type CommandsModule = {
   apply(folder: string, config: Config): Promise<ApplyReport>
@@ -173,14 +135,4 @@ export async function names(dir: string): Promise<string[]> {
   return out.sort()
 }
 
-export async function latestUndo(dir: string): Promise<string | null> {
-  const found: string[] = []
-  for await (const rel of new Bun.Glob(".docnamer-undo-*.json").scan({
-    cwd: dir,
-    onlyFiles: true
-  })) {
-    found.push(rel)
-  }
-  found.sort()
-  return found.length ? (found[found.length - 1] ?? null) : null
-}
+export { latestUndo } from "./harness.ts"

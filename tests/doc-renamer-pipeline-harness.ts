@@ -15,44 +15,21 @@
  * The shared helpers under tests/ may reach `node:` built-ins (R0c: the ban is on `src/`, which
  * the shipped binary compiles).
  */
-import { mkdir } from "node:fs/promises"
 import { CONFIG_FILE } from "../src/config.ts"
-import { appBin } from "./app-binary.ts"
-import { runChild } from "./child.ts"
 import { frame } from "./frame.ts"
-import { assertPlanCovers, base, planRows } from "./plan-file.ts"
-import { ensureProviderKey, MODEL_CALL_MS } from "./preload.ts"
-import { scratch } from "./scratch.ts"
+import { assertPlanCovers, base } from "./plan-file.ts"
+import {
+  bootRun,
+  missingCli,
+  repo,
+  runPlan,
+  seedRun,
+  snapshotSizes,
+  Skipped,
+  type PlanRow
+} from "./harness.ts"
 
-export type PlanRow = {
-  old: string
-  new: string
-  type: string
-  /** Which rung of Stage 1's ladder fed Stage 2 (I2); null when the read failed. */
-  method: "text" | "ocr" | "vision" | null
-  fields: Record<string, string>
-  evidence: Record<string, string>
-  flags: string[]
-  summary: string
-  size: number
-  mtime: number
-  status: "pending" | "accepted" | "skipped"
-}
-
-/** A named hole: the claim cannot be closed on the current observation surface. */
-class Skipped extends Error {
-  readonly skip = true
-  constructor(readonly claim: string) {
-    super("SKIP: " + claim)
-    this.name = "Skipped"
-  }
-}
-
-/** Repo root. Exported so a spec can read the real config the harness seeds. */
-export const repo = import.meta.dir.replace(/\/tests$/, "")
-
-/** The folder's own config: Stage 1 SKIPs it, so it is never a plan row. */
-export { CONFIG_FILE }
+export { CONFIG_FILE, repo }
 
 /**
  * Two documents, byte-identical: same type and same extracted field values, so
@@ -116,63 +93,17 @@ export class Session {
   booted = false
 }
 
-async function shell(cmd: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
-  // The child must carry the provider key: pi-ai resolves Fireworks auth from its
-  // own environment, and ensureProviderKey() sets it on THIS process. Handing the
-  // environment over explicitly is what makes that reach the child; relying on
-  // inheritance left every analyse call with no key, which failed in ~0.1s per
-  // file with "returned no parseable JSON analysis" and no model ever called.
-  //
-  // Every call here reaches a model, so the deadline is the model budget: a child
-  // that stops answering is SIGTERMed with its command named in the throw, rather
-  // than hanging the file with no cause on the report.
-  return runChild(cmd, { env: { ...Bun.env }, timeoutMs: MODEL_CALL_MS })
-}
-
-/** Same order as the apply harness, for the same reason: the tree is the code under
- *  test, the installed bundle is only a fallback for a checkout with no sources. */
-async function resolveCli(): Promise<string[] | null> {
-  const override = Bun.env.DOCNAMER_BIN
-  if (override && override.trim()) return override.trim().split(/\s+/)
-  const src = `${repo}/src/cli.ts`
-  if (await Bun.file(src).exists()) return [Bun.which("bun") ?? "bun", src]
-  if (await Bun.file(appBin).exists()) return [appBin]
-  return null
-}
-
-async function listFiles(dir: string): Promise<string[]> {
-  const out: string[] = []
-  for await (const rel of new Bun.Glob("*").scan({ cwd: dir, onlyFiles: true })) out.push(rel)
-  return out
-}
-
 /** Boot the isolated environment: temp folder, seeded fixtures, resolved CLI.
  *  Exported for the smoke test, which proves the harness boots a run and stays out of the repo. */
 export async function boot(s: Session): Promise<void> {
   if (s.booted) return
-  await ensureProviderKey()
-  const dir = scratch("docnamer")
-  await mkdir(dir, { recursive: true })
-  s.dir = dir
-  s.planPath = `${dir}/.docnamer-plan.json`
-  for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
+  const dir = await bootRun(s, "docnamer")
+  await seedRun(dir, SEED)
 
-  // Every fixture, copied in beside the seed files. A missing tests/fixtures is a
-  // broken run, not a degraded one: swallowing the ENOENT left the flow testing the
-  // hand-seeded files alone and calling it a pipeline.
-  const fixtures = `${repo}/tests/fixtures`
-  for await (const rel of new Bun.Glob("**/*").scan({ cwd: fixtures, onlyFiles: true })) {
-    const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
-    await Bun.write(`${dir}/${base(rel)}`, bytes)
-  }
-
-  // The folder's own config. docnamer.json is read from the FOLDER being planned
-  // (cli.ts configFor), so without this the run falls back to the built-in
-  // DEFAULT_CONFIG — a different type roster, and a vision model this machine
-  // cannot call. The feature is specified against the repo's config.
-  const config = `${repo}/${CONFIG_FILE}`
-  if (await Bun.file(config).exists()) await Bun.write(`${dir}/${CONFIG_FILE}`, Bun.file(config))
-
+  // The folder's own config, seeded by bootRun and re-read here for the fixtures that
+  // depending on it — docnamer.json is read from the FOLDER being planned (cli.ts
+  // configFor), so without it a run falls back to the built-in DEFAULT_CONFIG: a
+  // different type roster, and a vision model this machine cannot call.
   const receipt = `${dir}/receipt.png`
   if (await Bun.file(receipt).exists()) {
     const proc = Bun.spawnSync([
@@ -194,34 +125,7 @@ export async function boot(s: Session): Promise<void> {
     }
   }
 
-  for (const name of await listFiles(dir)) {
-    const f = Bun.file(`${dir}/${name}`)
-    s.originals.set(name, { size: f.size, mtime: f.lastModified })
-  }
-  s.cli = await resolveCli()
-  s.booted = true
-}
-
-/** Run `docnamer plan <folder>` and parse the plan file. */
-/**
- * The program under test being absent is the RIGHT reason for a flow test to be red, so this is a
- * failure and not a `Skipped`: only a claim the observation surface cannot see is a `Skipped`, an
- * unbuilt CLI is a failure.
- */
-const missingCli = (): Error =>
-  new Error(
-    "docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts"
-  )
-
-async function runPlan(s: Session): Promise<void> {
-  if (!s.cli) throw missingCli()
-  const res = await shell([...s.cli, "plan", s.dir])
-  s.last = res
-  if (res.code !== 0) {
-    throw new Error(`docnamer plan exited ${res.code}\n${res.stderr}${res.stdout}`)
-  }
-  const parsed = JSON.parse(await Bun.file(s.planPath).text()) as unknown
-  s.plan = planRows<PlanRow>(parsed)
+  await snapshotSizes(dir, s.originals)
 }
 
 /** Boot and plan if a prior step has not already done so. */

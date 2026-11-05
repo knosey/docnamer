@@ -27,55 +27,32 @@
  */
 import { readdirSync, statSync } from "node:fs"
 import { chmod, rm } from "node:fs/promises"
-import { writePlan as persistPlan } from "../src/commands.ts"
+import { writePlan as persistPlan, type UndoRecord } from "../src/commands.ts"
 import { CONFIG_FILE } from "../src/config.ts"
 import { EXPECTED_FILE } from "../src/eval.ts"
-import { appBin, installRecord } from "./app-binary.ts"
-import { runChild, type ChildRun } from "./child.ts"
+import { installRecord } from "./app-binary.ts"
+import { type ChildRun, runChild } from "./child.ts"
 import { frame } from "./frame.ts"
+import {
+  bootRun,
+  homeEnv,
+  latestUndo,
+  listFiles,
+  missingCli,
+  repo,
+  resolveCli,
+  seedRun,
+  shell,
+  snapshotSizes,
+  Skipped,
+  type PlanRow
+} from "./harness.ts"
 import { assertPlanCovers, base, planRows } from "./plan-file.ts"
-import { ensureProviderKey, MODEL_CALL_MS } from "./preload.ts"
 import { scratch } from "./scratch.ts"
 
+export { repo, resolveCli, shell }
+
 export type Flow = "apply" | "undo" | "review" | "eval"
-
-export type PlanRow = {
-  old: string
-  new: string
-  type: string
-  method: "text" | "ocr" | "vision" | null
-  fields: Record<string, string>
-  evidence: Record<string, string>
-  flags: string[]
-  summary: string
-  size: number
-  mtime: number
-  status: "pending" | "accepted" | "skipped"
-}
-
-export type UndoEntry = {
-  old: string
-  new: string
-  size: number
-  mtime: number
-  tag?: string
-  comment?: string
-  sidecar?: string
-}
-
-export type UndoRecord = { run: string; at: string; entries: UndoEntry[] }
-
-/** A named hole: the claim cannot be closed on the current observation surface. */
-class Skipped extends Error {
-  readonly skip = true
-  constructor(readonly claim: string) {
-    super("SKIP: " + claim)
-    this.name = "Skipped"
-  }
-}
-
-/** Repo root. Exported so a spec can read the real config the harness seeds. */
-export const repo = import.meta.dir.replace(/\/tests$/, "")
 
 /** One seeded file is mutated after the plan is written, so `apply` must skip
  *  it and report it (R7/I1). Its name is exported so a flow can name it. */
@@ -132,36 +109,6 @@ export class Session {
   /** The test set `run` scored, so `score` can check the report against its truth. */
   testset = ""
   booted = false
-}
-
-export async function shell(
-  cmd: string[]
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  // The child must carry the provider key: pi-ai resolves Fireworks auth from its
-  // own environment, and ensureProviderKey() sets it on THIS process. Handing the
-  // environment over explicitly is what makes that reach the child.
-  //
-  // Any call here can reach a model, so the deadline is the model budget: a child
-  // that stops answering is SIGTERMed with its command named in the throw, rather
-  // than hanging the file with no cause on the report.
-  return runChild(cmd, { env: { ...Bun.env }, timeoutMs: MODEL_CALL_MS })
-}
-
-/** The one place that decides which artifact is under test. The TREE comes first:
- *  the installed bundle is whatever was built last, so preferring it tested stale
- *  code and reported the result as this tree's flow. The bundle is the fallback for
- *  a checkout with no sources, and DOCNAMER_BIN overrides both.
- *
- *  Exported because a flow that never reaches a model (tests/cli-help.test.ts, the
- *  front door) must still drive the same artifact this harness drives, not a second
- *  guess at it. */
-export async function resolveCli(): Promise<string[] | null> {
-  const override = Bun.env.DOCNAMER_BIN
-  if (override && override.trim()) return override.trim().split(/\s+/)
-  const src = `${repo}/src/cli.ts`
-  if (await Bun.file(src).exists()) return [Bun.which("bun") ?? "bun", src]
-  if (await Bun.file(appBin).exists()) return [appBin]
-  return null
 }
 
 /** Everything `bun run build` bakes into the installed artifacts: the compiled
@@ -221,11 +168,7 @@ export async function runCliAs(home: string, args: string[], input?: string): Pr
   if (argv === null) {
     throw new Error("no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`")
   }
-  const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
-  delete env.FIREWORKS_API_KEY
-  delete env.XDG_CONFIG_HOME
-  env.HOME = home
+  const env = homeEnv(home)
   return runChild([...argv, ...args], { cwd: repo, env, input })
 }
 
@@ -248,55 +191,15 @@ export async function reopen(dir: string): Promise<void> {
   await rm(dir, { recursive: true, force: true })
 }
 
-async function listFiles(dir: string): Promise<string[]> {
-  const out: string[] = []
-  for await (const rel of new Bun.Glob("*").scan({ cwd: dir, onlyFiles: true })) out.push(rel)
-  return out
-}
-
 /** Boot the isolated environment: temp folder, seeded fixtures, resolved CLI.
  *  Exported for the smoke test, which proves the harness boots a run and stays
  *  out of the repo without the program under test existing yet. */
 export async function boot(s: Session): Promise<void> {
   if (s.booted) return
-  await ensureProviderKey()
-  const dir = scratch("docnamer-apply")
-  s.dir = dir
-  s.planPath = `${dir}/.docnamer-plan.json`
-  for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
-
-  // Every fixture, copied in beside the seed files. A missing tests/fixtures is a
-  // broken run, not a degraded one: swallowing the ENOENT left the flow testing the
-  // hand-seeded files alone and calling it a pipeline.
-  const fixtures = `${repo}/tests/fixtures`
-  for await (const rel of new Bun.Glob("**/*").scan({ cwd: fixtures, onlyFiles: true })) {
-    const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
-    await Bun.write(`${dir}/${base(rel)}`, bytes)
-  }
-
-  // The folder's own config. docnamer.json is read from the FOLDER being planned
-  // (cli.ts configFor), so without this the run falls back to the built-in
-  // DEFAULT_CONFIG — a different type roster than the feature is specified against.
-  const config = `${repo}/${CONFIG_FILE}`
-  if (await Bun.file(config).exists()) await Bun.write(`${dir}/${CONFIG_FILE}`, Bun.file(config))
-
-  for (const name of await listFiles(dir)) {
-    const f = Bun.file(`${dir}/${name}`)
-    s.originals.set(name, { size: f.size, mtime: f.lastModified })
-  }
-  s.cli = await resolveCli()
-  s.booted = true
+  const dir = await bootRun(s, "docnamer-apply")
+  await seedRun(dir, SEED)
+  await snapshotSizes(dir, s.originals)
 }
-
-/**
- * THE PROGRAM UNDER TEST IS ABSENT, which is the RIGHT reason for a flow test to
- * be red. Only a claim the observation surface cannot see is a `Skipped`; an
- * unbuilt CLI is a failure, and the test must say so and exit non-zero itself.
- */
-const missingCli = (): Error =>
-  new Error(
-    "docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts"
-  )
 
 async function runCli(
   s: Session,
@@ -333,16 +236,9 @@ async function ensure(s: Session): Promise<void> {
 }
 
 /** The latest `.docnamer-undo-<timestamp>.json` in the folder, or null. */
-async function latestUndo(dir: string): Promise<string | null> {
-  const found: string[] = []
-  for await (const rel of new Bun.Glob(".docnamer-undo-*.json").scan({
-    cwd: dir,
-    onlyFiles: true
-  })) {
-    found.push(`${dir}/${rel}`)
-  }
-  found.sort()
-  return found.length ? (found[found.length - 1] ?? null) : null
+async function undoRecordPath(dir: string): Promise<string | null> {
+  const name = await latestUndo(dir)
+  return name === null ? null : `${dir}/${name}`
 }
 
 /** Plan the folder and accept every row — the state apply and undo both start from.
@@ -439,7 +335,7 @@ export async function rename(s: Session): Promise<Session> {
 /** record: every change is recorded in the undo file. */
 export async function record(s: Session): Promise<Session> {
   await ensure(s)
-  const path = await latestUndo(s.dir)
+  const path = await undoRecordPath(s.dir)
   if (!path) throw new Error("I1 record: no .docnamer-undo-<timestamp>.json was written")
   s.undoPath = path
   const rec = JSON.parse(await Bun.file(path).text()) as UndoRecord
@@ -460,7 +356,7 @@ export async function record(s: Session): Promise<Session> {
 /** load: load the latest `.docnamer-undo-<timestamp>.json`. */
 export async function load(s: Session): Promise<Session> {
   await ensure(s)
-  const path = await latestUndo(s.dir)
+  const path = await undoRecordPath(s.dir)
   if (!path) throw new Skipped("I2 load: no undo file exists yet (run apply first)")
   s.undoPath = path
   s.undo = JSON.parse(await Bun.file(path).text()) as UndoRecord
@@ -509,7 +405,7 @@ async function undoLeft(s: Session): Promise<void> {
   if (s.blocked !== null && (await Bun.file(`${s.dir}/${s.blocked}`).text()) !== "occupant\n") {
     throw new Error(`I2 outcome: undo removed or rewrote the occupant at ${s.blocked}`)
   }
-  const left = await latestUndo(s.dir)
+  const left = await undoRecordPath(s.dir)
   if (left === null) {
     if (s.blocked !== null) {
       throw new Error(`I2 outcome: no record left for the skipped ${s.blocked}, so nothing replays`)
@@ -704,7 +600,7 @@ export async function outcome(s: Session, name: string): Promise<Session> {
     if (await Bun.file(s.planPath).exists()) {
       throw new Error("I1 outcome: the plan file was not deleted after apply")
     }
-    if (!(await latestUndo(s.dir))) throw new Error("I1 outcome: no undo file was saved")
+    if (!(await undoRecordPath(s.dir))) throw new Error("I1 outcome: no undo file was saved")
     await frame(s.applied.stdout || s.last.stdout, name)
   } else if (flow === "undo") {
     for (const e of s.undo?.entries ?? []) {

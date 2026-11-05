@@ -20,6 +20,15 @@ const TEXT_CAP = 4000
 /** Mean OCR confidence below which the ladder falls back to vision. */
 const OCR_MIN_CONFIDENCE = 0.8
 
+/** The rung's result when OCR cleared the threshold: its text, and no image. */
+const ocrRung = (text: string, confidence: number, pages: number): Content => ({
+  text: text.slice(0, TEXT_CAP),
+  images: [],
+  method: "ocr",
+  ocrConfidence: confidence,
+  pages
+})
+
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"])
 
 function extOf(file: string): string {
@@ -333,13 +342,7 @@ export async function read(file: string): Promise<Content | null> {
     // whole document is OCRed, not the first page alone.
     const ocr = await ocrPages([file])
     if (ocr.meanConfidence !== null && ocr.meanConfidence >= OCR_MIN_CONFIDENCE) {
-      return {
-        text: ocr.text.slice(0, TEXT_CAP),
-        images: [],
-        method: "ocr",
-        ocrConfidence: ocr.meanConfidence,
-        pages
-      }
+      return ocrRung(ocr.text, ocr.meanConfidence, pages)
     }
     // OCR was weak: the first page's image rides along for Stage 2's vision call.
     return {
@@ -365,13 +368,7 @@ export async function read(file: string): Promise<Content | null> {
   if (IMAGE_EXTS.has(ext)) {
     const ocr = await ocrPages([file])
     if (ocr.meanConfidence !== null && ocr.meanConfidence >= OCR_MIN_CONFIDENCE) {
-      return {
-        text: ocr.text.slice(0, TEXT_CAP),
-        images: [],
-        method: "ocr",
-        ocrConfidence: ocr.meanConfidence,
-        pages: 1
-      }
+      return ocrRung(ocr.text, ocr.meanConfidence, 1)
     }
     // OCR was weak: the page image rides along for Stage 2's vision call.
     return {
