@@ -180,9 +180,12 @@ export function buildPrompt(content: Content, fileName: string, config: Config):
  * A missing call, arguments the provider could not parse (which pi reports as
  * `argumentsError`, carrying the text the model actually sent), and arguments
  * that do not match the contract are three different errors and are named as
- * such, because the repair turn quotes whichever one applies.
+ * such, because the repair turn quotes whichever one applies. A reply with no
+ * call also reports its stop reason and what it did carry: an empty reply is the
+ * provider's, not the parse's, and `raw: ` alone sent three runs chasing a parser
+ * that was never wrong.
  */
-function readCall(
+export function readCall(
   msg: AssistantMessage,
   types: Record<string, DocType>
 ): { analysis: Analysis } | { error: string; raw: string } {
@@ -192,7 +195,11 @@ function readCall(
     .join('\n')
   const call = msg.content.find((b): b is ToolCall => b.type === 'toolCall' && b.name === TOOL_NAME)
   if (!call) {
-    return { error: `the reply contained no ${TOOL_NAME} tool call`, raw: text }
+    const carried = msg.content.map(b => b.type).join(', ') || 'nothing'
+    return {
+      error: `the reply contained no ${TOOL_NAME} tool call (stop reason: ${msg.stopReason}; it carried ${carried})`,
+      raw: text
+    }
   }
   if (call.argumentsError) {
     return { error: call.argumentsError, raw: call.argumentsError }

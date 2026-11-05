@@ -22,6 +22,10 @@ type Analyser = {
   buildSchema: (types: Record<string, DocType>) => unknown
   isFailed: (r: Analysis | Failed) => r is Failed
   asAnalysis: (args: Record<string, unknown>, types: Record<string, DocType>) => Analysis | string
+  readCall: (
+    msg: { stopReason: string; content: { type: string }[] },
+    types: Record<string, DocType>
+  ) => { analysis: Analysis } | { error: string; raw: string }
 }
 
 // Declared here so this suite loads with no `src/` module present; bun strips the types at run time.
@@ -144,6 +148,20 @@ test('isFailed distinguishes a Failed from an Analysis', async () => {
   }
   expect(mod.isFailed(failed)).toBe(true)
   expect(mod.isFailed(analysis)).toBe(false)
+})
+
+// The empty reply that cost three runs: the reason must name the provider's own
+// stop reason and what the reply did carry, not just an empty `raw:`.
+test('a reply with no tool call names its stop reason in the reason', async () => {
+  const mod = await load()
+  const got = mod.readCall(
+    { stopReason: 'endTurn', content: [{ type: 'reasoning' }] },
+    config.types
+  )
+  if ('analysis' in got) throw new Error('an empty reply was read as an analysis')
+  expect(got.error).toContain('stop reason: endTurn')
+  expect(got.error).toContain('it carried reasoning')
+  expect(got.raw).toBe('')
 })
 
 // One real paid model call, so it waits past bun's 5s default.
