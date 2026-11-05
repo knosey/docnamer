@@ -502,8 +502,30 @@ export async function restore(s: Session): Promise<Session> {
   return s
 }
 
-// --- I3: Review and accept plan rows -------------------------------------------
+/** What undo left on disk, checked against I2's promise: the occupant at a
+ *  skipped entry's old name is untouched, and any record still there holds
+ *  exactly the entries that could not go home. */
+async function undoLeft(s: Session): Promise<void> {
+  if (s.blocked !== null && (await Bun.file(`${s.dir}/${s.blocked}`).text()) !== 'occupant\n') {
+    throw new Error(`I2 outcome: undo removed or rewrote the occupant at ${s.blocked}`)
+  }
+  const left = await latestUndo(s.dir)
+  if (left === null) {
+    if (s.blocked !== null) {
+      throw new Error(`I2 outcome: no record left for the skipped ${s.blocked}, so nothing replays`)
+    }
+    return
+  }
+  const record = JSON.parse(await Bun.file(left).text()) as { entries: { old: string }[] }
+  const olds = record.entries.map(e => e.old)
+  if (olds.length !== 1 || olds[0] !== s.blocked) {
+    throw new Error(
+      `I2 outcome: the undo file left behind holds ${JSON.stringify(olds)}, not just the skipped ${s.blocked}`
+    )
+  }
+}
 
+// --- I3: Review and accept plan rows -------------------------------------------
 /** act: run a review action against the plan file. The TUI reads its keys from
  *  stdin; `A` accepts every unflagged row while flagged rows stay pending. No
  *  trailing newline: a bare Enter is itself the accept key (R4/I3), so `A\n`
@@ -690,7 +712,11 @@ export async function outcome(s: Session, name: string): Promise<Session> {
         throw new Error(`I2 outcome: original name ${e.old} was not restored`)
       }
     }
-    if (await latestUndo(s.dir)) throw new Error('I2 outcome: the undo file was not deleted')
+    // Undo puts the folder back and never removes a file that was already there.
+    // The occupant seeded at the blocked entry's old name is exactly that: it must
+    // survive byte for byte, and the record left behind must hold only what could
+    // not go home — a run that every file came back from keeps no record at all.
+    await undoLeft(s)
     // I2: the summary names every file it put back and reports each entry it
     // could not, with the reason. A count alone leaves a person unable to tell
     // which file is where after an operation whose whole point is reversibility.

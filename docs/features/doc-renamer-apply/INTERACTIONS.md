@@ -18,8 +18,10 @@ digraph I1 {
 
 ## I2: Undo a run
 - Outcome: `docnamer undo <folder>` restores every file renamed by the latest run
-  to its original name (skipping and reporting any entry whose new name is missing
-  or whose old name is occupied) and deletes that undo file.
+  to its original name, skipping and reporting any entry whose new name is missing
+  or whose old name is occupied — it never removes or rewrites the file already
+  sitting there. The undo file is deleted once every entry is back; one holding
+  only the entries that could not go home stays, so the next undo can finish them.
 ```dot
 digraph I2 {
   entry [label="docnamer undo <folder>"];
