@@ -160,7 +160,7 @@ const PROGRAM_EXAMPLES: readonly Example[] = [
  * REPLACES the shipped roster, so a folder that lists two types loses the rest.
  */
 const CONFIG_KEYS: readonly Example[] = [
-  [CONFIG_FILE, 'put one in a folder to replace the shipped types for that folder'],
+  [CONFIG_FILE, 'put one in a folder to replace the shipped config for that folder'],
   ['defaults', 'date_format, date_order, max_name_length, the three switches'],
   ['models', 'cheap, vision and strong, by the id a provider lists'],
   ['types', 'one entry per document type: describe, template, fields'],

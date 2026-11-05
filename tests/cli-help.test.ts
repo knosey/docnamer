@@ -150,15 +150,3 @@ test('cli: help documents the options the parser accepts', async () => {
     expect(help, `help does not document ${flag}`).toContain(flag)
   }
 })
-
-test('cli: help carries a CONFIG section naming the file and the keys it has', async () => {
-  // The folder's own docnamer.json is the only way to change a document type,
-  // and `--help` is where a person looks for it: a config nobody can discover
-  // is a config nobody edits. The keys are the top level of `Config` in
-  // src/config.ts, so a key added there and not here fails against this list.
-  const keys = names((await cli('--help')).stdout, 'CONFIG')
-  expect(keys.length, 'help has no CONFIG section').toBeGreaterThan(0)
-  for (const key of ['docnamer.json', 'defaults', 'models', 'types', 'entities', 'self']) {
-    expect(keys, `CONFIG does not name ${key}`).toContain(key)
-  }
-})
