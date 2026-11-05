@@ -15,15 +15,15 @@
  * The set it scores is built by `missTestset`: the committed one with a single
  * expectation mis-stated, so the frame always carries a miss a person can read.
  */
-import { Session, entry, missTestset, run, score, outcome } from './doc-renamer-apply-harness.ts'
+import { Session, entry, missTestset, run, score, outcome } from "./doc-renamer-apply-harness.ts"
 
-flow('doc-renamer-apply I4: score a test set with eval', async () => {
+flow("doc-renamer-apply I4: score a test set with eval", async () => {
   const s = new Session()
   // An absent `docnamer` CLI is not a named hole here: I4's outcome is a real,
   // observable assertion, and with no eval report there are no metrics or misses
   // to observe. The `flow` wrapper reports a `Skipped` as this flow's failure.
-  await entry(s, 'eval')
+  await entry(s, "eval")
   await run(s, await missTestset())
   await score(s)
-  await outcome(s, 'i4-eval-score')
+  await outcome(s, "i4-eval-score")
 })

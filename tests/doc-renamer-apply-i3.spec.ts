@@ -15,11 +15,11 @@
  * and entry/act already read and re-read the plan file this flow acts on. So the calls are the
  * harness's I3 steps in order: entry -> act -> outcome.
  */
-import { Session, entry, act, outcome } from './doc-renamer-apply-harness.ts'
+import { Session, entry, act, outcome } from "./doc-renamer-apply-harness.ts"
 
-flow('doc-renamer-apply I3: review and accept plan rows', async () => {
+flow("doc-renamer-apply I3: review and accept plan rows", async () => {
   const s = new Session()
-  await entry(s, 'review')
+  await entry(s, "review")
   await act(s)
-  await outcome(s, 'i3-review-accept')
+  await outcome(s, "i3-review-accept")
 })

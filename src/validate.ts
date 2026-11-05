@@ -8,32 +8,32 @@
  * type the model read is the type the file is, and the template drops the empty
  * part on its own.
  */
-import type { Analysis } from './analyse.ts'
-import type { Config, DocType, FieldSpec } from './config.ts'
-import type { Content } from './read.ts'
+import type { Analysis } from "./analyse.ts"
+import type { Config, DocType, FieldSpec } from "./config.ts"
+import type { Content } from "./read.ts"
 
 export type Checked = Analysis & { flags: string[] }
 
 /** Month names in English and Dutch, the languages this paperwork is written
  *  in. An abbreviation is any prefix of three letters or more (`Sept`, `okt`). */
 const MONTH_NAMES: readonly (readonly string[])[] = [
-  ['january', 'januari'],
-  ['february', 'februari'],
-  ['march', 'maart', 'mrt'],
-  ['april'],
-  ['may', 'mei'],
-  ['june', 'juni'],
-  ['july', 'juli'],
-  ['august', 'augustus'],
-  ['september'],
-  ['october', 'oktober'],
-  ['november'],
-  ['december']
+  ["january", "januari"],
+  ["february", "februari"],
+  ["march", "maart", "mrt"],
+  ["april"],
+  ["may", "mei"],
+  ["june", "juni"],
+  ["july", "juli"],
+  ["august", "augustus"],
+  ["september"],
+  ["october", "oktober"],
+  ["november"],
+  ["december"]
 ]
 
 /** The month a word names, 1-12, or null when it names none. */
 function monthOf(word: string): number | null {
-  const w = word.toLowerCase().replace(/\.$/, '')
+  const w = word.toLowerCase().replace(/\.$/, "")
   if (w.length < 3) return null
   const at = MONTH_NAMES.findIndex(names => names.some(n => n === w || n.startsWith(w)))
   return at < 0 ? null : at + 1
@@ -54,18 +54,18 @@ const iso = (y: number, m: number, d: number): string | null => {
   if (y < 1000 || y > 9999 || m < 1 || m > 12 || d < 1 || d > 31) return null
   const dt = new Date(Date.UTC(y, m - 1, d))
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null
-  const mm = String(m).padStart(2, '0')
-  const dd = String(d).padStart(2, '0')
+  const mm = String(m).padStart(2, "0")
+  const dd = String(d).padStart(2, "0")
   return `${y}-${mm}-${dd}`
 }
 
 /** One way of printing a date: a pattern and how its groups make the date. */
 type DateForm = {
   readonly pattern: RegExp
-  read(m: RegExpExecArray, order: 'day-first' | 'month-first'): string | null
+  read(m: RegExpExecArray, order: "day-first" | "month-first"): string | null
 }
 
-const ORDINAL = '(?:st|nd|rd|th|e)?'
+const ORDINAL = "(?:st|nd|rd|th|e)?"
 
 /**
  * The ways paperwork prints a date, tried in turn. None is anchored: a value
@@ -83,14 +83,14 @@ const DATE_FORMS: readonly DateForm[] = [
     pattern: /(?:^|\D)(\d{1,2})[-/.](\d{1,2})[-/.](\d{4}|\d{2})(?!\d)/,
     read: (m, order) => {
       const [a, b, y] = [+m[1]!, +m[2]!, fullYear(m[3]!)]
-      return order === 'day-first' ? iso(y, b, a) : iso(y, a, b)
+      return order === "day-first" ? iso(y, b, a) : iso(y, a, b)
     }
   },
   // 8 april 2026, 3rd October 2026, 3 okt. 2026, 8-apr-2026
   {
     pattern: new RegExp(
       `(?:^|[^\\p{L}\\d])(\\d{1,2})${ORDINAL}[\\s-]+(\\p{L}+)\\.?,?[\\s-]+(\\d{4})(?!\\d)`,
-      'u'
+      "u"
     ),
     read: m => {
       const month = monthOf(m[2]!)
@@ -101,7 +101,7 @@ const DATE_FORMS: readonly DateForm[] = [
   {
     pattern: new RegExp(
       `(?:^|[^\\p{L}])(\\p{L}+)\\.?\\s+(\\d{1,2})${ORDINAL},?\\s+(\\d{4})(?!\\d)`,
-      'u'
+      "u"
     ),
     read: m => {
       const month = monthOf(m[1]!)
@@ -113,7 +113,7 @@ const DATE_FORMS: readonly DateForm[] = [
 /** Parse a date string to ISO YYYY-MM-DD, reading ambiguous slashed/dotted
  *  dates by `order`. Returns null on nonsense: a month it does not know is
  *  never guessed. */
-export function parseDate(value: string, order: 'day-first' | 'month-first'): string | null {
+export function parseDate(value: string, order: "day-first" | "month-first"): string | null {
   for (const form of DATE_FORMS) {
     const m = form.pattern.exec(value)
     const date = m === null ? null : form.read(m, order)
@@ -140,8 +140,8 @@ export function canonicalEntity(value: string, aliases: Record<string, string[]>
   }
   return titleCase(
     v
-      .replace(LEGAL_SUFFIX, '')
-      .replace(/\s{2,}/g, ' ')
+      .replace(LEGAL_SUFFIX, "")
+      .replace(/\s{2,}/g, " ")
       .trim()
   )
 }
@@ -158,7 +158,7 @@ function ownCompany(entity: string, config: Config): string | null {
 
 /** Reduce a card/account reference to its last four digits. */
 export function reduceLast4(value: string): string {
-  const digits = value.replace(/\D/g, '')
+  const digits = value.replace(/\D/g, "")
   return digits.slice(-4)
 }
 
@@ -185,9 +185,9 @@ function normalise(
   config: Config,
   flags: string[]
 ): string | null {
-  if (spec?.kind === 'date') return dateValue(name, value, config, flags)
-  if (spec?.kind === 'entity') return canonicalEntity(value, config.entities)
-  return spec?.kind === 'last4' ? reduceLast4(value) : value
+  if (spec?.kind === "date") return dateValue(name, value, config, flags)
+  if (spec?.kind === "entity") return canonicalEntity(value, config.entities)
+  return spec?.kind === "last4" ? reduceLast4(value) : value
 }
 
 /**
@@ -198,7 +198,7 @@ function normalise(
  * runs). With nothing to give way to, the row is flagged for a person.
  */
 function preferCounterparty(
-  fields: Analysis['fields'],
+  fields: Analysis["fields"],
   spec: DocType | undefined,
   config: Config,
   flags: string[]
@@ -213,12 +213,12 @@ function preferCounterparty(
 /** Put `other`'s value in `name` when `name` is an own company and `other` is
  *  not; the flag when `name` is one and nothing can take its place. */
 function giveWay(
-  fields: Analysis['fields'],
+  fields: Analysis["fields"],
   name: string,
   other: string,
   config: Config
 ): string | null {
-  const own = ownCompany(fields[name]?.value ?? '', config)
+  const own = ownCompany(fields[name]?.value ?? "", config)
   if (own === null) return null
   const instead = fields[other]
   if (instead?.value && ownCompany(instead.value, config) === null) {
@@ -232,7 +232,7 @@ function giveWay(
  *  text, and collect the flags. */
 export function validate(a: Analysis, content: Content, config: Config): Checked {
   const flags: string[] = []
-  const fields: Analysis['fields'] = {}
+  const fields: Analysis["fields"] = {}
   const spec = config.types[a.type]
 
   if (a.type_confidence < 0.6) {
@@ -246,7 +246,7 @@ export function validate(a: Analysis, content: Content, config: Config): Checked
 
     if (
       field.evidence !== null &&
-      content.method !== 'vision' &&
+      content.method !== "vision" &&
       !content.text.includes(field.evidence)
     ) {
       flags.push(`field ${name}: evidence not found in document`)

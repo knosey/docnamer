@@ -14,12 +14,12 @@
  * unknown model, no credential, two unusable replies — is a `Failed`, never a
  * throw and never a fabricated Analysis.
  */
-import { getModel, getProviders } from '@earendil-works/pi-ai/compat'
-import type { AssistantMessage, Message, Tool, ToolCall } from '@earendil-works/pi-ai/compat'
-import { docnamerModels } from './auth.ts'
-import type { Config, DocType } from './config.ts'
-import { tokensFromName } from './name.ts'
-import type { Content } from './read.ts'
+import { getModel, getProviders } from "@earendil-works/pi-ai/compat"
+import type { AssistantMessage, Message, Tool, ToolCall } from "@earendil-works/pi-ai/compat"
+import { docnamerModels } from "./auth.ts"
+import type { Config, DocType } from "./config.ts"
+import { tokensFromName } from "./name.ts"
+import type { Content } from "./read.ts"
 
 export type Analysis = {
   type: string
@@ -36,13 +36,13 @@ export function isFailed(r: Analysis | Failed): r is Failed {
 
 const TEXT_CAP = 4000
 
-const TOOL_NAME = 'submit_analysis'
+const TOOL_NAME = "submit_analysis"
 
 /** One document costs at most two calls: the ask and one repair. */
 const ATTEMPTS = [0, 1] as const
 
 /** The JSON-schema shape of an analysis, as pi-ai's tool layer wants it. */
-export type AnalysisSchema = Tool['parameters']
+export type AnalysisSchema = Tool["parameters"]
 
 /**
  * The contract: a flat object that NAMES EVERY FIELD the roster declares.
@@ -69,16 +69,16 @@ export function buildSchema(types: Record<string, DocType>): AnalysisSchema {
     for (const field of Object.keys(t.fields)) {
       if (Object.hasOwn(properties, field)) continue
       properties[field] = {
-        type: 'object',
-        required: ['value', 'evidence'],
+        type: "object",
+        required: ["value", "evidence"],
         properties: {
           value: {
-            type: ['string', 'null'],
-            description: 'The value exactly as the document states it, or null when absent.'
+            type: ["string", "null"],
+            description: "The value exactly as the document states it, or null when absent."
           },
           evidence: {
-            type: ['string', 'null'],
-            description: 'The verbatim line the value came from, or null.'
+            type: ["string", "null"],
+            description: "The verbatim line the value came from, or null."
           }
         },
         additionalProperties: false
@@ -86,25 +86,25 @@ export function buildSchema(types: Record<string, DocType>): AnalysisSchema {
     }
   }
   return {
-    type: 'object',
-    required: ['type', 'type_confidence', 'fields', 'summary'],
+    type: "object",
+    required: ["type", "type_confidence", "fields", "summary"],
     properties: {
       type: {
-        type: 'string',
+        type: "string",
         enum: Object.keys(types),
         description: Object.entries(types)
           .map(([name, t]) => `${name}: ${t.describe}`)
-          .join(' ')
+          .join(" ")
       },
-      type_confidence: { type: 'number', minimum: 0, maximum: 1 },
+      type_confidence: { type: "number", minimum: 0, maximum: 1 },
       fields: {
-        type: 'object',
+        type: "object",
         description:
-          'One entry per field the chosen type declares, named exactly as the type declares it.',
+          "One entry per field the chosen type declares, named exactly as the type declares it.",
         properties,
         additionalProperties: false
       },
-      summary: { type: 'string', description: 'At most 20 words.' }
+      summary: { type: "string", description: "At most 20 words." }
     },
     additionalProperties: false
   } as AnalysisSchema
@@ -112,15 +112,15 @@ export function buildSchema(types: Record<string, DocType>): AnalysisSchema {
 
 function rosterLine(types: Record<string, DocType>): string {
   return Object.entries(types)
-    .map(([name, t]) => `${name}: ${Object.keys(t.fields).join(', ')}`)
-    .join('; ')
+    .map(([name, t]) => `${name}: ${Object.keys(t.fields).join(", ")}`)
+    .join("; ")
 }
 
 export type ModelRef = ReturnType<typeof getModel>
 
 /** Resolve "provider/id" or a bare id against the pi-ai builtin catalog. */
 export function resolveModel(ref: string): NonNullable<ModelRef> | null {
-  const slash = ref.indexOf('/')
+  const slash = ref.indexOf("/")
   if (slash >= 0) {
     const m = getModel(ref.slice(0, slash) as never, ref.slice(slash + 1) as never)
     if (m) return m as NonNullable<ModelRef>
@@ -144,34 +144,34 @@ function analysisTool(types: Record<string, DocType>): Tool {
   return {
     name: TOOL_NAME,
     description:
-      'Submit the classification of this document and the extracted fields of the chosen type.',
+      "Submit the classification of this document and the extracted fields of the chosen type.",
     parameters: buildSchema(types),
-    constrainedSampling: { type: 'json_schema', strict: 'prefer' }
+    constrainedSampling: { type: "json_schema", strict: "prefer" }
   }
 }
 
 export function buildPrompt(content: Content, fileName: string, config: Config): string {
   const entities = JSON.stringify(config.entities)
   const dateOrder =
-    config.defaults.date_order === 'day-first'
-      ? 'Ambiguous slashed dates are day-first (03/04/2026 is 3 April 2026).'
-      : 'Ambiguous slashed dates are month-first (03/04/2026 is March 4, 2026).'
+    config.defaults.date_order === "day-first"
+      ? "Ambiguous slashed dates are day-first (03/04/2026 is 3 April 2026)."
+      : "Ambiguous slashed dates are month-first (03/04/2026 is March 4, 2026)."
   const tokens = tokensFromName(fileName)
   return [
     `Classify the document "${fileName}" into exactly one of the configured types and extract that type's fields.`,
     `Call ${TOOL_NAME}. Its schema has one branch per type; pick the branch whose enum matches the type, and name the fields exactly as that branch names them. The configured types and their fields: ${rosterLine(config.types)}`,
     `Known entities and their aliases: ${entities}`,
     `Dates use the format ${config.defaults.date_format}. ${dateOrder}`,
-    'Every field value must come with its verbatim evidence line from the document; use null when absent.',
+    "Every field value must come with its verbatim evidence line from the document; use null when absent.",
     `The summary is at most 20 words.`,
     `When the page is silent, copy version, status and person from the old filename. Filename tokens already read: ${JSON.stringify(tokens)}. Never treat Finder (2) as a version.`,
-    'The passport type word is the English word passport, never REISEPASS, and holder comes from the filename when the page is silent.',
-    'agency is a short name, and Immigration And Naturalisation Service is IND, never the full ministry title.',
+    "The passport type word is the English word passport, never REISEPASS, and holder comes from the filename when the page is silent.",
+    "agency is a short name, and Immigration And Naturalisation Service is IND, never the full ministry title.",
     "A photo title is about six words. A screenshot of a readable document uses that document's type, not a photo and not other.",
-    '',
-    'Document text:',
+    "",
+    "Document text:",
     content.text.slice(0, TEXT_CAP)
-  ].join('\n')
+  ].join("\n")
 }
 
 /**
@@ -190,12 +190,12 @@ export function readCall(
   types: Record<string, DocType>
 ): { analysis: Analysis } | { error: string; raw: string } {
   const text = msg.content
-    .filter(b => b.type === 'text')
+    .filter(b => b.type === "text")
     .map(b => b.text)
-    .join('\n')
-  const call = msg.content.find((b): b is ToolCall => b.type === 'toolCall' && b.name === TOOL_NAME)
+    .join("\n")
+  const call = msg.content.find((b): b is ToolCall => b.type === "toolCall" && b.name === TOOL_NAME)
   if (!call) {
-    const carried = msg.content.map(b => b.type).join(', ') || 'nothing'
+    const carried = msg.content.map(b => b.type).join(", ") || "nothing"
     return {
       error: `the reply contained no ${TOOL_NAME} tool call (stop reason: ${msg.stopReason}; it carried ${carried})`,
       raw: text
@@ -205,7 +205,7 @@ export function readCall(
     return { error: call.argumentsError, raw: call.argumentsError }
   }
   const analysis = asAnalysis(call.arguments, types)
-  if (typeof analysis === 'string') {
+  if (typeof analysis === "string") {
     const raw = JSON.stringify(call.arguments)
     return { error: analysis, raw }
   }
@@ -230,9 +230,9 @@ export function asAnalysis(
   types: Record<string, DocType>
 ): Analysis | string {
   const head = readHead(args, types)
-  if (typeof head === 'string') return head
+  if (typeof head === "string") return head
   const fields = readFields(args.fields, head.t, head.type)
-  if (typeof fields === 'string') return fields
+  if (typeof fields === "string") return fields
   return { type: head.type, type_confidence: head.confidence, fields, summary: head.summary }
 }
 
@@ -242,34 +242,34 @@ function readHead(
   types: Record<string, DocType>
 ): { t: DocType; type: string; confidence: number; summary: string } | string {
   const { type, type_confidence: confidence, summary } = args
-  if (typeof type !== 'string') return 'the type argument is missing or not a string'
+  if (typeof type !== "string") return "the type argument is missing or not a string"
   const t = Object.hasOwn(types, type) ? types[type] : undefined
   if (t === undefined) {
-    return `the type "${type}" is not one of the configured types (${Object.keys(types).join(', ')})`
+    return `the type "${type}" is not one of the configured types (${Object.keys(types).join(", ")})`
   }
-  if (typeof confidence !== 'number')
-    return 'the type_confidence argument is missing or not a number'
-  if (typeof summary !== 'string') return 'the summary argument is missing or not a string'
+  if (typeof confidence !== "number")
+    return "the type_confidence argument is missing or not a number"
+  if (typeof summary !== "string") return "the summary argument is missing or not a string"
   return { t, type, confidence, summary }
 }
 
 /** Every field the chosen type declares, in the order the roster lists it. */
-function readFields(rawFields: unknown, t: DocType, type: string): Analysis['fields'] | string {
-  if (typeof rawFields !== 'object' || rawFields === null || Array.isArray(rawFields)) {
-    return 'the fields argument is missing or not an object'
+function readFields(rawFields: unknown, t: DocType, type: string): Analysis["fields"] | string {
+  if (typeof rawFields !== "object" || rawFields === null || Array.isArray(rawFields)) {
+    return "the fields argument is missing or not an object"
   }
   const declared = Object.keys(t.fields)
   const raw = rawFields as Record<string, unknown>
   const got = Object.keys(raw)
   const missing = declared.filter(name => t.fields[name].required && !got.includes(name))
   if (missing.length > 0) {
-    return `the fields object omitted ${missing.join(', ')}, which type "${type}" requires; a required field that the document does not state takes a null value, it is not left out`
+    return `the fields object omitted ${missing.join(", ")}, which type "${type}" requires; a required field that the document does not state takes a null value, it is not left out`
   }
-  const fields: Analysis['fields'] = {}
+  const fields: Analysis["fields"] = {}
   for (const name of declared) {
     if (raw[name] === undefined) continue
     const field = readField(name, raw[name])
-    if (typeof field === 'string') return field
+    if (typeof field === "string") return field
     fields[name] = field
   }
   return fields
@@ -280,14 +280,14 @@ function readField(
   name: string,
   entry: unknown
 ): { value: string | null; evidence: string | null } | string {
-  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+  if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
     return `the field "${name}" is not an object with a value and an evidence`
   }
   const { value, evidence } = entry as Record<string, unknown>
-  if (typeof value !== 'string' && value !== null) {
+  if (typeof value !== "string" && value !== null) {
     return `the field "${name}" has a value that is neither a string nor null`
   }
-  if (typeof evidence !== 'string' && evidence !== null) {
+  if (typeof evidence !== "string" && evidence !== null) {
     return `the field "${name}" has an evidence that is neither a string nor null`
   }
   return { value, evidence }
@@ -298,9 +298,9 @@ async function imageBlocks(images: string[]): Promise<unknown[]> {
   const blocks: unknown[] = []
   for (const img of images) {
     const bytes = new Uint8Array(await Bun.file(img).arrayBuffer())
-    let bin = ''
+    let bin = ""
     for (const b of bytes) bin += String.fromCharCode(b)
-    blocks.push({ type: 'image', data: btoa(bin), mimeType: 'image/png' })
+    blocks.push({ type: "image", data: btoa(bin), mimeType: "image/png" })
   }
   return blocks
 }
@@ -309,33 +309,33 @@ export async function analyse(
   content: Content,
   fileName: string,
   config: Config,
-  seat?: 'cheap' | 'vision' | 'strong'
+  seat?: "cheap" | "vision" | "strong"
 ): Promise<Analysis | Failed> {
   // A call carrying page images goes to the vision model; text-only stays cheap,
   // and the caller names a seat when it wants a specific one.
   // SAFE: `seat` is optional by signature — undefined means "choose for me", which
   // is the documented default, not a missing value.
-  const key = seat ?? (content.images.length > 0 ? 'vision' : 'cheap')
+  const key = seat ?? (content.images.length > 0 ? "vision" : "cheap")
   const ref = config.models[key]
   const model = resolveModel(ref)
   if (!model) {
     return {
       failed: true,
       reason: `analyse: unknown model "${ref}" in config.models.${key}`,
-      raw: ''
+      raw: ""
     }
   }
 
   const blocks: unknown[] = [
-    { type: 'text', text: buildPrompt(content, fileName, config) },
+    { type: "text", text: buildPrompt(content, fileName, config) },
     ...(await imageBlocks(content.images))
   ]
-  const messages: Message[] = [{ role: 'user', content: blocks as never, timestamp: Date.now() }]
+  const messages: Message[] = [{ role: "user", content: blocks as never, timestamp: Date.now() }]
 
   // The schema depends only on the roster: build the tool once, not per attempt.
   const tools = [analysisTool(config.types)]
-  let raw = ''
-  let error = ''
+  let raw = ""
+  let error = ""
   for (const attempt of ATTEMPTS) {
     let msg: AssistantMessage
     try {
@@ -351,7 +351,7 @@ export async function analyse(
     }
 
     const result = readCall(msg, config.types)
-    if ('analysis' in result) return result.analysis
+    if ("analysis" in result) return result.analysis
     raw = result.raw
     error = result.error
 
@@ -359,7 +359,7 @@ export async function analyse(
     // The last attempt leaves `error` naming why we gave up.
     if (attempt < ATTEMPTS.length - 1) {
       messages.push(msg, {
-        role: 'user',
+        role: "user",
         content: `Fix this error: ${error}\nCall ${TOOL_NAME} again with corrected arguments.`,
         timestamp: Date.now()
       })

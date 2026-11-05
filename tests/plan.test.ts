@@ -1,11 +1,11 @@
 // The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`getconf NAME_MAX /`
 
-import { expect, test } from 'bun:test'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { MODEL_CALL_MS } from './preload.ts'
-import { scratch } from './scratch.ts'
+import { expect, test } from "bun:test"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { MODEL_CALL_MS } from "./preload.ts"
+import { scratch } from "./scratch.ts"
 
 /**
  * src/commands.ts and src/cli.ts are loaded INSIDE each check with a dynamic import, never at the top
@@ -19,7 +19,7 @@ import { scratch } from './scratch.ts'
 // --- consumed shapes (structural mirrors of the interfaces T5 consumes) -----
 
 type FieldSpec = {
-  kind: 'text' | 'date' | 'entity' | 'last4'
+  kind: "text" | "date" | "entity" | "last4"
   required: boolean
   prompt?: string
 }
@@ -33,7 +33,7 @@ type DocType = {
 type Config = {
   defaults: {
     date_format: string
-    date_order: 'day-first' | 'month-first'
+    date_order: "day-first" | "month-first"
     max_name_length: number
     ocr_text_layer: boolean
     finder_tags: boolean
@@ -54,7 +54,7 @@ type PlanRow = {
   summary: string
   size: number
   mtime: number
-  status: 'pending' | 'accepted' | 'skipped'
+  status: "pending" | "accepted" | "skipped"
 }
 
 type CommandsModule = {
@@ -72,7 +72,7 @@ type CliModule = { main(argv: string[]): Promise<number> }
 /** Run the reference command and return its trimmed stdout: the truth. */
 function referenceOutput(): string {
   const argv = reference.split(/\s+/).filter(Boolean)
-  if (!argv.length) throw new Error('reference is empty')
+  if (!argv.length) throw new Error("reference is empty")
   const bin = Bun.which(argv[0]) ?? argv[0]
   const p = Bun.spawnSync([bin, ...argv.slice(1)])
   if (p.exitCode !== 0) {
@@ -85,17 +85,17 @@ function referenceOutput(): string {
 
 async function loadCommands(): Promise<CommandsModule> {
   try {
-    return (await import('../src/commands.ts')) as unknown as CommandsModule
+    return (await import("../src/commands.ts")) as unknown as CommandsModule
   } catch (e) {
-    throw new Error('src/commands.ts is not written: ' + ((e as Error)?.message ?? String(e)))
+    throw new Error("src/commands.ts is not written: " + ((e as Error)?.message ?? String(e)))
   }
 }
 
 async function loadCli(): Promise<CliModule> {
   try {
-    return (await import('../src/cli.ts')) as unknown as CliModule
+    return (await import("../src/cli.ts")) as unknown as CliModule
   } catch (e) {
-    throw new Error('src/cli.ts is not written: ' + ((e as Error)?.message ?? String(e)))
+    throw new Error("src/cli.ts is not written: " + ((e as Error)?.message ?? String(e)))
   }
 }
 
@@ -103,127 +103,127 @@ async function loadCli(): Promise<CliModule> {
 
 const CONFIG: Config = {
   defaults: {
-    date_format: 'YYYY-MM-DD',
-    date_order: 'day-first',
+    date_format: "YYYY-MM-DD",
+    date_order: "day-first",
     max_name_length: 150,
     ocr_text_layer: false,
     finder_tags: true,
     finder_comment: false
   },
-  models: { cheap: 'cheap-model', vision: 'vision-model', strong: 'strong-model' },
+  models: { cheap: "cheap-model", vision: "vision-model", strong: "strong-model" },
   types: {
     invoice: {
-      describe: 'A bill asking for payment for goods or services',
+      describe: "A bill asking for payment for goods or services",
       fields: {
-        date: { kind: 'date', required: true },
-        vendor: { kind: 'entity', required: true },
-        amount: { kind: 'text', required: false }
+        date: { kind: "date", required: true },
+        vendor: { kind: "entity", required: true },
+        amount: { kind: "text", required: false }
       },
-      template: '{date} {vendor} - Invoice',
-      tag: 'Invoice',
+      template: "{date} {vendor} - Invoice",
+      tag: "Invoice",
       folder: null
     },
     other: {
-      describe: 'Anything that fits no type above',
-      fields: { subject: { kind: 'text', required: true } },
-      template: '{date} {sender} - {subject}'
+      describe: "Anything that fits no type above",
+      fields: { subject: { kind: "text", required: true } },
+      template: "{date} {sender} - {subject}"
     }
   },
-  entities: { Acme: ['Acme Ltd', 'ACME'] }
+  entities: { Acme: ["Acme Ltd", "ACME"] }
 }
 
 /** A throwaway folder holding one seed document, in /tmp (outside the tree). */
 function seed(): string {
-  const dir = scratch('docnamer-plan')
+  const dir = scratch("docnamer-plan")
   writeFileSync(
-    join(dir, 'invoice-acme.txt'),
-    'INVOICE\nAcme Ltd\nDate: 03/04/2026\nTotal: 482.50 GBP\n'
+    join(dir, "invoice-acme.txt"),
+    "INVOICE\nAcme Ltd\nDate: 03/04/2026\nTotal: 482.50 GBP\n"
   )
   return dir
 }
 
 const ROW_KEYS = [
-  'old',
-  'new',
-  'type',
-  'fields',
-  'evidence',
-  'flags',
-  'summary',
-  'size',
-  'mtime',
-  'status'
+  "old",
+  "new",
+  "type",
+  "fields",
+  "evidence",
+  "flags",
+  "summary",
+  "size",
+  "mtime",
+  "status"
 ]
 
 // --- cases ------------------------------------------------------------------
 
-test('T5 plan returns a PlanRow per document with the declared shape', async () => {
+test("T5 plan returns a PlanRow per document with the declared shape", async () => {
   const c = await loadCommands()
   const dir = seed()
   const rows = await c.plan(dir, { recursive: false, applyUnflagged: false }, CONFIG)
   expect(Array.isArray(rows)).toBe(true)
   expect(rows.length).toBe(1)
   const r = rows[0]!
-  expect(r.old).toBe('invoice-acme.txt')
+  expect(r.old).toBe("invoice-acme.txt")
   for (const k of ROW_KEYS) {
     expect(r).toHaveProperty(k)
   }
-  expect(['pending', 'accepted', 'skipped']).toContain(r.status)
+  expect(["pending", "accepted", "skipped"]).toContain(r.status)
   expect(r.new.length).toBeLessThanOrEqual(Number(referenceOutput()))
 })
 
-test('T5 writePlan writes .docnamer-plan.json in the folder', async () => {
+test("T5 writePlan writes .docnamer-plan.json in the folder", async () => {
   const c = await loadCommands()
   const dir = seed()
   const rows: PlanRow[] = [
     {
-      old: 'invoice-acme.txt',
-      new: '2026-04-03 Acme - Invoice.pdf',
-      type: 'invoice',
+      old: "invoice-acme.txt",
+      new: "2026-04-03 Acme - Invoice.pdf",
+      type: "invoice",
       fields: {},
       evidence: {},
       flags: [],
-      summary: 'An invoice from Acme',
+      summary: "An invoice from Acme",
       size: 1,
       mtime: 0,
-      status: 'pending'
+      status: "pending"
     }
   ]
   await c.writePlan(dir, rows)
-  const p = join(dir, '.docnamer-plan.json')
+  const p = join(dir, ".docnamer-plan.json")
   expect(existsSync(p)).toBe(true)
-  expect(readFileSync(p, 'utf8')).toContain('invoice-acme.txt')
+  expect(readFileSync(p, "utf8")).toContain("invoice-acme.txt")
 })
 
 // `--run` with no value is a truncated command, not "undo the latest": the parser's fallback would
 // turn it into a destructive undo of a run nobody named.
-test('T5 CLI main refuses `undo --run` with no value', async () => {
+test("T5 CLI main refuses `undo --run` with no value", async () => {
   const cli = await loadCli()
-  const dir = scratch('docnamer-run')
-  const renamed = '2026-04-03 Acme - Invoice.txt'
-  writeFileSync(join(dir, renamed), 'INVOICE\nAcme Ltd\n')
+  const dir = scratch("docnamer-run")
+  const renamed = "2026-04-03 Acme - Invoice.txt"
+  writeFileSync(join(dir, renamed), "INVOICE\nAcme Ltd\n")
   writeFileSync(
-    join(dir, '.docnamer-undo-1.json'),
-    JSON.stringify({ entries: [{ old: 'invoice-acme.txt', new: renamed }] })
+    join(dir, ".docnamer-undo-1.json"),
+    JSON.stringify({ entries: [{ old: "invoice-acme.txt", new: renamed }] })
   )
-  const code = await cli.main(['undo', dir, '--run'])
+  const code = await cli.main(["undo", dir, "--run"])
   // A truncated flag is refused, and a refusal is 2 (src/cli.ts USAGE_EXIT); 1 is
   // reserved for a run that was accepted and then failed. This asserted 1.
   expect(code).toBe(2)
   expect(existsSync(join(dir, renamed))).toBe(true)
-  expect(existsSync(join(dir, 'invoice-acme.txt'))).toBe(false)
+  expect(existsSync(join(dir, "invoice-acme.txt"))).toBe(false)
 })
 
 // `plan` makes one real paid model call, so it waits past bun's 5s default.
 test(
-  'T5 CLI main plans a folder end to end',
+  "T5 CLI main plans a folder end to end",
   async () => {
     const cli = await loadCli()
     const dir = seed()
-    const code = await cli.main(['plan', dir])
-    expect(typeof code).toBe('number')
+    const code = await cli.main(["plan", dir])
+    expect(typeof code).toBe("number")
     expect(code).toBe(0)
-    expect(existsSync(join(dir, '.docnamer-plan.json'))).toBe(true)
+    expect(existsSync(join(dir, ".docnamer-plan.json"))).toBe(true)
   },
   MODEL_CALL_MS
 )

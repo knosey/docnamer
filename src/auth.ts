@@ -15,33 +15,33 @@
  * map, and every one of these names appears in a public signature, so deriving
  * them cannot drift from the shipped version.
  */
-import { renameSync, mkdirSync } from 'node:fs'
-import { open, rm } from 'node:fs/promises'
-import { dirname } from 'node:path'
-import type { CreateModelsOptions, MutableModels } from '@earendil-works/pi-ai/models'
-import { builtinModels } from '@earendil-works/pi-ai/providers/all'
-import type { Config } from './config.ts'
-import { stdinLine } from './prompt.ts'
-import type { Ui } from './ui.ts'
+import { renameSync, mkdirSync } from "node:fs"
+import { open, rm } from "node:fs/promises"
+import { dirname } from "node:path"
+import type { CreateModelsOptions, MutableModels } from "@earendil-works/pi-ai/models"
+import { builtinModels } from "@earendil-works/pi-ai/providers/all"
+import type { Config } from "./config.ts"
+import { stdinLine } from "./prompt.ts"
+import type { Ui } from "./ui.ts"
 
 /** The credential-store contract `builtinModels` accepts. */
-export type CredentialStore = NonNullable<CreateModelsOptions['credentials']>
+export type CredentialStore = NonNullable<CreateModelsOptions["credentials"]>
 /** One stored credential: `{type:'api_key', key}` or the OAuth arm. */
-export type Credential = NonNullable<Awaited<ReturnType<CredentialStore['read']>>>
+export type Credential = NonNullable<Awaited<ReturnType<CredentialStore["read"]>>>
 /** The non-secret metadata `list()` reports. */
-type CredentialInfo = Awaited<ReturnType<CredentialStore['list']>>[number]
+type CredentialInfo = Awaited<ReturnType<CredentialStore["list"]>>[number]
 /** What a login flow calls back into: one prompt, and progress notices. */
-type AuthInteraction = Parameters<MutableModels['login']>[2]
+type AuthInteraction = Parameters<MutableModels["login"]>[2]
 /** One question a login flow asks. */
-type AuthPrompt = Parameters<AuthInteraction['prompt']>[0]
+type AuthPrompt = Parameters<AuthInteraction["prompt"]>[0]
 /** App-supplied context for `Models.login`. */
-export type LoginOptions = NonNullable<Parameters<MutableModels['login']>[3]>
+export type LoginOptions = NonNullable<Parameters<MutableModels["login"]>[3]>
 
 /** `HOME` locates both stores, so its absence is fatal rather than defaulted. */
 function home(): string {
   const h = process.env.HOME
-  if (h === undefined || h === '') {
-    throw new Error('auth: HOME is not set, so neither credential store can be located')
+  if (h === undefined || h === "") {
+    throw new Error("auth: HOME is not set, so neither credential store can be located")
   }
   return h
 }
@@ -54,7 +54,7 @@ function piAuthPath(): string {
 /** docnamer's own credential file — the only one this program writes. */
 export function ownAuthPath(): string {
   const xdg = process.env.XDG_CONFIG_HOME
-  const base = xdg === undefined || xdg === '' ? `${home()}/.config` : xdg
+  const base = xdg === undefined || xdg === "" ? `${home()}/.config` : xdg
   return `${base}/docnamer/credentials.json`
 }
 
@@ -84,7 +84,7 @@ async function writeStore(path: string, store: StoreFile): Promise<void> {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   const tmp = `${path}.tmp`
   await rm(tmp, { force: true })
-  const handle = await open(tmp, 'wx', 0o600)
+  const handle = await open(tmp, "wx", 0o600)
   try {
     await handle.writeFile(`${JSON.stringify(store, null, 2)}\n`)
   } finally {
@@ -180,8 +180,8 @@ export function docnamerModels(): MutableModels {
 export function requiredProviders(config: Config): string[] {
   const out: string[] = []
   for (const ref of [config.models.cheap, config.models.vision, config.models.strong]) {
-    const provider = ref.slice(0, ref.indexOf('/'))
-    if (provider !== '' && !out.includes(provider)) out.push(provider)
+    const provider = ref.slice(0, ref.indexOf("/"))
+    if (provider !== "" && !out.includes(provider)) out.push(provider)
   }
   return out
 }
@@ -205,26 +205,26 @@ export async function ownCredentials(): Promise<{ providerId: string; type: stri
  */
 async function withoutEcho<T>(read: () => Promise<T>, u: Ui): Promise<T> {
   if (process.stdin.isTTY !== true) return read()
-  await Bun.spawn(['stty', '-echo'], { stdin: 'inherit' }).exited
+  await Bun.spawn(["stty", "-echo"], { stdin: "inherit" }).exited
   try {
     return await read()
   } finally {
-    await Bun.spawn(['stty', 'echo'], { stdin: 'inherit' }).exited
-    u.log('')
+    await Bun.spawn(["stty", "echo"], { stdin: "inherit" }).exited
+    u.log("")
   }
 }
 
 /** A `select` printed as a numbered list, answered with a digit or with the
  *  option's own id. */
 async function askSelect(
-  prompt: Extract<AuthPrompt, { type: 'select' }>,
+  prompt: Extract<AuthPrompt, { type: "select" }>,
   next: () => Promise<string>,
   u: Ui
 ): Promise<string> {
   u.log(`? ${u.bold(prompt.message)}`)
   const width = prompt.options.reduce((w, o) => Math.max(w, o.label.length), 0)
   for (const [i, option] of prompt.options.entries()) {
-    const about = option.description === undefined ? '' : u.dim(option.description)
+    const about = option.description === undefined ? "" : u.dim(option.description)
     u.log(u.row(`  ${i + 1}) `, [option.label, about], [width, 0]))
   }
   const answer = (await next()).trim()
@@ -243,10 +243,10 @@ async function askSelect(
  *  numbered so a person can answer with a digit or with the option's id. */
 function prompter(next: () => Promise<string>, u: Ui): (prompt: AuthPrompt) => Promise<string> {
   return async prompt => {
-    if (prompt.type === 'select') return askSelect(prompt, next, u)
+    if (prompt.type === "select") return askSelect(prompt, next, u)
     u.log(`? ${u.bold(prompt.message)}`)
     if (prompt.placeholder !== undefined) u.log(u.note(prompt.placeholder))
-    return prompt.type === 'secret' ? withoutEcho(next, u) : next()
+    return prompt.type === "secret" ? withoutEcho(next, u) : next()
   }
 }
 
@@ -260,7 +260,7 @@ function prompter(next: () => Promise<string>, u: Ui): (prompt: AuthPrompt) => P
 export async function login(
   providerId: string,
   u: Ui,
-  options: { type?: 'api_key' | 'oauth' } & LoginOptions
+  options: { type?: "api_key" | "oauth" } & LoginOptions
 ): Promise<Credential> {
   const models = docnamerModels()
   const provider = models.getProvider(providerId)
@@ -269,12 +269,12 @@ export async function login(
   }
   const wanted = options.type
   const type =
-    wanted !== undefined ? wanted : provider.auth.oauth !== undefined ? 'oauth' : 'api_key'
-  const auth = type === 'oauth' ? provider.auth.oauth : provider.auth.apiKey
+    wanted !== undefined ? wanted : provider.auth.oauth !== undefined ? "oauth" : "api_key"
+  const auth = type === "oauth" ? provider.auth.oauth : provider.auth.apiKey
   if (auth === undefined) {
     throw new Error(`login: provider "${providerId}" has no ${type} login`)
   }
-  if (type === 'api_key' && auth.login === undefined) {
+  if (type === "api_key" && auth.login === undefined) {
     throw new Error(
       `login: provider "${providerId}" reads its key from the environment only, so there is nothing to store — set the variable its docs name instead`
     )
@@ -283,10 +283,10 @@ export async function login(
   const interaction: AuthInteraction = {
     prompt: prompter(next, u),
     notify: event => {
-      if (event.type === 'auth_url') {
+      if (event.type === "auth_url") {
         u.log(`open: ${event.url}`)
         if (event.instructions !== undefined) u.log(u.note(event.instructions))
-      } else if (event.type === 'device_code') {
+      } else if (event.type === "device_code") {
         u.log(`open: ${event.verificationUri}`)
         u.log(`code: ${event.userCode}`)
       } else {
@@ -295,7 +295,7 @@ export async function login(
     }
   }
   const credential = await models.login(providerId, type, interaction, {
-    agentName: 'docnamer',
+    agentName: "docnamer",
     ...(options.getDeviceId === undefined ? {} : { getDeviceId: options.getDeviceId })
   })
   return credential

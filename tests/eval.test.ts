@@ -1,9 +1,9 @@
 // The reference the graph runner swaps through GRAPH_REFERENCE; assert against it, never edit it.
 export const reference = process.env.GRAPH_REFERENCE ?? String.raw`ls tests/fixtures`
 
-import { expect, test } from 'bun:test'
-import { loadConfig } from '../src/config.ts'
-import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
+import { expect, test } from "bun:test"
+import { loadConfig } from "../src/config.ts"
+import { ensureProviderKey, MODEL_CALL_MS } from "./preload.ts"
 
 /**
  * src/eval.ts is loaded INSIDE each check with a dynamic import, never at the top of the file, so a
@@ -19,7 +19,7 @@ import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
 type Config = {
   defaults: {
     date_format: string
-    date_order: 'day-first' | 'month-first'
+    date_order: "day-first" | "month-first"
     max_name_length: number
     ocr_text_layer: boolean
     finder_tags: boolean
@@ -50,12 +50,12 @@ type CliModule = { main(argv: string[]): Promise<number> }
 
 // --- the reference's own output: the truth this test asserts against --------
 
-const repo = import.meta.dir.replace(/\/tests$/, '')
+const repo = import.meta.dir.replace(/\/tests$/, "")
 const TESTSET = `${repo}/tests/testset`
 /** Run the reference command and return its stdout lines, sorted: the truth set. */
 function referenceOutput(): string[] {
   const argv = reference.split(/\s+/).filter(Boolean)
-  if (!argv.length) throw new Error('reference is empty')
+  if (!argv.length) throw new Error("reference is empty")
   const bin = Bun.which(argv[0]) ?? argv[0]
   const p = Bun.spawnSync([bin, ...argv.slice(1)], { cwd: repo })
   if (p.exitCode !== 0) {
@@ -63,7 +63,7 @@ function referenceOutput(): string[] {
   }
   return p.stdout
     .toString()
-    .split('\n')
+    .split("\n")
     .map(l => l.trim())
     .filter(Boolean)
     .sort()
@@ -73,12 +73,12 @@ function referenceOutput(): string[] {
 async function gradedFiles(): Promise<string[]> {
   const out: string[] = []
   try {
-    for await (const rel of new Bun.Glob('*').scan({ cwd: TESTSET, onlyFiles: true })) {
-      if (rel === 'expected.json') continue
+    for await (const rel of new Bun.Glob("*").scan({ cwd: TESTSET, onlyFiles: true })) {
+      if (rel === "expected.json") continue
       out.push(rel)
     }
   } catch (e) {
-    if ((e as { code?: string }).code === 'ENOENT') return []
+    if ((e as { code?: string }).code === "ENOENT") return []
     throw e
   }
   return out.sort()
@@ -89,17 +89,17 @@ async function gradedFiles(): Promise<string[]> {
 async function loadEval(): Promise<EvalModule> {
   let mod: unknown
   try {
-    mod = await import('../src/eval.ts')
+    mod = await import("../src/eval.ts")
   } catch (e) {
-    throw new Error('src/eval.ts is not written: ' + ((e as Error)?.message ?? String(e)))
+    throw new Error("src/eval.ts is not written: " + ((e as Error)?.message ?? String(e)))
   }
   const m = mod as Partial<EvalModule>
-  if (typeof m.evalTestset !== 'function') {
-    throw new Error('src/eval.ts does not export evalTestset(): the work under test is missing')
+  if (typeof m.evalTestset !== "function") {
+    throw new Error("src/eval.ts does not export evalTestset(): the work under test is missing")
   }
-  if (typeof m.formatEvalReport !== 'function') {
+  if (typeof m.formatEvalReport !== "function") {
     throw new Error(
-      'src/eval.ts does not export formatEvalReport(): the work under test is missing'
+      "src/eval.ts does not export formatEvalReport(): the work under test is missing"
     )
   }
   return m as EvalModule
@@ -108,12 +108,12 @@ async function loadEval(): Promise<EvalModule> {
 async function loadCli(): Promise<CliModule> {
   let mod: unknown
   try {
-    mod = await import('../src/cli.ts')
+    mod = await import("../src/cli.ts")
   } catch (e) {
-    throw new Error('src/cli.ts is not loadable: ' + ((e as Error)?.message ?? String(e)))
+    throw new Error("src/cli.ts is not loadable: " + ((e as Error)?.message ?? String(e)))
   }
   const m = mod as Partial<CliModule>
-  if (typeof m.main !== 'function') throw new Error('src/cli.ts does not export main()')
+  if (typeof m.main !== "function") throw new Error("src/cli.ts does not export main()")
   return m as CliModule
 }
 
@@ -122,7 +122,7 @@ const config: Config = loadConfig(`${repo}/docnamer.json`)
 // --- cases -------------------------------------------------------------------
 
 test(
-  'evalTestset scores the graded set without renaming anything',
+  "evalTestset scores the graded set without renaming anything",
   async () => {
     const mod = await loadEval()
     await ensureProviderKey()
@@ -137,10 +137,10 @@ test(
     expect(report.files).toBe(before.length)
     const fixtures = referenceOutput()
     for (const file of before) expect(fixtures).toContain(file)
-    expect(typeof report.typeAccuracy).toBe('number')
+    expect(typeof report.typeAccuracy).toBe("number")
     expect(report.typeAccuracy).toBeGreaterThanOrEqual(0)
     expect(report.typeAccuracy).toBeLessThanOrEqual(1)
-    expect(typeof report.fieldMatch).toBe('object')
+    expect(typeof report.fieldMatch).toBe("object")
     for (const v of Object.values(report.fieldMatch)) {
       expect(v).toBeGreaterThanOrEqual(0)
       expect(v).toBeLessThanOrEqual(1)
@@ -149,15 +149,15 @@ test(
     expect(report.fullNameMatch).toBeLessThanOrEqual(1)
     expect(report.visionShare).toBeGreaterThanOrEqual(0)
     expect(report.visionShare).toBeLessThanOrEqual(1)
-    expect(typeof report.secondsPerFile).toBe('number')
+    expect(typeof report.secondsPerFile).toBe("number")
     expect(report.secondsPerFile).toBeGreaterThan(0)
-    expect(typeof report.costPerFile).toBe('number')
+    expect(typeof report.costPerFile).toBe("number")
     expect(Array.isArray(report.misses)).toBe(true)
     for (const miss of report.misses) {
-      expect(typeof miss.file).toBe('string')
-      expect(typeof miss.expected).toBe('string')
-      expect(typeof miss.got).toBe('string')
-      expect(typeof miss.evidence).toBe('string')
+      expect(typeof miss.file).toBe("string")
+      expect(typeof miss.expected).toBe("string")
+      expect(typeof miss.got).toBe("string")
+      expect(typeof miss.evidence).toBe("string")
     }
 
     // eval observes: the graded set is unchanged on disk.
@@ -166,7 +166,7 @@ test(
   MODEL_CALL_MS
 )
 
-test('formatEvalReport renders the metrics and the expected-vs-got misses', async () => {
+test("formatEvalReport renders the metrics and the expected-vs-got misses", async () => {
   const mod = await loadEval()
   const report: EvalReport = {
     files: 2,
@@ -177,25 +177,25 @@ test('formatEvalReport renders the metrics and the expected-vs-got misses', asyn
     secondsPerFile: 1.5,
     costPerFile: 0.002,
     misses: [
-      { file: 'receipt.png', expected: 'receipt', got: 'other', evidence: 'vision read the total' }
+      { file: "receipt.png", expected: "receipt", got: "other", evidence: "vision read the total" }
     ]
   }
   const text = mod.formatEvalReport(report)
-  for (const metric of ['type', 'field', 'full', 'vision', 'cost']) {
+  for (const metric of ["type", "field", "full", "vision", "cost"]) {
     expect(text.toLowerCase()).toContain(metric)
   }
-  expect(text).toContain('receipt.png')
-  expect(text).toContain('expected')
-  expect(text).toContain('got')
-  expect(text).toContain('vision read the total')
+  expect(text).toContain("receipt.png")
+  expect(text).toContain("expected")
+  expect(text).toContain("got")
+  expect(text).toContain("vision read the total")
 })
 
 test(
-  'cli.ts dispatches eval against a test set and prints the report',
+  "cli.ts dispatches eval against a test set and prints the report",
   async () => {
     const cli = await loadCli()
     const before = await gradedFiles()
-    const code = await cli.main(['eval', TESTSET])
+    const code = await cli.main(["eval", TESTSET])
     expect(code).toBe(0)
     // Nothing renamed: the graded set is still there, exactly as before.
     expect(await gradedFiles()).toEqual(before)

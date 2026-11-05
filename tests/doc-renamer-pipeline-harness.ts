@@ -15,41 +15,41 @@
  * The shared helpers under tests/ may reach `node:` built-ins (R0c: the ban is on `src/`, which
  * the shipped binary compiles).
  */
-import { mkdir } from 'node:fs/promises'
-import { CONFIG_FILE } from '../src/config.ts'
-import { appBin } from './app-binary.ts'
-import { runChild } from './child.ts'
-import { frame } from './frame.ts'
-import { assertPlanCovers, base, planRows } from './plan-file.ts'
-import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
-import { scratch } from './scratch.ts'
+import { mkdir } from "node:fs/promises"
+import { CONFIG_FILE } from "../src/config.ts"
+import { appBin } from "./app-binary.ts"
+import { runChild } from "./child.ts"
+import { frame } from "./frame.ts"
+import { assertPlanCovers, base, planRows } from "./plan-file.ts"
+import { ensureProviderKey, MODEL_CALL_MS } from "./preload.ts"
+import { scratch } from "./scratch.ts"
 
 export type PlanRow = {
   old: string
   new: string
   type: string
   /** Which rung of Stage 1's ladder fed Stage 2 (I2); null when the read failed. */
-  method: 'text' | 'ocr' | 'vision' | null
+  method: "text" | "ocr" | "vision" | null
   fields: Record<string, string>
   evidence: Record<string, string>
   flags: string[]
   summary: string
   size: number
   mtime: number
-  status: 'pending' | 'accepted' | 'skipped'
+  status: "pending" | "accepted" | "skipped"
 }
 
 /** A named hole: the claim cannot be closed on the current observation surface. */
 class Skipped extends Error {
   readonly skip = true
   constructor(readonly claim: string) {
-    super('SKIP: ' + claim)
-    this.name = 'Skipped'
+    super("SKIP: " + claim)
+    this.name = "Skipped"
   }
 }
 
 /** Repo root. Exported so a spec can read the real config the harness seeds. */
-export const repo = import.meta.dir.replace(/\/tests$/, '')
+export const repo = import.meta.dir.replace(/\/tests$/, "")
 
 /** The folder's own config: Stage 1 SKIPs it, so it is never a plan row. */
 export { CONFIG_FILE }
@@ -62,13 +62,13 @@ export { CONFIG_FILE }
  * deliberately not the seed invoice's, so only this pair shares its content.
  */
 const DUP_INVOICE = [
-  'INVOICE',
-  'Northwind Traders',
-  'Invoice number: INV-0777',
-  'Date: 11/04/2026',
-  'Total: 129.00 GBP',
-  ''
-].join('\n')
+  "INVOICE",
+  "Northwind Traders",
+  "Invoice number: INV-0777",
+  "Date: 11/04/2026",
+  "Total: 129.00 GBP",
+  ""
+].join("\n")
 
 /**
  * A page OCR cannot read, and the only route to the vision rung: read.ts falls
@@ -77,40 +77,40 @@ const DUP_INVOICE = [
  * real fixture to 12x12 — too small to hold a legible glyph — because a
  * committed binary cannot pass the tree's copy-into-tree guard.
  */
-const NO_TEXT_FIXTURE = 'unreadable-scan.pdf'
+const NO_TEXT_FIXTURE = "unreadable-scan.pdf"
 
 /** Fixture documents seeded into every run's temp folder. */
 const SEED: Array<{ name: string; body: string }> = [
   {
-    name: 'invoice-acme-2026-04.txt',
+    name: "invoice-acme-2026-04.txt",
     body: [
-      'INVOICE',
-      'Acme Ltd',
-      'Invoice number: INV-0042',
-      'Date: 03/04/2026',
-      'Total: 482.50 GBP',
-      ''
-    ].join('\n')
+      "INVOICE",
+      "Acme Ltd",
+      "Invoice number: INV-0042",
+      "Date: 03/04/2026",
+      "Total: 482.50 GBP",
+      ""
+    ].join("\n")
   },
   {
-    name: 'letter-hmrc.txt',
-    body: ['Dear Sir,', 'A letter from HMRC dated 12 March 2026.', ''].join('\n')
+    name: "letter-hmrc.txt",
+    body: ["Dear Sir,", "A letter from HMRC dated 12 March 2026.", ""].join("\n")
   },
-  { name: 'dup-invoice.txt', body: DUP_INVOICE },
-  { name: 'dup-invoice.md', body: DUP_INVOICE }
+  { name: "dup-invoice.txt", body: DUP_INVOICE },
+  { name: "dup-invoice.md", body: DUP_INVOICE }
 ]
 
 export class Session {
   /** Per-run working folder. */
-  dir = ''
+  dir = ""
   /** `<dir>/.docnamer-plan.json`. */
-  planPath = ''
+  planPath = ""
   /** Parsed plan rows. */
   plan: PlanRow[] = []
   /** Resolved CLI argv, or null when no `docnamer` is reachable. */
   cli: string[] | null = null
   /** Last CLI invocation. */
-  last: { code: number; stdout: string; stderr: string } = { code: -1, stdout: '', stderr: '' }
+  last: { code: number; stdout: string; stderr: string } = { code: -1, stdout: "", stderr: "" }
   /** Seeded files' size and mtime, captured before `plan` runs. */
   originals = new Map<string, { size: number; mtime: number }>()
   booted = false
@@ -135,14 +135,14 @@ async function resolveCli(): Promise<string[] | null> {
   const override = Bun.env.DOCNAMER_BIN
   if (override && override.trim()) return override.trim().split(/\s+/)
   const src = `${repo}/src/cli.ts`
-  if (await Bun.file(src).exists()) return [Bun.which('bun') ?? 'bun', src]
+  if (await Bun.file(src).exists()) return [Bun.which("bun") ?? "bun", src]
   if (await Bun.file(appBin).exists()) return [appBin]
   return null
 }
 
 async function listFiles(dir: string): Promise<string[]> {
   const out: string[] = []
-  for await (const rel of new Bun.Glob('*').scan({ cwd: dir, onlyFiles: true })) out.push(rel)
+  for await (const rel of new Bun.Glob("*").scan({ cwd: dir, onlyFiles: true })) out.push(rel)
   return out
 }
 
@@ -151,7 +151,7 @@ async function listFiles(dir: string): Promise<string[]> {
 export async function boot(s: Session): Promise<void> {
   if (s.booted) return
   await ensureProviderKey()
-  const dir = scratch('docnamer')
+  const dir = scratch("docnamer")
   await mkdir(dir, { recursive: true })
   s.dir = dir
   s.planPath = `${dir}/.docnamer-plan.json`
@@ -161,7 +161,7 @@ export async function boot(s: Session): Promise<void> {
   // broken run, not a degraded one: swallowing the ENOENT left the flow testing the
   // hand-seeded files alone and calling it a pipeline.
   const fixtures = `${repo}/tests/fixtures`
-  for await (const rel of new Bun.Glob('**/*').scan({ cwd: fixtures, onlyFiles: true })) {
+  for await (const rel of new Bun.Glob("**/*").scan({ cwd: fixtures, onlyFiles: true })) {
     const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
     await Bun.write(`${dir}/${base(rel)}`, bytes)
   }
@@ -176,15 +176,15 @@ export async function boot(s: Session): Promise<void> {
   const receipt = `${dir}/receipt.png`
   if (await Bun.file(receipt).exists()) {
     const proc = Bun.spawnSync([
-      'sips',
-      '-s',
-      'format',
-      'pdf',
-      '--resampleHeightWidth',
-      '12',
-      '12',
+      "sips",
+      "-s",
+      "format",
+      "pdf",
+      "--resampleHeightWidth",
+      "12",
+      "12",
       receipt,
-      '--out',
+      "--out",
       `${dir}/${NO_TEXT_FIXTURE}`
     ])
     if (proc.exitCode !== 0) {
@@ -210,12 +210,12 @@ export async function boot(s: Session): Promise<void> {
  */
 const missingCli = (): Error =>
   new Error(
-    'docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts'
+    "docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts"
   )
 
 async function runPlan(s: Session): Promise<void> {
   if (!s.cli) throw missingCli()
-  const res = await shell([...s.cli, 'plan', s.dir])
+  const res = await shell([...s.cli, "plan", s.dir])
   s.last = res
   if (res.code !== 0) {
     throw new Error(`docnamer plan exited ${res.code}\n${res.stderr}${res.stdout}`)
@@ -259,7 +259,7 @@ export async function analyse(s: Session): Promise<Session> {
 
 /** Alphanumerics only, uppercased — the form a value and a name both reduce to. */
 function flat(s: string): string {
-  return s.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return s.toUpperCase().replace(/[^A-Z0-9]/g, "")
 }
 
 /**
@@ -274,7 +274,7 @@ function flat(s: string): string {
  * feature exists to preserve; the caller counts those waivers and fails on them.
  */
 function carries(name: string, value: string): boolean | null {
-  let longest = ''
+  let longest = ""
   for (const t of value.split(/[^A-Za-z0-9]+/)) if (t.length > longest.length) longest = t
   if (!longest) return null
   return flat(name).includes(flat(longest))
@@ -292,7 +292,7 @@ function fieldsDropped(r: PlanRow): string[] {
   // `date` is excluded: the template REFORMATS it (03/04/2026 -> 2026-04-03),
   // so its tokens need not survive verbatim.
   for (const [field, value] of Object.entries(r.fields)) {
-    if (!value || field === 'date') continue
+    if (!value || field === "date") continue
     const carried = carries(r.new, value)
     if (carried === true) continue
     if (carried === null) {
@@ -324,7 +324,7 @@ export async function name(s: Session): Promise<Session> {
   // as green. The old code returned true here and said nothing at all.
   if (waived.length) {
     throw new Error(
-      `Stage 4 could not check ${waived.length} extracted value(s) for content — nothing alphanumeric to look for: ${waived.join('; ')}`
+      `Stage 4 could not check ${waived.length} extracted value(s) for content — nothing alphanumeric to look for: ${waived.join("; ")}`
     )
   }
   return s
@@ -340,10 +340,10 @@ export async function name(s: Session): Promise<Session> {
 export async function outcome(s: Session, name: string): Promise<Session> {
   await ensure(s)
   if (!(await Bun.file(s.planPath).exists())) {
-    throw new Error('outcome: .docnamer-plan.json not written')
+    throw new Error("outcome: .docnamer-plan.json not written")
   }
 
-  const lines = s.last.stdout.split('\n')
+  const lines = s.last.stdout.split("\n")
   const at = (r: PlanRow): number => lines.findIndex(l => l.includes(base(r.old)))
   for (const r of s.plan) {
     const i = at(r)
@@ -363,12 +363,12 @@ export async function outcome(s: Session, name: string): Promise<Session> {
   // nothing at all, which is the vacuous shape this assertion exists to avoid.
   const flaggedCount = s.plan.filter(r => r.flags.length > 0).length
   for (const r of s.plan) {
-    const marked = lines[at(r)].startsWith('!')
+    const marked = lines[at(r)].startsWith("!")
     const hasFlags = r.flags.length > 0
     if (marked !== hasFlags) {
       throw new Error(
-        `outcome: ${r.old} is printed ${marked ? 'with' : 'without'} a "!" margin ` +
-          `but ${hasFlags ? 'has' : 'has no'} flags`
+        `outcome: ${r.old} is printed ${marked ? "with" : "without"} a "!" margin ` +
+          `but ${hasFlags ? "has" : "has no"} flags`
       )
     }
   }
@@ -393,7 +393,7 @@ export async function outcome(s: Session, name: string): Promise<Session> {
   // frames, so the judge reviews a different flow than the one it is judging.
   await frame(s.last.stdout, name)
   for (const r of s.plan) {
-    if (r.status !== 'pending') {
+    if (r.status !== "pending") {
       throw new Error(`outcome: row ${r.old} status ${r.status} != pending`)
     }
   }
@@ -412,11 +412,11 @@ export async function outcome(s: Session, name: string): Promise<Session> {
 export async function text(s: Session): Promise<Session> {
   await ensure(s)
   const textFiles = [...s.originals.keys()].filter(n => /\.(txt|md)$/i.test(n))
-  if (!textFiles.length) throw new Skipped('I2 text: no text-layer fixture seeded')
+  if (!textFiles.length) throw new Skipped("I2 text: no text-layer fixture seeded")
   const planned = new Set(s.plan.map(r => base(r.old)))
   const missing = textFiles.filter(n => !planned.has(n))
   if (missing.length) {
-    throw new Error(`I2 text: text-layer files not planned: ${missing.join(', ')}`)
+    throw new Error(`I2 text: text-layer files not planned: ${missing.join(", ")}`)
   }
   return s
 }
@@ -426,10 +426,10 @@ export async function ocr(s: Session): Promise<Session> {
   await ensure(s)
   const scanned = [...s.originals.keys()].filter(n => /scan/i.test(n))
   if (!scanned.length)
-    throw new Skipped('I2 ocr: no scanned fixture seeded (tests/fixtures/ absent)')
+    throw new Skipped("I2 ocr: no scanned fixture seeded (tests/fixtures/ absent)")
   const planned = new Set(s.plan.map(r => base(r.old)))
   const missing = scanned.filter(n => !planned.has(n))
-  if (missing.length) throw new Error(`I2 ocr: scanned files not planned: ${missing.join(', ')}`)
+  if (missing.length) throw new Error(`I2 ocr: scanned files not planned: ${missing.join(", ")}`)
   return s
 }
 
@@ -443,15 +443,15 @@ export async function vision(s: Session): Promise<Session> {
   }
 
   const noText = row(NO_TEXT_FIXTURE)
-  if (noText.method !== 'vision') {
+  if (noText.method !== "vision") {
     throw new Error(
       `I2 vision: OCR read no glyphs from ${NO_TEXT_FIXTURE} yet method was ` +
         `${JSON.stringify(noText.method)}; the ladder did not fall through to the vision model`
     )
   }
 
-  const withText = row('statement-text.pdf')
-  if (withText.method !== 'text') {
+  const withText = row("statement-text.pdf")
+  if (withText.method !== "text") {
     throw new Error(
       `I2 vision: statement-text.pdf has a usable text layer yet method was ` +
         `${JSON.stringify(withText.method)}; page images reached a model needlessly`
@@ -494,7 +494,7 @@ export async function suffix(s: Session): Promise<Session> {
   for (const r of s.plan) {
     const m = r.new.match(/^(.*) \((\d+)\)(\.[^.]*)?$/)
     if (!m) continue
-    const stem = (m[1] + (m[3] ?? '')).toLowerCase()
+    const stem = (m[1] + (m[3] ?? "")).toLowerCase()
     if (!proposed.has(stem) && !s.originals.has(stem)) {
       throw new Error(`I3 suffix: ${r.new} has a suffix but no colliding base`)
     }

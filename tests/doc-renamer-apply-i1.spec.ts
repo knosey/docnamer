@@ -13,13 +13,13 @@
  * observing the plan, undo file and documents; this test only composes its
  * steps.
  */
-import { Session, entry, check, rename, record, outcome } from './doc-renamer-apply-harness.ts'
+import { Session, entry, check, rename, record, outcome } from "./doc-renamer-apply-harness.ts"
 
-flow('doc-renamer-apply I1: apply accepted rows end to end', async () => {
+flow("doc-renamer-apply I1: apply accepted rows end to end", async () => {
   const s = new Session()
-  await entry(s, 'apply')
+  await entry(s, "apply")
   await check(s)
   await rename(s)
   await record(s)
-  await outcome(s, 'i1-apply')
+  await outcome(s, "i1-apply")
 })

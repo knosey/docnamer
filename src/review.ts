@@ -18,16 +18,16 @@
  * Every decision is written back to `<folder>/.docnamer-plan.json` when the
  * review ends (EOF or q). Nothing is renamed here — statuses only.
  */
-import type { Config } from './config.ts'
-import { buildName } from './name.ts'
-import { matchesKey } from '@earendil-works/pi-tui/dist/keys.js'
-import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
-import { lineEdit, nextStdinChunk, terminalKeys, type Keys, type LineEdit } from './prompt.ts'
-import { extOf, PLAN_FILE, readPlan, writePlan, type PlanRow } from './commands.ts'
-import type { Checked } from './validate.ts'
-import { ESC, hasDevice, progressBar, terminalHeight, terminalWidth, type Ui } from './ui.ts'
+import type { Config } from "./config.ts"
+import { buildName } from "./name.ts"
+import { matchesKey } from "@earendil-works/pi-tui/dist/keys.js"
+import { visibleWidth } from "@earendil-works/pi-tui/dist/utils.js"
+import { lineEdit, nextStdinChunk, terminalKeys, type Keys, type LineEdit } from "./prompt.ts"
+import { extOf, PLAN_FILE, readPlan, writePlan, type PlanRow } from "./commands.ts"
+import type { Checked } from "./validate.ts"
+import { ESC, hasDevice, progressBar, terminalHeight, terminalWidth, type Ui } from "./ui.ts"
 
-type ReviewAction = 'accept' | 'edit' | 'retype' | 'skip' | 'accept-unflagged'
+type ReviewAction = "accept" | "edit" | "retype" | "skip" | "accept-unflagged"
 
 /**
  * Apply one review decision to the rows and return the updated array. Pure apart
@@ -45,19 +45,19 @@ export async function applyAction(
   if (!row) throw new Error(`applyAction: no row at index ${index} (${rows.length} rows)`)
 
   switch (action) {
-    case 'accept':
-      row.status = 'accepted'
+    case "accept":
+      row.status = "accepted"
       break
-    case 'skip':
-      row.status = 'skipped'
+    case "skip":
+      row.status = "skipped"
       break
-    case 'edit':
-      if (!value) throw new Error('applyAction: edit needs the new name as its value')
+    case "edit":
+      if (!value) throw new Error("applyAction: edit needs the new name as its value")
       row.new = value
-      row.status = 'accepted'
+      row.status = "accepted"
       break
-    case 'retype': {
-      if (!value) throw new Error('applyAction: retype needs the type as its value')
+    case "retype": {
+      if (!value) throw new Error("applyAction: retype needs the type as its value")
       if (!config.types[value]) throw new Error(`applyAction: config has no type "${value}"`)
       row.type = value
       // SAFE: the plan format writes "no evidence" as an empty string, so a row
@@ -68,7 +68,7 @@ export async function applyAction(
         fields: Object.fromEntries(
           Object.entries(row.fields).map(([k, v]) => [
             k,
-            { value: v, evidence: row.evidence[k] ?? '' }
+            { value: v, evidence: row.evidence[k] ?? "" }
           ])
         ),
         summary: row.summary,
@@ -80,16 +80,16 @@ export async function applyAction(
       row.new = await buildName(
         checked,
         config,
-        { dir: '', ext: extOf(row.new), name: row.new },
+        { dir: "", ext: extOf(row.new), name: row.new },
         planned
       )
-      row.status = 'accepted'
+      row.status = "accepted"
       break
     }
-    case 'accept-unflagged':
+    case "accept-unflagged":
       // A flagged row stays for the person.
       for (const r of out) {
-        if (r.status === 'pending' && r.flags.length === 0) r.status = 'accepted'
+        if (r.status === "pending" && r.flags.length === 0) r.status = "accepted"
       }
       break
   }
@@ -97,7 +97,7 @@ export async function applyAction(
 }
 
 /** How far a card's rows sit in from its title line. */
-const CARD_INDENT = '  '
+const CARD_INDENT = "  "
 
 /** One row's card for the person deciding on it, as lines. The flags are the
  *  reason the row needs a person at all, so they carry the warning colour.
@@ -105,21 +105,21 @@ const CARD_INDENT = '  '
  *  plan index tells the person nothing about how much is left. A row already
  *  decided says so: moving back to it is how a decision is changed. */
 const card = (row: PlanRow, at: number, of: number, u: Ui): string[] => {
-  const decided = row.status === 'pending' ? '' : ` ${u.dim(`(${row.status})`)}`
+  const decided = row.status === "pending" ? "" : ` ${u.dim(`(${row.status})`)}`
   const lines = [
     `${u.dim(`[${at}/${of}]`)} ${u.bold(row.old)}${decided}`,
-    u.row('    ', [u.dim('new:'), row.new]),
-    u.row('    ', [
-      u.dim('type:'),
+    u.row("    ", [u.dim("new:"), row.new]),
+    u.row("    ", [
+      u.dim("type:"),
       row.type,
-      row.flags.length > 0 ? u.warn(row.flags.join(', ')) : ''
+      row.flags.length > 0 ? u.warn(row.flags.join(", ")) : ""
     ]),
-    u.row('    ', [u.dim('summary:'), row.summary])
+    u.row("    ", [u.dim("summary:"), row.summary])
   ]
   // Evidence is quoted from the document and can span its lines; one field is
   // one line here, or the next field starts in the wrong column.
   for (const [k, v] of Object.entries(row.evidence)) {
-    if (v) lines.push(u.row('    ', [u.dim(`evidence ${k}:`), v.replace(/\s+/g, ' ')]))
+    if (v) lines.push(u.row("    ", [u.dim(`evidence ${k}:`), v.replace(/\s+/g, " ")]))
   }
   return lines
 }
@@ -127,19 +127,19 @@ const card = (row: PlanRow, at: number, of: number, u: Ui): string[] => {
 /** The keys the review takes, as the header lists them. */
 const KEY_HINTS = (u: Ui): string[] => [
   `${u.glyphs.up}/${u.glyphs.down} move`,
-  'Enter accept',
-  's skip',
-  'e edit',
-  't retype',
-  'A accept unflagged',
-  'q quit'
+  "Enter accept",
+  "s skip",
+  "e edit",
+  "t retype",
+  "A accept unflagged",
+  "q quit"
 ]
 
 /** `items` packed into as few lines as fit `width`, the first after `lead` and
  *  the rest indented under it: the keys must all stay on screen, so they wrap
  *  between hints rather than being cut. */
 const packed = (lead: string, items: readonly string[], sep: string, width: number): string[] => {
-  const indent = ' '.repeat(visibleWidth(lead))
+  const indent = " ".repeat(visibleWidth(lead))
   const lines: string[] = []
   let line = lead
   for (const item of items) {
@@ -162,7 +162,7 @@ export type ReviewView = {
   readonly cursor: number
   readonly planPath: string
   /** The edit line, drawn in place of the row it edits. */
-  readonly edit: { readonly field: 'new' | 'type'; readonly render: LineEdit['render'] } | null
+  readonly edit: { readonly field: "new" | "type"; readonly render: LineEdit["render"] } | null
   readonly note: string | null
 }
 
@@ -192,9 +192,9 @@ const frameHeader = (v: ReviewView, width: number, u: Ui): string[] => {
     v.cursor < of ? `Reviewing document ${v.cursor + 1} of ${of}` : `Reviewed all ${of} documents`
   const title = `  ${u.bold(where)} ${u.dim(u.glyphs.dash)} ${u.dim(v.planPath)}`
   const rule = `  ${u.dim(u.glyphs.rule.repeat(Math.max(0, Math.min(visibleWidth(where), width - 4))))}`
-  const keys = packed('  keys: ', KEY_HINTS(u), ` ${u.glyphs.dot} `, width).map(l => u.dim(l))
+  const keys = packed("  keys: ", KEY_HINTS(u), ` ${u.glyphs.dot} `, width).map(l => u.dim(l))
   const note = v.note === null ? [] : [`  ${v.note}`]
-  return [title, rule, ...keys, ...note, '']
+  return [title, rule, ...keys, ...note, ""]
 }
 
 /** The way out once every document has a decision, in place of the cards. */
@@ -213,13 +213,13 @@ const frameCards = (v: ReviewView, width: number, u: Ui, budget: number): string
   for (let at = v.cursor; at < of && lines.length < budget; at++) {
     const row = v.rows[v.order[at] as number]
     if (row === undefined) break
-    if (at > v.cursor) lines.push('')
+    if (at > v.cursor) lines.push("")
     const body = card(row, at + 1, of, u)
-    body[0] = `${at === v.cursor ? `${u.glyphs.pointer} ` : '  '}${body[0] as string}`
+    body[0] = `${at === v.cursor ? `${u.glyphs.pointer} ` : "  "}${body[0] as string}`
     // A card's rows sit two cells in; the edit line is drawn that much narrower
     // so it ends at the edge instead of being cut there.
     if (at === v.cursor && v.edit !== null) {
-      body[v.edit.field === 'new' ? 1 : 2] = v.edit.render(width - CARD_INDENT.length)
+      body[v.edit.field === "new" ? 1 : 2] = v.edit.render(width - CARD_INDENT.length)
     }
     lines.push(...body.map((l, i) => (i === 0 ? l : `${CARD_INDENT}${l}`)))
   }
@@ -239,34 +239,34 @@ type Session = {
    *  the same line and every card is logged rather than drawn. */
   readonly keys: Keys | null
   /** The edit in progress on the screen, and what it edits. */
-  editing: { action: 'edit' | 'retype'; line: LineEdit } | null
+  editing: { action: "edit" | "retype"; line: LineEdit } | null
   /** What the screen says about the last thing that happened. */
   note: string | null
   /** How many lines the frame on screen takes. */
   drawn: number
 }
 
-type Command = ReviewAction | 'prev' | 'next' | 'quit'
+type Command = ReviewAction | "prev" | "next" | "quit"
 
 /** The commands a single character names, on a terminal and on a pipe alike.
  *  Enter accepts: a raw-mode terminal sends CR and a piped line sends LF. */
 const CHAR_COMMANDS: Record<string, Command> = {
-  '\r': 'accept',
-  '\n': 'accept',
-  s: 'skip',
-  e: 'edit',
-  t: 'retype',
-  A: 'accept-unflagged',
-  q: 'quit'
+  "\r": "accept",
+  "\n": "accept",
+  s: "skip",
+  e: "edit",
+  t: "retype",
+  A: "accept-unflagged",
+  q: "quit"
 }
 
 /** A terminal key as the command it names. A key is a whole sequence, so ↑
  *  (`ESC [ A`) is never the `A` its last byte spells. Raw mode raises no
  *  SIGINT, so Ctrl-C quits here, as Esc does. */
 const commandOf = (key: string): Command | undefined => {
-  if (matchesKey(key, 'up')) return 'prev'
-  if (matchesKey(key, 'down')) return 'next'
-  if (matchesKey(key, 'escape') || matchesKey(key, 'ctrl+c')) return 'quit'
+  if (matchesKey(key, "up")) return "prev"
+  if (matchesKey(key, "down")) return "next"
+  if (matchesKey(key, "escape") || matchesKey(key, "ctrl+c")) return "quit"
   return CHAR_COMMANDS[key]
 }
 
@@ -293,14 +293,14 @@ const show = (s: Session): void => {
     say(s.u, [s.u.dim(`every row seen ${s.u.glyphs.dash} q saves and quits`)])
     return
   }
-  s.u.log('')
+  s.u.log("")
   // The terminal's key list, minus its move hint: a pipe has no cursor to move.
   say(s.u, [s.u.dim(`keys: ${KEY_HINTS(s.u).slice(1).join(` ${s.u.glyphs.dot} `)}`)])
   say(s.u, card(at.row, s.cursor + 1, s.order.length, s.u))
   const ahead = s.order[s.cursor + 1]
   const next = ahead === undefined ? undefined : s.rows[ahead]
   if (next !== undefined) {
-    s.u.log('')
+    s.u.log("")
     say(s.u, card(next, s.cursor + 2, s.order.length, s.u))
   }
 }
@@ -326,15 +326,15 @@ const draw = (s: Session): void => {
       edit:
         s.editing === null
           ? null
-          : { field: s.editing.action === 'edit' ? 'new' : 'type', render: s.editing.line.render },
+          : { field: s.editing.action === "edit" ? "new" : "type", render: s.editing.line.render },
       note: s.note
     },
     terminalWidth(),
     terminalHeight() - 1,
     s.u
   )
-  const up = s.drawn > 0 ? `${ESC}[${s.drawn}A` : ''
-  s.u.raw(`${ESC}[?2026h${up}\r${ESC}[J${lines.join('\n')}\n${ESC}[?2026l`)
+  const up = s.drawn > 0 ? `${ESC}[${s.drawn}A` : ""
+  s.u.raw(`${ESC}[?2026h${up}\r${ESC}[J${lines.join("\n")}\n${ESC}[?2026l`)
   s.drawn = lines.length
 }
 
@@ -372,17 +372,17 @@ const decide = async (
  *  was: nothing was given, or the type is not one the config has. */
 const settle = async (
   s: Session,
-  action: 'edit' | 'retype',
+  action: "edit" | "retype",
   typed: string | null
 ): Promise<void> => {
-  const value = typed?.trim() ?? ''
-  if (value === '') note(s, s.u.dim('unchanged'))
-  else if (action === 'retype' && !s.config.types[value]) {
+  const value = typed?.trim() ?? ""
+  if (value === "") note(s, s.u.dim("unchanged"))
+  else if (action === "retype" && !s.config.types[value]) {
     note(
       s,
       s.u
         .warn(
-          `no type "${value}" ${s.u.glyphs.dash} one of ${Object.keys(s.config.types).join(', ')}`
+          `no type "${value}" ${s.u.glyphs.dash} one of ${Object.keys(s.config.types).join(", ")}`
         )
         .trimStart()
     )
@@ -392,7 +392,7 @@ const settle = async (
 /** `e` or `t`: on a screen, open the row's name or type for editing in the
  *  frame; on a pipe, settle it with the rest of the line. False when no row is
  *  on screen, so nothing after the key was taken as its value. */
-const editRow = async (s: Session, action: 'edit' | 'retype', rest: string): Promise<boolean> => {
+const editRow = async (s: Session, action: "edit" | "retype", rest: string): Promise<boolean> => {
   const at = current(s)
   if (!at) return false
   if (s.keys === null) {
@@ -403,13 +403,13 @@ const editRow = async (s: Session, action: 'edit' | 'retype', rest: string): Pro
   // The line opens on what the row holds now, decided or not: an empty line
   // hides the name being changed, so the person cannot see what they replace.
   // Ctrl-U clears it to type a new one.
-  const initial = action === 'edit' ? at.row.new : at.row.type
-  const label = s.u.dim(`    ${action === 'edit' ? 'new name' : 'type'}: `)
+  const initial = action === "edit" ? at.row.new : at.row.type
+  const label = s.u.dim(`    ${action === "edit" ? "new name" : "type"}: `)
   s.editing = { action, line: lineEdit(label, initial) }
   // The header says the screen is editing and how to leave it: the edit line
   // looks like the row it replaces, bar a cursor a glance can miss.
   const dot = s.u.glyphs.dot
-  const what = action === 'edit' ? 'the new name' : 'the type'
+  const what = action === "edit" ? "the new name" : "the type"
   s.note = s.u.bold(
     `Editing ${what}: Enter saves ${dot} Esc keeps it as it was ${dot} Ctrl-U clears the line`
   )
@@ -420,20 +420,20 @@ const editRow = async (s: Session, action: 'edit' | 'retype', rest: string): Pro
  *  piped line as its value. */
 const run = async (
   s: Session,
-  command: Exclude<Command, 'quit'>,
+  command: Exclude<Command, "quit">,
   rest: string
 ): Promise<boolean> => {
   switch (command) {
-    case 'prev':
+    case "prev":
       move(s, -1)
       return false
-    case 'next':
+    case "next":
       move(s, 1)
       return false
-    case 'edit':
-    case 'retype':
+    case "edit":
+    case "retype":
       return editRow(s, command, rest)
-    case 'accept-unflagged':
+    case "accept-unflagged":
       // SAFE: 'accept-unflagged' sweeps every pending unflagged row and never
       // reads the index; 0 stands in because applyAction takes one.
       s.rows = await applyAction(s.rows, 0, command, null, s.config)
@@ -468,12 +468,12 @@ const readTerminal = async (s: Session, keys: Keys): Promise<void> => {
       continue
     }
     const command = commandOf(key)
-    if (command === 'quit') return
+    if (command === "quit") return
     // A key naming no command changes nothing; the frame on screen stays.
     if (command === undefined) continue
     const at = s.cursor
-    await run(s, command, '')
-    if ((command !== 'prev' && command !== 'next') || s.cursor !== at) draw(s)
+    await run(s, command, "")
+    if ((command !== "prev" && command !== "next") || s.cursor !== at) draw(s)
   }
 }
 
@@ -489,7 +489,7 @@ const readPipe = async (s: Session): Promise<void> => {
     for (let i = 0; i < text.length; i++) {
       // charAt returns '' past the end, which the loop bound already excludes.
       const command = CHAR_COMMANDS[text.charAt(i)]
-      if (command === 'quit') return
+      if (command === "quit") return
       if (command !== undefined && (await run(s, command, text.slice(i + 1)))) break
     }
   }
@@ -503,16 +503,16 @@ const readPipe = async (s: Session): Promise<void> => {
  */
 export async function review(folder: string, config: Config, u: Ui): Promise<void> {
   const planPath = `${folder}/${PLAN_FILE}`
-  const rows = await readPlan(folder, 'review')
+  const rows = await readPlan(folder, "review")
   // Flagged rows are where a person is needed; they go first.
   const order = rows
     .map((row, index) => ({ row, index }))
-    .filter(({ row }) => row.status === 'pending')
+    .filter(({ row }) => row.status === "pending")
     .sort((a, b) => Number(b.row.flags.length > 0) - Number(a.row.flags.length > 0))
     .map(({ index }) => index)
 
   const stdin = process.stdin
-  const raw = stdin.isTTY && typeof stdin.setRawMode === 'function'
+  const raw = stdin.isTTY && typeof stdin.setRawMode === "function"
   // A device terminal is already raw: the wrapper set it before launch.
   const keys = hasDevice() || raw ? terminalKeys() : null
   const s: Session = {
@@ -544,9 +544,9 @@ export async function review(folder: string, config: Config, u: Ui): Promise<voi
   }
 
   await writePlan(folder, s.rows)
-  const accepted = s.rows.filter(r => r.status === 'accepted').length
-  const skipped = s.rows.filter(r => r.status === 'skipped').length
-  const pending = s.rows.filter(r => r.status === 'pending').length
+  const accepted = s.rows.filter(r => r.status === "accepted").length
+  const skipped = s.rows.filter(r => r.status === "skipped").length
+  const pending = s.rows.filter(r => r.status === "pending").length
   // The completion line draws the final bar in the same format plan, apply and
   // undo draw theirs: a review carried to the end reads as the full bar, 100%.
   const done = accepted + skipped

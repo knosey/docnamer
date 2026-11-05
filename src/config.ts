@@ -1,7 +1,7 @@
-import builtin from '../docnamer.json' with { type: 'json' }
+import builtin from "../docnamer.json" with { type: "json" }
 
 export type FieldSpec = {
-  kind: 'text' | 'date' | 'entity' | 'last4'
+  kind: "text" | "date" | "entity" | "last4"
   required: boolean
   prompt?: string
   /** The field that names the document instead when this one is one of the
@@ -20,7 +20,7 @@ export type DocType = {
 export type Config = {
   defaults: {
     date_format: string
-    date_order: 'day-first' | 'month-first'
+    date_order: "day-first" | "month-first"
     max_name_length: number
     ocr_text_layer: boolean
     finder_tags: boolean
@@ -45,11 +45,11 @@ export const BUILTIN_CONFIG = builtin as Config
  * is ever read: a folder either carries this and is configured by it, or it
  * carries nothing and the built-in roster applies.
  */
-export const CONFIG_FILE = 'docnamer.json'
+export const CONFIG_FILE = "docnamer.json"
 
 /** Parse a docnamer JSON config; throws when the file is unreadable. */
 export function loadConfig(path: string): Config {
-  const proc = Bun.spawnSync(['cat', path])
+  const proc = Bun.spawnSync(["cat", path])
   if (proc.exitCode !== 0) {
     throw new Error(`loadConfig: cannot read config at ${path}: ${proc.stderr.toString().trim()}`)
   }

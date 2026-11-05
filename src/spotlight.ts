@@ -8,12 +8,12 @@
  * `<file>.ocr.txt` written next to the document.
  */
 
-import { ocrPages } from './read.ts'
+import { ocrPages } from "./read.ts"
 
-const TAG_XATTR = 'com.apple.metadata:_kMDItemUserTags'
+const TAG_XATTR = "com.apple.metadata:_kMDItemUserTags"
 
 /** The suffix of the OCR text layer written beside a scan. */
-export const SIDECAR = '.ocr.txt'
+export const SIDECAR = ".ocr.txt"
 
 // --- Tag plist codec ----------------------------------------------------------
 
@@ -24,8 +24,8 @@ export function encodeTagPlist(tags: string[]): Uint8Array {
     `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n` +
     `<plist version="1.0"><array>${tags
       .map(t => `<string>${escapeXml(t)}</string>`)
-      .join('')}</array></plist>\n`
-  const proc = Bun.spawnSync(['plutil', '-convert', 'binary1', '-o', '-', '-'], {
+      .join("")}</array></plist>\n`
+  const proc = Bun.spawnSync(["plutil", "-convert", "binary1", "-o", "-", "-"], {
     stdin: new TextEncoder().encode(xml)
   })
   if (proc.exitCode !== 0) {
@@ -38,7 +38,7 @@ export function encodeTagPlist(tags: string[]): Uint8Array {
 
 /** Decode the binary plist stored in the _kMDItemUserTags xattr back to tags. */
 export function decodeTagPlist(bytes: Uint8Array): string[] {
-  const proc = Bun.spawnSync(['plutil', '-convert', 'json', '-o', '-', '-'], { stdin: bytes })
+  const proc = Bun.spawnSync(["plutil", "-convert", "json", "-o", "-", "-"], { stdin: bytes })
   if (proc.exitCode !== 0) {
     throw new Error(
       `decodeTagPlist: plutil could not decode plist: ${proc.stderr.toString().trim()}`
@@ -53,16 +53,16 @@ export function decodeTagPlist(bytes: Uint8Array): string[] {
 
 function escapeXml(s: string): string {
   return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;")
 }
 
 /** One line of Finder metadata: control characters (newlines, tabs) become spaces. */
 export function oneLine(s: string): string {
-  return s.replace(/\p{Cc}+/gu, ' ')
+  return s.replace(/\p{Cc}+/gu, " ")
 }
 
 /** Warn when a value had to be flattened to one line before reaching Finder. */
@@ -76,9 +76,9 @@ function warnFlattened(what: string, original: string, cleaned: string): void {
 
 /** Every Finder tag on the file; [] when the xattr is absent. */
 export async function readFinderTags(file: string): Promise<string[]> {
-  const proc = Bun.spawnSync(['xattr', '-px', TAG_XATTR, file])
+  const proc = Bun.spawnSync(["xattr", "-px", TAG_XATTR, file])
   if (proc.exitCode !== 0) return []
-  const hex = proc.stdout.toString().replace(/[^0-9a-fA-F]/g, '')
+  const hex = proc.stdout.toString().replace(/[^0-9a-fA-F]/g, "")
   const bytes = new Uint8Array(hex.length / 2)
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
@@ -89,11 +89,11 @@ export async function readFinderTags(file: string): Promise<string[]> {
 /** Add a Finder tag to the file, keeping the tags already there. */
 export async function setFinderTag(file: string, tag: string): Promise<void> {
   const flat = oneLine(tag)
-  warnFlattened('a Finder tag', tag, flat)
+  warnFlattened("a Finder tag", tag, flat)
   const tags = await readFinderTags(file)
   if (!tags.includes(flat)) tags.push(flat)
-  const hex = [...encodeTagPlist(tags)].map(b => b.toString(16).padStart(2, '0')).join(' ')
-  const proc = Bun.spawnSync(['xattr', '-wx', TAG_XATTR, hex, file])
+  const hex = [...encodeTagPlist(tags)].map(b => b.toString(16).padStart(2, "0")).join(" ")
+  const proc = Bun.spawnSync(["xattr", "-wx", TAG_XATTR, hex, file])
   if (proc.exitCode !== 0) {
     throw new Error(`setFinderTag: xattr could not tag ${file}: ${proc.stderr.toString().trim()}`)
   }
@@ -106,22 +106,22 @@ export async function setFinderTag(file: string, tag: string): Promise<void> {
  *  would pay a Finder round-trip for every renamed document. */
 export async function setFinderComments(pairs: { file: string; comment: string }[]): Promise<void> {
   if (pairs.length === 0) return
-  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
   const lines = pairs.map(p => {
     const file = oneLine(p.file)
     const comment = oneLine(p.comment)
-    warnFlattened('a Finder comment path', p.file, file)
-    warnFlattened('a Finder comment', p.comment, comment)
+    warnFlattened("a Finder comment path", p.file, file)
+    warnFlattened("a Finder comment", p.comment, comment)
     return `set comment of (POSIX file "${esc(file)}" as alias) to "${esc(comment)}"`
   })
   const proc = Bun.spawnSync([
-    'osascript',
-    '-e',
-    `tell application "Finder"\n${lines.join('\n')}\nend tell`
+    "osascript",
+    "-e",
+    `tell application "Finder"\n${lines.join("\n")}\nend tell`
   ])
   if (proc.exitCode !== 0) {
     throw new Error(
-      `setFinderComments: osascript could not comment ${pairs.map(p => p.file).join(', ')}: ${proc.stderr.toString().trim()}`
+      `setFinderComments: osascript could not comment ${pairs.map(p => p.file).join(", ")}: ${proc.stderr.toString().trim()}`
     )
   }
 }

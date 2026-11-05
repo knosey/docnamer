@@ -23,7 +23,7 @@ for file in $changed; do
   esac
 done
 if [ -n "$targets" ]; then
-  bunx oxfmt $targets
+  bun fmt --no-script $targets
   for file in $targets; do
     git add -- "$file"
   done

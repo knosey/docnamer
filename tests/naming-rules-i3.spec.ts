@@ -11,20 +11,20 @@
  * The harness owns booting the folder, seeding the file and running
  * `docnamer plan`; this test only composes its steps and asserts `s.names`.
  */
-import { Session, entry, outcome, step } from './naming-rules-harness.ts'
+import { Session, entry, outcome, step } from "./naming-rules-harness.ts"
 
 /** date_format is YYYY-MM-DD (docs/features/naming-rules/BRIEF.md, out of scope to change). */
 const PASSPORT = /^\d{4}-\d{2}-\d{2} Jacqui passport\.pdf$/
 
-flow('naming-rules I3: passport named in English with the holder', async () => {
-  const s = new Session('I3')
+flow("naming-rules I3: passport named in English with the holder", async () => {
+  const s = new Session("I3")
   await entry(s)
   await step(s)
   await outcome(s)
 
-  const name = s.names[0] ?? ''
-  const base = name.split('/').pop() ?? name
-  if (s.names.length !== 1 || !PASSPORT.test(base) || base.includes('REISEPASS')) {
+  const name = s.names[0] ?? ""
+  const base = name.split("/").pop() ?? name
+  if (s.names.length !== 1 || !PASSPORT.test(base) || base.includes("REISEPASS")) {
     throw new Error(
       `I3: planning passport-jacqui-with-stamps.pdf must propose "{date} Jacqui passport.pdf" and must not contain REISEPASS, got ${JSON.stringify(s.names)}`
     )

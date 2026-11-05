@@ -1,6 +1,6 @@
 // The whole-run happy paths of apply and undo, asserted against the truth set
 // of `ls tests/fixtures` via the shared harness in tests/apply-harness.ts.
-import { expect, test } from 'bun:test'
+import { expect, test } from "bun:test"
 import {
   reference,
   CONFIG,
@@ -11,11 +11,11 @@ import {
   writeAcceptedPlan,
   names,
   latestUndo
-} from './apply-harness.ts'
+} from "./apply-harness.ts"
 
 export { reference }
 
-test('T2 apply renames every accepted row and writes the undo record', async () => {
+test("T2 apply renames every accepted row and writes the undo record", async () => {
   const c = await loadCommands()
   const fixtures = referenceOutput()
   const dir = await seed(fixtures)
@@ -36,7 +36,7 @@ test('T2 apply renames every accepted row and writes the undo record', async () 
   expect(await Bun.file(`${dir}/${undo as string}`).exists()).toBe(true)
 })
 
-test('T2 undo restores the reference set and deletes the undo record', async () => {
+test("T2 undo restores the reference set and deletes the undo record", async () => {
   const c = await loadCommands()
   const fixtures = referenceOutput()
   const dir = await seed(fixtures)
@@ -53,11 +53,11 @@ test('T2 undo restores the reference set and deletes the undo record', async () 
   expect(await latestUndo(dir)).toBeNull()
 })
 
-test('T2 apply and undo keep a document in its subfolder, never the folder root', async () => {
+test("T2 apply and undo keep a document in its subfolder, never the folder root", async () => {
   const c = await loadCommands()
   const fixture = referenceOutput()[0] as string
-  const dir = await seed([fixture], 'sub')
-  await writeAcceptedPlan(dir, [fixture], 'sub')
+  const dir = await seed([fixture], "sub")
+  await writeAcceptedPlan(dir, [fixture], "sub")
 
   const applied = await c.apply(dir, CONFIG)
   expect(applied.renamed).toBe(1)

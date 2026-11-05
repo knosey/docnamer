@@ -3,7 +3,7 @@
 // process under `bun run test:e2e` is bun's own test runner, not a hand-rolled
 // one. `bun test <file>` runs exactly the file it is given; a flow whose `fn`
 // throws fails the run and the runner exits non-zero.
-import { test } from 'bun:test'
+import { test } from "bun:test"
 
 /**
  * A real model call needs FIREWORKS_API_KEY. It is taken from the environment;
@@ -12,8 +12,8 @@ import { test } from 'bun:test'
  * only — `src/analyse.ts` reads the environment and nothing else.
  */
 export async function ensureProviderKey(): Promise<void> {
-  if ((Bun.env.FIREWORKS_API_KEY ?? '').trim().length > 0) return
-  const authFile = `${Bun.env.HOME ?? ''}/.pi/agent/auth.json`
+  if ((Bun.env.FIREWORKS_API_KEY ?? "").trim().length > 0) return
+  const authFile = `${Bun.env.HOME ?? ""}/.pi/agent/auth.json`
   let key: string | undefined
   try {
     const parsed = (await Bun.file(authFile).json()) as { fireworks?: { key?: string } }
@@ -24,7 +24,7 @@ export async function ensureProviderKey(): Promise<void> {
         (e as Error).message
     )
   }
-  if (typeof key !== 'string' || key.trim().length === 0) {
+  if (typeof key !== "string" || key.trim().length === 0) {
     throw new Error(`no FIREWORKS_API_KEY in the environment and none in ${authFile}`)
   }
   Bun.env.FIREWORKS_API_KEY = key

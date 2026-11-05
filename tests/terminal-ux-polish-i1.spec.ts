@@ -18,9 +18,9 @@ import {
   version_frame_legible,
   no_stray_percent,
   prompt_on_own_line
-} from './terminal-ux-polish-harness.ts'
+} from "./terminal-ux-polish-harness.ts"
 
-flow('terminal-ux-polish I1: version command leaves a clean terminal', async () => {
+flow("terminal-ux-polish I1: version command leaves a clean terminal", async () => {
   const s = new Session()
   await run_version(s)
   await capture_pty_frame(s)

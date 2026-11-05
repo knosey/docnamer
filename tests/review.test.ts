@@ -6,31 +6,31 @@
  * applyAction ships, so it is imported statically; the CLI's `main` is still reached dynamically so
  * a red run of the dispatch checks is the absence of the work and nothing else.
  */
-import { describe, expect, test } from 'bun:test'
-import { runChild } from './child.ts'
-import type { Config } from '../src/config.ts'
-import { loadConfig } from '../src/config.ts'
-import type { PlanRow } from '../src/commands.ts'
-import { applyAction } from '../src/review.ts'
-import { MODEL_CALL_MS } from './preload.ts'
-import { scratch } from './scratch.ts'
+import { describe, expect, test } from "bun:test"
+import { runChild } from "./child.ts"
+import type { Config } from "../src/config.ts"
+import { loadConfig } from "../src/config.ts"
+import type { PlanRow } from "../src/commands.ts"
+import { applyAction } from "../src/review.ts"
+import { MODEL_CALL_MS } from "./preload.ts"
+import { scratch } from "./scratch.ts"
 
-const repo = import.meta.dir.replace(/\/tests$/, '')
+const repo = import.meta.dir.replace(/\/tests$/, "")
 
 type Row = PlanRow
 
 const row = (over: Partial<Row> = {}): Row => ({
-  old: 'invoice-acme-2026-04.txt',
-  new: '2026-04-03 Acme Ltd - Invoice.txt',
-  type: 'invoice',
-  method: 'text',
-  fields: { date: '2026-04-03', vendor: 'Acme Ltd' },
-  evidence: { vendor: 'Acme Ltd' },
+  old: "invoice-acme-2026-04.txt",
+  new: "2026-04-03 Acme Ltd - Invoice.txt",
+  type: "invoice",
+  method: "text",
+  fields: { date: "2026-04-03", vendor: "Acme Ltd" },
+  evidence: { vendor: "Acme Ltd" },
   flags: [],
-  summary: 'Acme Ltd invoice',
+  summary: "Acme Ltd invoice",
   size: 64,
   mtime: 1_700_000_000_000,
-  status: 'pending',
+  status: "pending",
   ...over
 })
 
@@ -44,102 +44,102 @@ async function importOrNull(path: string): Promise<Record<string, unknown> | nul
 
 function fn(mod: Record<string, unknown>, name: string): (...args: unknown[]) => unknown {
   const f = mod[name]
-  expect(typeof f, `src/review.ts must export ${name} (T3)`).toBe('function')
+  expect(typeof f, `src/review.ts must export ${name} (T3)`).toBe("function")
   return f as (...args: unknown[]) => unknown
 }
 
 const config = (): Config => loadConfig(`${repo}/docnamer.json`)
 
-describe('T3 applyAction', () => {
-  test('accept marks the addressed row accepted and leaves the rest alone', async () => {
-    const rows = [row(), row({ old: 'letter.txt', new: 'Letter.txt', type: 'letter' })]
-    const out = await applyAction(rows, 0, 'accept', null, config())
-    expect(out[0]?.status).toBe('accepted')
-    expect(out[1]?.status).toBe('pending')
+describe("T3 applyAction", () => {
+  test("accept marks the addressed row accepted and leaves the rest alone", async () => {
+    const rows = [row(), row({ old: "letter.txt", new: "Letter.txt", type: "letter" })]
+    const out = await applyAction(rows, 0, "accept", null, config())
+    expect(out[0]?.status).toBe("accepted")
+    expect(out[1]?.status).toBe("pending")
   })
 
-  test('skip marks the addressed row skipped', async () => {
-    const out = await applyAction([row()], 0, 'skip', null, config())
-    expect(out[0]?.status).toBe('skipped')
+  test("skip marks the addressed row skipped", async () => {
+    const out = await applyAction([row()], 0, "skip", null, config())
+    expect(out[0]?.status).toBe("skipped")
   })
 
-  test('edit writes the given name and accepts the row', async () => {
-    const out = await applyAction([row()], 0, 'edit', 'Chosen Name.txt', config())
-    expect(out[0]?.new).toBe('Chosen Name.txt')
-    expect(out[0]?.status).toBe('accepted')
+  test("edit writes the given name and accepts the row", async () => {
+    const out = await applyAction([row()], 0, "edit", "Chosen Name.txt", config())
+    expect(out[0]?.new).toBe("Chosen Name.txt")
+    expect(out[0]?.status).toBe("accepted")
   })
 
-  test('retype changes the row type and accepts it', async () => {
-    const out = await applyAction([row()], 0, 'retype', 'receipt', config())
-    expect(out[0]?.type).toBe('receipt')
-    expect(out[0]?.status).toBe('accepted')
+  test("retype changes the row type and accepts it", async () => {
+    const out = await applyAction([row()], 0, "retype", "receipt", config())
+    expect(out[0]?.type).toBe("receipt")
+    expect(out[0]?.status).toBe("accepted")
   })
 
-  test('accept-unflagged accepts flag-free rows and leaves flagged rows pending', async () => {
+  test("accept-unflagged accepts flag-free rows and leaves flagged rows pending", async () => {
     const rows = [
       row(),
-      row({ old: 'scan.pdf', flags: ['low-confidence'] }),
-      row({ old: 'letter.txt', flags: [] })
+      row({ old: "scan.pdf", flags: ["low-confidence"] }),
+      row({ old: "letter.txt", flags: [] })
     ]
-    const out = await applyAction(rows, 0, 'accept-unflagged', null, config())
-    expect(out[0]?.status).toBe('accepted')
-    expect(out[1]?.status).toBe('pending')
-    expect(out[2]?.status).toBe('accepted')
+    const out = await applyAction(rows, 0, "accept-unflagged", null, config())
+    expect(out[0]?.status).toBe("accepted")
+    expect(out[1]?.status).toBe("pending")
+    expect(out[2]?.status).toBe("accepted")
   })
 })
 
-describe('T3 review() and the CLI wiring', () => {
-  test('the CLI dispatches review, updating row statuses in the plan file', async () => {
-    const dir = scratch('docnamer-review')
-    const rows = [row(), row({ old: 'scan.pdf', flags: ['low-confidence'] })]
+describe("T3 review() and the CLI wiring", () => {
+  test("the CLI dispatches review, updating row statuses in the plan file", async () => {
+    const dir = scratch("docnamer-review")
+    const rows = [row(), row({ old: "scan.pdf", flags: ["low-confidence"] })]
     await Bun.write(`${dir}/.docnamer-plan.json`, JSON.stringify(rows, null, 2))
 
-    const bun = Bun.which('bun') ?? 'bun'
-    const run = await runChild([bun, `${repo}/src/cli.ts`, 'review', dir], {
-      input: 'A',
+    const bun = Bun.which("bun") ?? "bun"
+    const run = await runChild([bun, `${repo}/src/cli.ts`, "review", dir], {
+      input: "A",
       timeoutMs: MODEL_CALL_MS
     })
     expect(run.code, `review must exit 0\n${run.stderr}${run.stdout}`).toBe(0)
 
     const after = JSON.parse(await Bun.file(`${dir}/.docnamer-plan.json`).text()) as Row[]
-    expect(after[0]?.status).toBe('accepted')
-    expect(after[1]?.status).toBe('pending')
+    expect(after[0]?.status).toBe("accepted")
+    expect(after[1]?.status).toBe("pending")
   })
 
   // R4/I3: "Enter accept". A person reads the key list and presses Enter, so the
   // prompt has to name Enter and Enter has to accept the row on screen.
-  test('the CLI accepts the row on Enter and the prompt names Enter as accept', async () => {
-    const dir = scratch('docnamer-review')
-    const rows = [row(), row({ old: 'scan.pdf' })]
+  test("the CLI accepts the row on Enter and the prompt names Enter as accept", async () => {
+    const dir = scratch("docnamer-review")
+    const rows = [row(), row({ old: "scan.pdf" })]
     await Bun.write(`${dir}/.docnamer-plan.json`, JSON.stringify(rows, null, 2))
 
-    const bun = Bun.which('bun') ?? 'bun'
-    const run = await runChild([bun, `${repo}/src/cli.ts`, 'review', dir], {
-      input: '\r',
+    const bun = Bun.which("bun") ?? "bun"
+    const run = await runChild([bun, `${repo}/src/cli.ts`, "review", dir], {
+      input: "\r",
       timeoutMs: MODEL_CALL_MS
     })
     expect(run.code, `review must exit 0\n${run.stderr}${run.stdout}`).toBe(0)
-    expect(run.stdout, 'the key list must name Enter as the accept key').toContain('Enter accept')
+    expect(run.stdout, "the key list must name Enter as the accept key").toContain("Enter accept")
 
     const after = JSON.parse(await Bun.file(`${dir}/.docnamer-plan.json`).text()) as Row[]
-    expect(after[0]?.status, 'Enter must accept the row on screen').toBe('accepted')
-    expect(after[1]?.status).toBe('pending')
+    expect(after[0]?.status, "Enter must accept the row on screen").toBe("accepted")
+    expect(after[1]?.status).toBe("pending")
   })
 
   // `plan` makes one real paid model call, so it waits past bun's 5s default.
   test(
-    'the CLI still dispatches plan and rejects an unknown command',
+    "the CLI still dispatches plan and rejects an unknown command",
     async () => {
-      const cli = await importOrNull('../src/cli.ts')
-      expect(cli, 'src/cli.ts must exist (T3)').not.toBeNull()
-      const main = fn(cli as Record<string, unknown>, 'main') as (argv: string[]) => Promise<number>
+      const cli = await importOrNull("../src/cli.ts")
+      expect(cli, "src/cli.ts must exist (T3)").not.toBeNull()
+      const main = fn(cli as Record<string, unknown>, "main") as (argv: string[]) => Promise<number>
 
-      const dir = scratch('docnamer-review')
-      await Bun.write(`${dir}/a.txt`, 'INVOICE\nAcme Ltd\nDate: 03/04/2026\n')
-      expect(await main(['plan', dir])).toBe(0)
+      const dir = scratch("docnamer-review")
+      await Bun.write(`${dir}/a.txt`, "INVOICE\nAcme Ltd\nDate: 03/04/2026\n")
+      expect(await main(["plan", dir])).toBe(0)
       // An unknown command is a refusal: 2, not the 1 reserved for an accepted
       // run that then failed (src/cli.ts USAGE_EXIT).
-      expect(await main(['nonsense', dir])).toBe(2)
+      expect(await main(["nonsense", dir])).toBe(2)
     },
     MODEL_CALL_MS
   )

@@ -33,9 +33,9 @@ import {
   outcome,
   repo,
   CONFIG_FILE
-} from './doc-renamer-pipeline-harness.ts'
+} from "./doc-renamer-pipeline-harness.ts"
 
-flow('doc-renamer-pipeline I3: collision-safe unique naming', async () => {
+flow("doc-renamer-pipeline I3: collision-safe unique naming", async () => {
   const s = new Session()
   // An absent `docnamer` CLI is not a named hole here: I3's outcome is a real,
   // observable assertion, and with no plan there is no collision handling to
@@ -44,7 +44,7 @@ flow('doc-renamer-pipeline I3: collision-safe unique naming', async () => {
   await render(s)
   await collide(s)
   await suffix(s)
-  await outcome(s, 'i3-render-collide-suffix')
+  await outcome(s, "i3-render-collide-suffix")
 
   // Disambiguation has to have fired on this fixture set: at least one row
   // carries the Finder-style suffix. Which pair collides is the model's
@@ -53,7 +53,7 @@ flow('doc-renamer-pipeline I3: collision-safe unique naming', async () => {
   if (!suffixed.length) {
     throw new Error(
       "I3 outcome: no plan row received a Finder-style ' (2)' suffix, so nothing " +
-        'exercised disambiguation: ' +
+        "exercised disambiguation: " +
         JSON.stringify(s.plan.map(r => r.new))
     )
   }
@@ -67,7 +67,7 @@ flow('doc-renamer-pipeline I3: collision-safe unique naming', async () => {
   }
 })
 
-flow('doc-renamer-pipeline I3: a failed analysis still proposes a free name', async () => {
+flow("doc-renamer-pipeline I3: a failed analysis still proposes a free name", async () => {
   const s = new Session()
 
   // Boot first, so the folder's config can be replaced BEFORE plan runs:
@@ -82,7 +82,7 @@ flow('doc-renamer-pipeline I3: a failed analysis still proposes a free name', as
 
 /** Point every model ref in the folder's config at a model that cannot resolve. */
 async function swapModelRefs(s: Session): Promise<void> {
-  const unknown = 'no-such-provider/no-such-model'
+  const unknown = "no-such-provider/no-such-model"
   const rewritten = (await Bun.file(`${repo}/${CONFIG_FILE}`).text())
     .replace(/^(\s*"cheap":\s*)"[^"]*"(,?)$/m, `$1"${unknown}"$2`)
     .replace(/^(\s*"vision":\s*)"[^"]*"(,?)$/m, `$1"${unknown}"$2`)
@@ -106,21 +106,21 @@ async function swapModelRefs(s: Session): Promise<void> {
  *  config rewrite took effect. */
 function assertFailedBeforeAnyModel(s: Session): void {
   if (!s.plan.length) {
-    throw new Error('I3 failed-analysis: the plan has no rows, so nothing was observed')
+    throw new Error("I3 failed-analysis: the plan has no rows, so nothing was observed")
   }
   for (const r of s.plan) {
-    const failure = r.flags.find(f => f.startsWith('analysis failed:'))
+    const failure = r.flags.find(f => f.startsWith("analysis failed:"))
     if (!failure) {
       throw new Error(
         `I3 failed-analysis: ${r.old} carried no failure flag, so the unresolvable ` +
           `model refs never reached analyse(): ${JSON.stringify(r.flags)}`
       )
     }
-    if (!failure.includes('unknown model')) {
+    if (!failure.includes("unknown model")) {
       throw new Error(
         `I3 failed-analysis: ${r.old} failed on something other than the model ref ` +
           `("${failure}"), so a real model was called and this flow no longer isolates ` +
-          'the failed-analysis path'
+          "the failed-analysis path"
       )
     }
   }

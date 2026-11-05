@@ -25,32 +25,32 @@
  * This is test code, so `node:` built-ins are fine here (R0c): the ban is on
  * `src/`, which the compiled binary ships.
  */
-import { readdirSync, statSync } from 'node:fs'
-import { chmod, rm } from 'node:fs/promises'
-import { writePlan as persistPlan } from '../src/commands.ts'
-import { CONFIG_FILE } from '../src/config.ts'
-import { EXPECTED_FILE } from '../src/eval.ts'
-import { appBin, installRecord } from './app-binary.ts'
-import { runChild, type ChildRun } from './child.ts'
-import { frame } from './frame.ts'
-import { assertPlanCovers, base, planRows } from './plan-file.ts'
-import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
-import { scratch } from './scratch.ts'
+import { readdirSync, statSync } from "node:fs"
+import { chmod, rm } from "node:fs/promises"
+import { writePlan as persistPlan } from "../src/commands.ts"
+import { CONFIG_FILE } from "../src/config.ts"
+import { EXPECTED_FILE } from "../src/eval.ts"
+import { appBin, installRecord } from "./app-binary.ts"
+import { runChild, type ChildRun } from "./child.ts"
+import { frame } from "./frame.ts"
+import { assertPlanCovers, base, planRows } from "./plan-file.ts"
+import { ensureProviderKey, MODEL_CALL_MS } from "./preload.ts"
+import { scratch } from "./scratch.ts"
 
-export type Flow = 'apply' | 'undo' | 'review' | 'eval'
+export type Flow = "apply" | "undo" | "review" | "eval"
 
 export type PlanRow = {
   old: string
   new: string
   type: string
-  method: 'text' | 'ocr' | 'vision' | null
+  method: "text" | "ocr" | "vision" | null
   fields: Record<string, string>
   evidence: Record<string, string>
   flags: string[]
   summary: string
   size: number
   mtime: number
-  status: 'pending' | 'accepted' | 'skipped'
+  status: "pending" | "accepted" | "skipped"
 }
 
 export type UndoEntry = {
@@ -69,48 +69,48 @@ export type UndoRecord = { run: string; at: string; entries: UndoEntry[] }
 class Skipped extends Error {
   readonly skip = true
   constructor(readonly claim: string) {
-    super('SKIP: ' + claim)
-    this.name = 'Skipped'
+    super("SKIP: " + claim)
+    this.name = "Skipped"
   }
 }
 
 /** Repo root. Exported so a spec can read the real config the harness seeds. */
-export const repo = import.meta.dir.replace(/\/tests$/, '')
+export const repo = import.meta.dir.replace(/\/tests$/, "")
 
 /** One seeded file is mutated after the plan is written, so `apply` must skip
  *  it and report it (R7/I1). Its name is exported so a flow can name it. */
-export const CHANGED_FILE = 'changed-since-plan.txt'
+export const CHANGED_FILE = "changed-since-plan.txt"
 
 /** Fixture documents seeded into every run's temp folder. */
 const SEED: Array<{ name: string; body: string }> = [
   {
-    name: 'invoice-acme-2026-04.txt',
+    name: "invoice-acme-2026-04.txt",
     body: [
-      'INVOICE',
-      'Acme Ltd',
-      'Invoice number: INV-0042',
-      'Date: 03/04/2026',
-      'Total: 482.50 GBP',
-      ''
-    ].join('\n')
+      "INVOICE",
+      "Acme Ltd",
+      "Invoice number: INV-0042",
+      "Date: 03/04/2026",
+      "Total: 482.50 GBP",
+      ""
+    ].join("\n")
   },
   {
-    name: 'letter-hmrc.txt',
-    body: ['Dear Sir,', 'A letter from HMRC dated 12 March 2026.', ''].join('\n')
+    name: "letter-hmrc.txt",
+    body: ["Dear Sir,", "A letter from HMRC dated 12 March 2026.", ""].join("\n")
   },
   {
     name: CHANGED_FILE,
-    body: ['INVOICE', 'Mutated Ltd', 'Invoice number: INV-9999', 'Date: 09/09/2026', ''].join('\n')
+    body: ["INVOICE", "Mutated Ltd", "Invoice number: INV-9999", "Date: 09/09/2026", ""].join("\n")
   }
 ]
 
 export class Session {
   /** Per-run working folder. */
-  dir = ''
+  dir = ""
   /** `<dir>/.docnamer-plan.json`. */
-  planPath = ''
+  planPath = ""
   /** Latest `<dir>/.docnamer-undo-<timestamp>.json`, once a run has applied. */
-  undoPath = ''
+  undoPath = ""
   /** Which flow `entry` started; `outcome` reads it to pick its terminal claim. */
   flow: Flow | null = null
   /** True once `runPlan` has run, so a step never re-plans over an edited file. */
@@ -124,13 +124,13 @@ export class Session {
   /** Resolved CLI argv, or null when no `docnamer` is reachable. */
   cli: string[] | null = null
   /** Last CLI invocation. */
-  last: { code: number; stdout: string; stderr: string } = { code: -1, stdout: '', stderr: '' }
+  last: { code: number; stdout: string; stderr: string } = { code: -1, stdout: "", stderr: "" }
   /** The apply invocation, kept apart from `last` (which later steps overwrite). */
-  applied: { code: number; stdout: string; stderr: string } = { code: -1, stdout: '', stderr: '' }
+  applied: { code: number; stdout: string; stderr: string } = { code: -1, stdout: "", stderr: "" }
   /** Seeded files' size and mtime, captured before `plan` runs. */
   originals = new Map<string, { size: number; mtime: number }>()
   /** The test set `run` scored, so `score` can check the report against its truth. */
-  testset = ''
+  testset = ""
   booted = false
 }
 
@@ -159,18 +159,18 @@ export async function resolveCli(): Promise<string[] | null> {
   const override = Bun.env.DOCNAMER_BIN
   if (override && override.trim()) return override.trim().split(/\s+/)
   const src = `${repo}/src/cli.ts`
-  if (await Bun.file(src).exists()) return [Bun.which('bun') ?? 'bun', src]
+  if (await Bun.file(src).exists()) return [Bun.which("bun") ?? "bun", src]
   if (await Bun.file(appBin).exists()) return [appBin]
   return null
 }
 
 /** Everything `bun run build` bakes into the installed artifacts: the compiled
  *  sources, the build script, the config it embeds and the lockfile it bundles. */
-const BAKED = ['src', 'scripts', 'package.json', 'docnamer.json', 'bun.lock', 'bunfig.toml']
+const BAKED = ["src", "scripts", "package.json", "docnamer.json", "bun.lock", "bunfig.toml"]
 
 /** The newest file under the baked inputs, by mtime. */
 function newestSource(): { path: string; mtime: number } {
-  let newest = { path: '', mtime: 0 }
+  let newest = { path: "", mtime: 0 }
   const visit = (abs: string): void => {
     const stat = statSync(abs, { throwIfNoEntry: false })
     if (stat === undefined) return
@@ -203,7 +203,7 @@ export async function staleInstall(): Promise<string | null> {
     return `no record of what the installed artifacts were built from (${installRecord}), so a pty pass says nothing about this tree — run \`bun run build\``
   }
   const record: { repo?: string; at?: number } = await file.json()
-  if (record.repo !== repo || typeof record.at !== 'number') return null
+  if (record.repo !== repo || typeof record.at !== "number") return null
   const newest = newestSource()
   if (newest.mtime > record.at) {
     return `${newest.path} is newer than the installed artifacts (built ${new Date(record.at).toISOString()}), so a pty run would exercise the last build instead of this tree — run \`bun run build\``
@@ -219,7 +219,7 @@ export async function staleInstall(): Promise<string | null> {
 export async function runCliAs(home: string, args: string[], input?: string): Promise<ChildRun> {
   const argv = await resolveCli()
   if (argv === null) {
-    throw new Error('no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`')
+    throw new Error("no docnamer reachable: set DOCNAMER_BIN, or build one with `bun run build`")
   }
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(Bun.env)) if (v !== undefined) env[k] = v
@@ -237,7 +237,7 @@ export async function runCliAs(home: string, args: string[], input?: string): Pr
  * directory can be removed.
  */
 export async function closedFolder(): Promise<string> {
-  const dir = scratch('docnamer-closed')
+  const dir = scratch("docnamer-closed")
   await chmod(dir, 0o000)
   return dir
 }
@@ -250,7 +250,7 @@ export async function reopen(dir: string): Promise<void> {
 
 async function listFiles(dir: string): Promise<string[]> {
   const out: string[] = []
-  for await (const rel of new Bun.Glob('*').scan({ cwd: dir, onlyFiles: true })) out.push(rel)
+  for await (const rel of new Bun.Glob("*").scan({ cwd: dir, onlyFiles: true })) out.push(rel)
   return out
 }
 
@@ -260,7 +260,7 @@ async function listFiles(dir: string): Promise<string[]> {
 export async function boot(s: Session): Promise<void> {
   if (s.booted) return
   await ensureProviderKey()
-  const dir = scratch('docnamer-apply')
+  const dir = scratch("docnamer-apply")
   s.dir = dir
   s.planPath = `${dir}/.docnamer-plan.json`
   for (const f of SEED) await Bun.write(`${dir}/${f.name}`, f.body)
@@ -269,7 +269,7 @@ export async function boot(s: Session): Promise<void> {
   // broken run, not a degraded one: swallowing the ENOENT left the flow testing the
   // hand-seeded files alone and calling it a pipeline.
   const fixtures = `${repo}/tests/fixtures`
-  for await (const rel of new Bun.Glob('**/*').scan({ cwd: fixtures, onlyFiles: true })) {
+  for await (const rel of new Bun.Glob("**/*").scan({ cwd: fixtures, onlyFiles: true })) {
     const bytes = await Bun.file(`${fixtures}/${rel}`).arrayBuffer()
     await Bun.write(`${dir}/${base(rel)}`, bytes)
   }
@@ -295,7 +295,7 @@ export async function boot(s: Session): Promise<void> {
  */
 const missingCli = (): Error =>
   new Error(
-    'docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts'
+    "docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts"
   )
 
 async function runCli(
@@ -315,7 +315,7 @@ async function runCli(
  *  the expectation to whatever it did return, and every step downstream would then
  *  check the product against a list the product itself produced (F6). */
 async function runPlan(s: Session): Promise<void> {
-  const res = await runCli(s, ['plan', s.dir])
+  const res = await runCli(s, ["plan", s.dir])
   if (res.code !== 0) {
     throw new Error(`docnamer plan exited ${res.code}\n${res.stderr}${res.stdout}`)
   }
@@ -335,7 +335,7 @@ async function ensure(s: Session): Promise<void> {
 /** The latest `.docnamer-undo-<timestamp>.json` in the folder, or null. */
 async function latestUndo(dir: string): Promise<string | null> {
   const found: string[] = []
-  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({
+  for await (const rel of new Bun.Glob(".docnamer-undo-*.json").scan({
     cwd: dir,
     onlyFiles: true
   })) {
@@ -353,7 +353,7 @@ async function latestUndo(dir: string): Promise<string | null> {
  *  an envelope it had guessed (F5). */
 async function acceptAll(s: Session): Promise<void> {
   await runPlan(s)
-  for (const r of s.plan) r.status = 'accepted'
+  for (const r of s.plan) r.status = "accepted"
   await persistPlan(s.dir, s.plan)
 }
 
@@ -362,8 +362,8 @@ async function apply(s: Session): Promise<void> {
   // R7/I1: one accepted row's file is mutated after planning, so apply must
   // skip-and-report it rather than rename it. Appending changes size and mtime.
   const changed = `${s.dir}/${CHANGED_FILE}`
-  await Bun.write(changed, (await Bun.file(changed).text()) + 'amended after planning\n')
-  s.applied = await runCli(s, ['apply', s.dir])
+  await Bun.write(changed, (await Bun.file(changed).text()) + "amended after planning\n")
+  s.applied = await runCli(s, ["apply", s.dir])
   if (s.applied.code !== 0) {
     throw new Error(
       `docnamer apply exited ${s.applied.code}\n${s.applied.stderr}${s.applied.stdout}`
@@ -379,13 +379,13 @@ async function apply(s: Session): Promise<void> {
  *  review       — plan, leaving rows pending for the TUI to act on.
  *  eval         — boot only; `run` invokes `docnamer eval`.
  */
-export async function entry(s: Session, flow: Flow = 'apply'): Promise<Session> {
+export async function entry(s: Session, flow: Flow = "apply"): Promise<Session> {
   await boot(s)
   s.flow = flow
-  if (flow === 'apply' || flow === 'undo') {
+  if (flow === "apply" || flow === "undo") {
     await acceptAll(s)
     await apply(s)
-  } else if (flow === 'review') {
+  } else if (flow === "review") {
     // `plan` already writes every row pending (`commands.ts:156`) — the state the TUI
     // acts on — so accepting and resetting them was a round trip to a file identical
     // to the one the product had just written.
@@ -403,8 +403,8 @@ export async function check(s: Session): Promise<Session> {
   if (s.applied.code !== 0) {
     throw new Error(`apply did not run: ${s.applied.stderr}${s.applied.stdout}`)
   }
-  const renamed = s.plan.filter(r => base(r.old) !== CHANGED_FILE && r.status === 'accepted')
-  if (!renamed.length) throw new Skipped('I1 check: no accepted, unchanged row to verify')
+  const renamed = s.plan.filter(r => base(r.old) !== CHANGED_FILE && r.status === "accepted")
+  if (!renamed.length) throw new Skipped("I1 check: no accepted, unchanged row to verify")
   for (const r of renamed) {
     if (!(await Bun.file(`${s.dir}/${r.new}`).exists())) {
       throw new Error(`I1 check: unchanged accepted row ${r.old} was not renamed to ${r.new}`)
@@ -425,7 +425,7 @@ export async function check(s: Session): Promise<Session> {
 export async function rename(s: Session): Promise<Session> {
   await ensure(s)
   for (const r of s.plan) {
-    if (r.status !== 'accepted' || base(r.old) === CHANGED_FILE) continue
+    if (r.status !== "accepted" || base(r.old) === CHANGED_FILE) continue
     if (await Bun.file(`${s.dir}/${base(r.old)}`).exists()) {
       throw new Error(`I1 rename: ${r.old} still exists after apply (rename was a copy?)`)
     }
@@ -440,14 +440,14 @@ export async function rename(s: Session): Promise<Session> {
 export async function record(s: Session): Promise<Session> {
   await ensure(s)
   const path = await latestUndo(s.dir)
-  if (!path) throw new Error('I1 record: no .docnamer-undo-<timestamp>.json was written')
+  if (!path) throw new Error("I1 record: no .docnamer-undo-<timestamp>.json was written")
   s.undoPath = path
   const rec = JSON.parse(await Bun.file(path).text()) as UndoRecord
   if (!Array.isArray(rec.entries) || rec.entries.length === 0) {
     throw new Error(`I1 record: ${path} carries no entries`)
   }
   for (const r of s.plan) {
-    if (r.status !== 'accepted' || base(r.old) === CHANGED_FILE) continue
+    if (r.status !== "accepted" || base(r.old) === CHANGED_FILE) continue
     if (!rec.entries.find(e => base(e.new) === r.new)) {
       throw new Error(`I1 record: ${r.new} is not recorded in the undo file`)
     }
@@ -461,7 +461,7 @@ export async function record(s: Session): Promise<Session> {
 export async function load(s: Session): Promise<Session> {
   await ensure(s)
   const path = await latestUndo(s.dir)
-  if (!path) throw new Skipped('I2 load: no undo file exists yet (run apply first)')
+  if (!path) throw new Skipped("I2 load: no undo file exists yet (run apply first)")
   s.undoPath = path
   s.undo = JSON.parse(await Bun.file(path).text()) as UndoRecord
   if (!Array.isArray(s.undo.entries) || s.undo.entries.length === 0) {
@@ -479,10 +479,10 @@ export async function restore(s: Session): Promise<Session> {
   const blocked = s.undo?.entries.find(e => e.old !== e.new)
   if (blocked) {
     // The occupant is what makes undo skip: it must not be overwritten (I2).
-    await Bun.write(`${s.dir}/${blocked.old}`, 'occupant\n')
+    await Bun.write(`${s.dir}/${blocked.old}`, "occupant\n")
     s.blocked = blocked.old
   }
-  const res = await runCli(s, ['undo', s.dir])
+  const res = await runCli(s, ["undo", s.dir])
   if (res.code !== 0) {
     throw new Error(`docnamer undo exited ${res.code}\n${res.stderr}${res.stdout}`)
   }
@@ -506,7 +506,7 @@ export async function restore(s: Session): Promise<Session> {
  *  skipped entry's old name is untouched, and any record still there holds
  *  exactly the entries that could not go home. */
 async function undoLeft(s: Session): Promise<void> {
-  if (s.blocked !== null && (await Bun.file(`${s.dir}/${s.blocked}`).text()) !== 'occupant\n') {
+  if (s.blocked !== null && (await Bun.file(`${s.dir}/${s.blocked}`).text()) !== "occupant\n") {
     throw new Error(`I2 outcome: undo removed or rewrote the occupant at ${s.blocked}`)
   }
   const left = await latestUndo(s.dir)
@@ -530,10 +530,10 @@ async function undoLeft(s: Session): Promise<void> {
  *  stdin; `A` accepts every unflagged row while flagged rows stay pending. No
  *  trailing newline: a bare Enter is itself the accept key (R4/I3), so `A\n`
  *  would accept one row after the sweep. */
-export async function act(s: Session, keys = 'A'): Promise<Session> {
+export async function act(s: Session, keys = "A"): Promise<Session> {
   await ensure(s)
   if (!s.cli) throw missingCli()
-  const { code, stdout, stderr } = await runChild([...s.cli, 'review', s.dir], {
+  const { code, stdout, stderr } = await runChild([...s.cli, "review", s.dir], {
     input: keys,
     env: { ...Bun.env }
   })
@@ -558,7 +558,7 @@ export async function act(s: Session, keys = 'A'): Promise<Session> {
  */
 export async function missTestset(): Promise<string> {
   const from = `${repo}/tests/testset`
-  const dir = scratch('docnamer-miss')
+  const dir = scratch("docnamer-miss")
   for (const rel of await listFiles(from)) {
     await Bun.write(`${dir}/${rel}`, Bun.file(`${from}/${rel}`))
   }
@@ -567,11 +567,11 @@ export async function missTestset(): Promise<string> {
   // YAML-shaped `type: letter` this used to search for appears nowhere in the file,
   // so the string replace matched nothing and threw before any model ran.
   const expected = JSON.parse(await Bun.file(truth).text()) as Record<string, { type?: string }>
-  const letter = Object.keys(expected).find(f => expected[f]?.type === 'letter')
+  const letter = Object.keys(expected).find(f => expected[f]?.type === "letter")
   if (!letter) {
     throw new Error(`missTestset: ${truth} states no file of type "letter" to mis-state`)
   }
-  expected[letter]!.type = 'receipt'
+  expected[letter]!.type = "receipt"
   await Bun.write(truth, `${JSON.stringify(expected, null, 2)}\n`)
   return dir
 }
@@ -581,7 +581,7 @@ export async function run(s: Session, testset?: string): Promise<Session> {
   await boot(s)
   const target = testset ?? `${repo}/tests/testset`
   s.testset = target
-  const res = await runCli(s, ['eval', target])
+  const res = await runCli(s, ["eval", target])
   if (res.code !== 0)
     throw new Error(`docnamer eval exited ${res.code}\n${res.stderr}${res.stdout}`)
   // Nothing was renamed: every seeded file still sits at its original name.
@@ -597,7 +597,7 @@ export async function run(s: Session, testset?: string): Promise<Session> {
 /** One metric's value, read off its own line, or a throw naming the line that is
  *  missing. A report that merely mentions the word does not answer this. */
 function metric(out: string, label: string, pattern: RegExp): number {
-  const m = new RegExp(`^${label}\\s*${pattern.source}`, 'm').exec(out)
+  const m = new RegExp(`^${label}\\s*${pattern.source}`, "m").exec(out)
   if (!m) throw new Error(`I4 score: the report carries no "${label}" line:\n${out}`)
   return Number(m[1])
 }
@@ -607,12 +607,12 @@ function metric(out: string, label: string, pattern: RegExp): number {
  *  the misses it prints beside it — counted here, not taken from the product. */
 export async function score(s: Session): Promise<Session> {
   const out = s.last.stdout
-  const files = metric(out, 'eval report:', /(\d+) file/)
-  const type = metric(out, 'type accuracy:', /([\d.]+)%/)
-  const full = metric(out, 'full name match:', /([\d.]+)%/)
-  const vision = metric(out, 'vision share:', /([\d.]+)%/)
-  const seconds = metric(out, 'time per file:', /([\d.]+)s/)
-  const cost = metric(out, 'cost per file:', /\$([\d.]+)/)
+  const files = metric(out, "eval report:", /(\d+) file/)
+  const type = metric(out, "type accuracy:", /([\d.]+)%/)
+  const full = metric(out, "full name match:", /([\d.]+)%/)
+  const vision = metric(out, "vision share:", /([\d.]+)%/)
+  const seconds = metric(out, "time per file:", /([\d.]+)s/)
+  const cost = metric(out, "cost per file:", /\$([\d.]+)/)
 
   const expected = JSON.parse(await Bun.file(`${s.testset}/${EXPECTED_FILE}`).text()) as Record<
     string,
@@ -636,7 +636,7 @@ export async function score(s: Session): Promise<Session> {
       `I4 score: the report says ${type}% type accuracy, but ${wrongType} of ${typed} typed file(s) missed — ${accuracy.toFixed(1)}%:\n${out}`
     )
   }
-  const declared = metric(out, 'misses', /\((\d+)\)/)
+  const declared = metric(out, "misses", /\((\d+)\)/)
   const shown = (out.match(/^ {4}expected: /gm) ?? []).length
   if (declared !== shown) {
     throw new Error(
@@ -645,9 +645,9 @@ export async function score(s: Session): Promise<Session> {
   }
 
   for (const [label, value] of [
-    ['type accuracy', type],
-    ['full name match', full],
-    ['vision share', vision]
+    ["type accuracy", type],
+    ["full name match", full],
+    ["vision share", vision]
   ] as const) {
     if (!(value >= 0 && value <= 100)) {
       throw new Error(`I4 score: ${label} is ${value}%, which is not a percentage:\n${out}`)
@@ -677,10 +677,10 @@ export async function score(s: Session): Promise<Session> {
  *  eval   — accuracy metrics and side-by-side misses printed.
  */
 export async function outcome(s: Session, name: string): Promise<Session> {
-  const flow = s.flow ?? 'apply'
+  const flow = s.flow ?? "apply"
   // eval's report is `run`'s stdout in `last`. Planning here would overwrite it
   // with a plan table, and then the misses would be looked for in the wrong text.
-  if (flow === 'eval') {
+  if (flow === "eval") {
     const out = s.last.stdout
     // I4's whole point is a miss a person can read: the report pairs the value it
     // expected with the one it got and prints the evidence behind it. A frame that
@@ -700,13 +700,13 @@ export async function outcome(s: Session, name: string): Promise<Session> {
     return s
   }
   await ensure(s)
-  if (flow === 'apply') {
+  if (flow === "apply") {
     if (await Bun.file(s.planPath).exists()) {
-      throw new Error('I1 outcome: the plan file was not deleted after apply')
+      throw new Error("I1 outcome: the plan file was not deleted after apply")
     }
-    if (!(await latestUndo(s.dir))) throw new Error('I1 outcome: no undo file was saved')
+    if (!(await latestUndo(s.dir))) throw new Error("I1 outcome: no undo file was saved")
     await frame(s.applied.stdout || s.last.stdout, name)
-  } else if (flow === 'undo') {
+  } else if (flow === "undo") {
     for (const e of s.undo?.entries ?? []) {
       if (!(await Bun.file(`${s.dir}/${e.old}`).exists())) {
         throw new Error(`I2 outcome: original name ${e.old} was not restored`)
@@ -733,13 +733,13 @@ export async function outcome(s: Session, name: string): Promise<Session> {
       )
     }
     await frame(s.last.stdout, name)
-  } else if (flow === 'review') {
-    if (!s.plan.length) throw new Error('I3 outcome: the plan file has no rows after review')
+  } else if (flow === "review") {
+    if (!s.plan.length) throw new Error("I3 outcome: the plan file has no rows after review")
     for (const r of s.plan) {
-      if (r.flags.length === 0 && r.status !== 'accepted') {
+      if (r.flags.length === 0 && r.status !== "accepted") {
         throw new Error(`I3 outcome: unflagged row ${r.old} is ${r.status}, not accepted`)
       }
-      if (r.flags.length > 0 && r.status === 'accepted') {
+      if (r.flags.length > 0 && r.status === "accepted") {
         throw new Error(`I3 outcome: flagged row ${r.old} was accepted by "accept all unflagged"`)
       }
     }

@@ -20,10 +20,10 @@ type ChildOptions = {
 
 type Streams = [string, string, number]
 
-type Spawned = Bun.Subprocess<'ignore' | 'pipe', 'pipe', 'pipe'>
+type Spawned = Bun.Subprocess<"ignore" | "pipe", "pipe", "pipe">
 
-async function feed(sink: Spawned['stdin'], input: string): Promise<void> {
-  if (sink === undefined) throw new Error('runChild: the child gave no stdin sink')
+async function feed(sink: Spawned["stdin"], input: string): Promise<void> {
+  if (sink === undefined) throw new Error("runChild: the child gave no stdin sink")
   await sink.write(input)
   await sink.end()
 }
@@ -32,19 +32,19 @@ async function feed(sink: Spawned['stdin'], input: string): Promise<void> {
  *  SIGTERM, never SIGKILL: the child must reach its own close. */
 async function bounded(p: Spawned, ms: number, label: string): Promise<Streams> {
   let timer: ReturnType<typeof setTimeout> | undefined
-  const deadline = new Promise<'deadline'>(resolve => {
-    timer = setTimeout(() => resolve('deadline'), ms)
+  const deadline = new Promise<"deadline">(resolve => {
+    timer = setTimeout(() => resolve("deadline"), ms)
   })
   const done = Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited])
   const first = await Promise.race([done, deadline])
-  if (first !== 'deadline') {
+  if (first !== "deadline") {
     clearTimeout(timer)
     return first
   }
-  p.kill('SIGTERM')
-  const grace = new Promise<'killed'>(resolve => setTimeout(() => resolve('killed'), GRACE_MS))
+  p.kill("SIGTERM")
+  const grace = new Promise<"killed">(resolve => setTimeout(() => resolve("killed"), GRACE_MS))
   const ended = await Promise.race([done, grace])
-  if (ended === 'killed') {
+  if (ended === "killed") {
     throw new Error(`runChild: ${label} ignored SIGTERM after ${ms}ms`)
   }
   const [, , code] = ended
@@ -56,9 +56,9 @@ async function bounded(p: Spawned, ms: number, label: string): Promise<Streams> 
  *  overran, instead of bun's generic test timeout. */
 export async function runChild(argv: string[], opts: ChildOptions = {}): Promise<ChildRun> {
   const p = Bun.spawn(argv, {
-    stdin: opts.input === undefined ? 'ignore' : 'pipe',
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdin: opts.input === undefined ? "ignore" : "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
     cwd: opts.cwd,
     env: opts.env
   })
@@ -66,7 +66,7 @@ export async function runChild(argv: string[], opts: ChildOptions = {}): Promise
   const [stdout, stderr, code] = await bounded(
     p,
     opts.timeoutMs ?? CHILD_TIMEOUT_MS,
-    argv.join(' ')
+    argv.join(" ")
   )
   return { code, stdout, stderr }
 }

@@ -7,8 +7,8 @@
  * stdout into the frame the visual review reads, so a stray ANSI code corrupts
  * the evidence rather than the appearance.
  */
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
-import { deviceReader, deviceWriter } from './device.ts'
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui/dist/utils.js"
+import { deviceReader, deviceWriter } from "./device.ts"
 
 export type Style = {
   readonly colour: boolean
@@ -21,25 +21,25 @@ export const ESC = String.fromCharCode(27)
 /** LC_ALL, then LC_CTYPE, then LANG. An unset locale means UTF-8, not ASCII:
  *  that is the macOS terminal's own encoding. */
 function locale(env: Record<string, string | undefined>): string | undefined {
-  if (env.LC_ALL !== undefined && env.LC_ALL !== '') return env.LC_ALL
-  if (env.LC_CTYPE !== undefined && env.LC_CTYPE !== '') return env.LC_CTYPE
+  if (env.LC_ALL !== undefined && env.LC_ALL !== "") return env.LC_ALL
+  if (env.LC_CTYPE !== undefined && env.LC_CTYPE !== "") return env.LC_CTYPE
   return env.LANG
 }
 
 function utf8(env: Record<string, string | undefined>): boolean {
   const value = locale(env)
-  if (value === undefined || value === '') return true
+  if (value === undefined || value === "") return true
   const lower = value.toLowerCase()
-  return lower.includes('utf-8') || lower.includes('utf8')
+  return lower.includes("utf-8") || lower.includes("utf8")
 }
 
 export function styleFrom(env: Record<string, string | undefined>, tty: boolean): Style {
   // NO_COLOR selects the ASCII glyph set too: a redirected log never carries
   // a block glyph a file cannot mean.
-  const ascii = 'NO_COLOR' in env
+  const ascii = "NO_COLOR" in env
   return {
-    colour: tty && !ascii && env.TERM !== 'dumb',
-    unicode: !ascii && env.TERM !== 'dumb' && utf8(env),
+    colour: tty && !ascii && env.TERM !== "dumb",
+    unicode: !ascii && env.TERM !== "dumb" && utf8(env),
     tty
   }
 }
@@ -60,51 +60,51 @@ type Glyphs = {
 }
 
 const UNICODE: Glyphs = {
-  full: '\u25b0',
-  empty: '\u25b1',
-  ok: '\u2713',
-  warn: '!',
-  pointer: '\u276f',
-  rule: '\u2500',
-  dash: '\u2014',
-  dot: '\u00b7',
-  up: '\u2191',
-  down: '\u2193',
-  ellipsis: '\u2026',
+  full: "\u25b0",
+  empty: "\u25b1",
+  ok: "\u2713",
+  warn: "!",
+  pointer: "\u276f",
+  rule: "\u2500",
+  dash: "\u2014",
+  dot: "\u00b7",
+  up: "\u2191",
+  down: "\u2193",
+  ellipsis: "\u2026",
   frames: [
-    '\u280b',
-    '\u2819',
-    '\u2839',
-    '\u2838',
-    '\u283c',
-    '\u2834',
-    '\u2826',
-    '\u2827',
-    '\u2807',
-    '\u280f'
+    "\u280b",
+    "\u2819",
+    "\u2839",
+    "\u2838",
+    "\u283c",
+    "\u2834",
+    "\u2826",
+    "\u2827",
+    "\u2807",
+    "\u280f"
   ]
 }
 
 const ASCII: Glyphs = {
-  full: '#',
-  empty: '-',
-  ok: '+',
-  warn: '!',
-  pointer: '>',
-  rule: '-',
-  dash: '-',
-  dot: '*',
-  up: '^',
-  down: 'v',
-  ellipsis: '...',
-  frames: ['|', '/', '-', '\\']
+  full: "#",
+  empty: "-",
+  ok: "+",
+  warn: "!",
+  pointer: ">",
+  rule: "-",
+  dash: "-",
+  dot: "*",
+  up: "^",
+  down: "v",
+  ellipsis: "...",
+  frames: ["|", "/", "-", "\\"]
 }
 
 /** A select-graphic-rendition sequence: the only escape a clipped line gains. */
-const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, 'g')
+const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, "g")
 
-const INDENT = '  '
-const GAP = '  '
+const INDENT = "  "
+const GAP = "  "
 const ERASE = `${ESC}[K`
 
 /** The terminal the wrapper handed over. A LaunchServices-launched binary has
@@ -132,14 +132,14 @@ export function terminalWidth(): number {
   if (active !== null && active.cols !== null) return active.cols
   const cols = process.stdout.columns
   // A pipe answers undefined; 80 is the width every terminal can be assumed to have.
-  return typeof cols === 'number' && cols > 0 ? cols : 80
+  return typeof cols === "number" && cols > 0 ? cols : 80
 }
 
 /** The height a full-screen frame must fit, in rows; 24 when nothing says. */
 export function terminalHeight(): number {
   if (active !== null && active.rows !== null) return active.rows
   const rows = process.stdout.rows
-  return typeof rows === 'number' && rows > 0 ? rows : 24
+  return typeof rows === "number" && rows > 0 ? rows : 24
 }
 
 /** Whether a device is the terminal — prompt reads it instead of stdin. */
@@ -174,7 +174,7 @@ function pad(text: string, width: number): string {
   // Cells, not code units: a styled cell carries escape sequences, and padding
   // to its string length would push every later column right by the escapes.
   const w = visibleWidth(text)
-  return w >= width ? text : text + ' '.repeat(width - w)
+  return w >= width ? text : text + " ".repeat(width - w)
 }
 
 /** The glyph set a style draws with: the one place the unicode-or-ASCII
@@ -232,18 +232,18 @@ export function ui(style: Style): Ui {
 
   const tint = (code: string, text: string): string =>
     style.colour ? `${ESC}[${code}m${text}${ESC}[0m` : text
-  const dim = (text: string): string => tint('2', text)
-  const bold = (text: string): string => tint('1', text)
-  const green = (text: string): string => tint('32', text)
-  const yellow = (text: string): string => tint('33', text)
-  const red = (text: string): string => tint('31', text)
-  const cyan = (text: string): string => tint('36', text)
+  const dim = (text: string): string => tint("2", text)
+  const bold = (text: string): string => tint("1", text)
+  const green = (text: string): string => tint("32", text)
+  const yellow = (text: string): string => tint("33", text)
+  const red = (text: string): string => tint("31", text)
+  const cyan = (text: string): string => tint("36", text)
 
   /** pi-tui wraps the ellipsis in SGR resets whatever the text holds; colour
    *  off writes no escape at all, so there they come back out. */
   const clip = (text: string, width: number): string => {
     const cut = truncateToWidth(text, width, glyphs.ellipsis)
-    return style.colour ? cut : cut.replace(SGR, '')
+    return style.colour ? cut : cut.replace(SGR, "")
   }
 
   /** The only place a row is assembled. The margin goes out verbatim and FIRST,
@@ -303,7 +303,7 @@ export function ui(style: Style): Ui {
         widths
       )
       const body = rows.map(cells => row(INDENT, cells, widths))
-      return [head, rule, ...body].join('\n')
+      return [head, rule, ...body].join("\n")
     },
 
     note: (text: string): string => `${INDENT}${dim(text)}`,
@@ -315,8 +315,8 @@ export function ui(style: Style): Ui {
     fail(what: string, help?: string): string {
       // The failure is written where the frame is, so the frame comes off first.
       drawn?.stop()
-      const first = `${red(bold('docnamer:'))} ${what}`
-      return help === undefined ? first : `${first}\n${INDENT}${yellow('help:')} ${help}`
+      const first = `${red(bold("docnamer:"))} ${what}`
+      return help === undefined ? first : `${first}\n${INDENT}${yellow("help:")} ${help}`
     },
 
     spinner(label: string): Spinner {

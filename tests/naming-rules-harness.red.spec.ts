@@ -9,10 +9,10 @@
  * that is false by construction. entry() sets `s.booted = true`, so asserting the session is NOT
  * booted after entry is a claim no correct harness can satisfy. The assertion reads no CLI.
  */
-import { Session, entry } from './naming-rules-harness.ts'
+import { Session, entry } from "./naming-rules-harness.ts"
 
-flow('naming-rules red control: the runner reports a failing flow', async () => {
-  const s = new Session('smoke')
+flow("naming-rules red control: the runner reports a failing flow", async () => {
+  const s = new Session("smoke")
   await entry(s)
 
   // FALSE BY CONSTRUCTION: entry() set s.booted = true.

@@ -4,12 +4,12 @@
  * Stage 4. It renames, moves and rewrites nothing — its only output is the row
  * set, which writePlan() persists as plain JSON in `<folder>/.docnamer-plan.json`.
  */
-import { analyse, isFailed, type Analysis } from './analyse.ts'
-import type { Config } from './config.ts'
-import { buildName } from './name.ts'
-import { read, pageImages } from './read.ts'
-import { setFinderTag, setFinderComments, addOcrTextLayer, SIDECAR } from './spotlight.ts'
-import { validate, type Checked } from './validate.ts'
+import { analyse, isFailed, type Analysis } from "./analyse.ts"
+import type { Config } from "./config.ts"
+import { buildName } from "./name.ts"
+import { read, pageImages } from "./read.ts"
+import { setFinderTag, setFinderComments, addOcrTextLayer, SIDECAR } from "./spotlight.ts"
+import { validate, type Checked } from "./validate.ts"
 
 export type PlanRow = {
   old: string
@@ -20,27 +20,27 @@ export type PlanRow = {
    * usable text layer, OCR above the confidence threshold, or the vision model
    * when OCR came back weak. Null when the read itself failed.
    */
-  method: 'text' | 'ocr' | 'vision' | null
+  method: "text" | "ocr" | "vision" | null
   fields: Record<string, string>
   evidence: Record<string, string>
   flags: string[]
   summary: string
   size: number
   mtime: number
-  status: 'pending' | 'accepted' | 'skipped'
+  status: "pending" | "accepted" | "skipped"
 }
 
-export const PLAN_FILE = '.docnamer-plan.json'
+export const PLAN_FILE = ".docnamer-plan.json"
 
 function base(p: string): string {
-  const i = p.lastIndexOf('/')
+  const i = p.lastIndexOf("/")
   return i < 0 ? p : p.slice(i + 1)
 }
 
 /** The directory part of a folder-relative path, or '' at the folder root. */
 function dirOf(rel: string): string {
-  const i = rel.lastIndexOf('/')
-  return i < 0 ? '' : rel.slice(0, i)
+  const i = rel.lastIndexOf("/")
+  return i < 0 ? "" : rel.slice(0, i)
 }
 
 /** The path pair a row renames: `old` is the relative path the document was
@@ -49,12 +49,12 @@ function dirOf(rel: string): string {
  *  root — where apply would find no such file and skip it. */
 export function rowPaths(rel: string, name: string): { old: string; new: string } {
   const dir = dirOf(rel)
-  return { old: rel, new: dir === '' ? name : `${dir}/${name}` }
+  return { old: rel, new: dir === "" ? name : `${dir}/${name}` }
 }
 
 export function extOf(p: string): string {
   const m = /\.[^./]+$/.exec(base(p))
-  return m ? m[0] : ''
+  return m ? m[0] : ""
 }
 
 /**
@@ -70,10 +70,10 @@ function stemOf(name: string): string {
 /** Every non-hidden file in the folder, recursively when asked. */
 async function scan(folder: string, recursive: boolean): Promise<string[]> {
   const out: string[] = []
-  const pattern = recursive ? '**/*' : '*'
+  const pattern = recursive ? "**/*" : "*"
   for await (const rel of new Bun.Glob(pattern).scan({ cwd: folder, onlyFiles: true })) {
     if (rel === PLAN_FILE) continue
-    if (rel.split('/').some(part => part.startsWith('.'))) continue
+    if (rel.split("/").some(part => part.startsWith("."))) continue
     // An OCR sidecar is apply's own text copy of a scan, not a document: planned,
     // it would be read as text and renamed to a `.txt` of its own.
     if (rel.endsWith(SIDECAR)) continue
@@ -117,7 +117,7 @@ export async function plan(
   const rels = await scan(folder, opts.recursive)
   // The count is known before any document is read. Report it so the bar can
   // sit at zero during the model calls, instead of appearing only after the first reply.
-  progress?.(0, rels.length, '')
+  progress?.(0, rels.length, "")
   const planned = new Map<string, Set<string>>()
   // Names already on disk are occupied too: no row may propose one. Two
   // directories are two namespaces, so the set is per directory: a recursive
@@ -141,7 +141,7 @@ export async function plan(
     const found = base(rel)
     let checked: Checked | null = null
     let failedReason: string | null = null
-    let method: PlanRow['method'] = null
+    let method: PlanRow["method"] = null
     try {
       const content = await read(path)
       // Stage 1 SKIPped the file (unsupported type): it is not a document, so
@@ -159,7 +159,7 @@ export async function plan(
       // and take whatever name it returns.
       const images = isFailed(result as never) ? await pageImages(path) : []
       if (images.length > 0) {
-        result = await analyse({ ...content, images, method: 'vision' }, found, config, 'strong')
+        result = await analyse({ ...content, images, method: "vision" }, found, config, "strong")
       }
       if (isFailed(result as never)) failedReason = (result as { reason: string }).reason
       else checked = validate(result as Analysis, content, config)
@@ -170,7 +170,7 @@ export async function plan(
     // Stage 4 renders unique against the names already on disk.
     if (checked === null) {
       checked = {
-        type: 'other',
+        type: "other",
         type_confidence: 0,
         fields: {},
         summary: stemOf(found),
@@ -192,7 +192,7 @@ export async function plan(
     const taken = planned.get(dir)
     if (taken === undefined) {
       throw new Error(
-        `plan: no name set for ${dir || 'the folder root'} — the walk and the row loop disagree`
+        `plan: no name set for ${dir || "the folder root"} — the walk and the row loop disagree`
       )
     }
     const fields: Record<string, string> = {}
@@ -202,8 +202,8 @@ export async function plan(
       // not read is null by contract — validate() has already flagged it and the
       // flags travel with the row. Writing it as empty is the plan format's own
       // spelling of "nothing", not a value invented here.
-      fields[k] = v.value ?? ''
-      evidence[k] = v.evidence ?? ''
+      fields[k] = v.value ?? ""
+      evidence[k] = v.evidence ?? ""
     }
     const flags = [...checked.flags]
     if (failedReason !== null) flags.push(`analysis failed: ${failedReason}`)
@@ -232,7 +232,7 @@ export async function plan(
       summary: checked.summary,
       size: f.size,
       mtime: f.lastModified,
-      status: 'pending'
+      status: "pending"
     })
   }
   return rows
@@ -240,7 +240,7 @@ export async function plan(
 
 /** Persist the plan as plain JSON in the folder. */
 export async function writePlan(folder: string, rows: PlanRow[]): Promise<void> {
-  await Bun.write(`${folder}/${PLAN_FILE}`, JSON.stringify(rows, null, 2) + '\n')
+  await Bun.write(`${folder}/${PLAN_FILE}`, JSON.stringify(rows, null, 2) + "\n")
 }
 
 // --- Stage 5: apply and undo --------------------------------------------------
@@ -277,7 +277,7 @@ export type Progress = (done: number, total: number, file: string) => void
 
 /** Files-only rename; throws with context when the move fails. */
 function renameFile(from: string, to: string): void {
-  const proc = Bun.spawnSync(['mv', '-n', from, to])
+  const proc = Bun.spawnSync(["mv", "-n", from, to])
   if (proc.exitCode !== 0) {
     throw new Error(
       `renameFile: could not rename ${from} to ${to}: ${proc.stderr.toString().trim()}`
@@ -286,7 +286,7 @@ function renameFile(from: string, to: string): void {
 }
 
 function removeFile(path: string): void {
-  const proc = Bun.spawnSync(['rm', '-f', path])
+  const proc = Bun.spawnSync(["rm", "-f", path])
   if (proc.exitCode !== 0) {
     throw new Error(`removeFile: could not delete ${path}: ${proc.stderr.toString().trim()}`)
   }
@@ -307,19 +307,19 @@ export const readPlan = async (folder: string, command: string): Promise<PlanRow
  * so every path read out of a JSON record passes this guard first: a hostile or
  * corrupt record must never move or delete a file outside the folder.
  */
-const escapesFolder = (rel: string): boolean => rel.startsWith('/') || rel.split('/').includes('..')
+const escapesFolder = (rel: string): boolean => rel.startsWith("/") || rel.split("/").includes("..")
 
 /** Why `row` cannot be renamed right now, or null when it can. Kept as its own
  *  unit: inlined into `apply`'s loop the guard chain pushes that function past
  *  the complexity gate. */
 const skipReason = async (folder: string, row: PlanRow): Promise<string | null> => {
   if (escapesFolder(row.old) || escapesFolder(row.new)) {
-    return 'path is absolute or escapes the folder'
+    return "path is absolute or escapes the folder"
   }
   const f = Bun.file(`${folder}/${row.old}`)
-  if (!(await f.exists())) return 'file no longer exists'
+  if (!(await f.exists())) return "file no longer exists"
   if (f.size !== row.size || f.lastModified !== row.mtime) {
-    return 'file changed since planning (size or mtime differs)'
+    return "file changed since planning (size or mtime differs)"
   }
   if (await Bun.file(`${folder}/${row.new}`).exists()) return `target ${row.new} already exists`
   return null
@@ -338,17 +338,17 @@ export const apply = async (
   progress?: Progress
 ): Promise<ApplyReport> => {
   const planPath = `${folder}/${PLAN_FILE}`
-  const rows = await readPlan(folder, 'apply')
-  const accepted = rows.filter(r => r.status === 'accepted')
+  const rows = await readPlan(folder, "apply")
+  const accepted = rows.filter(r => r.status === "accepted")
 
   const now = new Date()
-  const stamp = now.toISOString().replace(/[:.]/g, '-')
+  const stamp = now.toISOString().replace(/[:.]/g, "-")
   const undoFile = `.docnamer-undo-${stamp}.json`
   // The record lands before the first rename and is rewritten as each entry is
   // added, so a failure mid-run never leaves renamed files without their record.
   const writeRecord = async (entries: UndoEntry[]): Promise<void> => {
     const record: UndoRecord = { run: stamp, at: now.toISOString(), entries }
-    await Bun.write(`${folder}/${undoFile}`, JSON.stringify(record, null, 2) + '\n')
+    await Bun.write(`${folder}/${undoFile}`, JSON.stringify(record, null, 2) + "\n")
   }
 
   const entries: UndoEntry[] = []
@@ -369,9 +369,9 @@ export const apply = async (
     // Tagging and OCR touch independent systems, so they run concurrently; what
     // each one did lands on the undo entry.
     const tagging =
-      config.defaults.finder_tags && row.type !== 'other' ? setFinderTag(to, row.type) : null
+      config.defaults.finder_tags && row.type !== "other" ? setFinderTag(to, row.type) : null
     const ocrLayer =
-      config.defaults.ocr_text_layer && row.method === 'ocr' ? addOcrTextLayer(to) : null
+      config.defaults.ocr_text_layer && row.method === "ocr" ? addOcrTextLayer(to) : null
     if (tagging) {
       await tagging
       entry.tag = row.type
@@ -402,8 +402,8 @@ async function restore(
   const from = `${folder}/${entry.new}`
   const to = `${folder}/${entry.old}`
   if (!(await Bun.file(from).exists()))
-    return { file: entry.new, reason: 'renamed file is missing' }
-  if (await Bun.file(to).exists()) return { file: entry.old, reason: 'original name is occupied' }
+    return { file: entry.new, reason: "renamed file is missing" }
+  if (await Bun.file(to).exists()) return { file: entry.old, reason: "original name is occupied" }
   renameFile(from, to)
   if (entry.tag && config.defaults.finder_tags) await setFinderTag(to, entry.tag)
   // A sidecar path that is absolute or escapes the folder is never deleted:
@@ -420,7 +420,7 @@ async function restore(
 /** The newest undo record's file name in `folder`, or null when it holds none. */
 async function latestUndoName(folder: string): Promise<string | null> {
   const found: string[] = []
-  for await (const rel of new Bun.Glob('.docnamer-undo-*.json').scan({
+  for await (const rel of new Bun.Glob(".docnamer-undo-*.json").scan({
     cwd: folder,
     onlyFiles: true
   })) {
@@ -484,6 +484,6 @@ export async function undo(
   // the record on disk holding exactly what is left, so the next undo picks up
   // there instead of losing those files' way home with the file itself.
   if (remaining.length === 0) removeFile(path)
-  else await Bun.write(path, JSON.stringify({ ...record, entries: remaining }, null, 2) + '\n')
+  else await Bun.write(path, JSON.stringify({ ...record, entries: remaining }, null, 2) + "\n")
   return { restored, skipped }
 }

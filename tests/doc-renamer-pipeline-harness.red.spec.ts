@@ -18,9 +18,9 @@
  * whole-suite script carries `--path-ignore-patterns='**\/*.red.spec.ts'`, while `test:e2e` carries
  * no ignore, which is how this file still fails when it is the file named.
  */
-import { Session, boot } from './doc-renamer-pipeline-harness.ts'
+import { Session, boot } from "./doc-renamer-pipeline-harness.ts"
 
-flow('doc-renamer-pipeline red control: the runner reports a failing flow', async () => {
+flow("doc-renamer-pipeline red control: the runner reports a failing flow", async () => {
   const s = new Session()
   await boot(s)
 

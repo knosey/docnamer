@@ -46,7 +46,7 @@ export function artifactsAt(root: string): Artifacts {
  *  and /bin/docnamer, so a test could pass against a system artifact while the
  *  operator's own install was broken. */
 const home = Bun.env.HOME
-if (!home) throw new Error('HOME is not set; the installed docnamer cannot be located')
+if (!home) throw new Error("HOME is not set; the installed docnamer cannot be located")
 const installed = artifactsAt(home)
 
 export const appBin = installed.appBin

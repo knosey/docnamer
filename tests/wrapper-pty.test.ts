@@ -1,9 +1,9 @@
-import { expect, test } from 'bun:test'
-import { appBin as BINARY, appPlist as PLIST, wrapper as WRAPPER } from './app-binary.ts'
-import { PLAN_FILE } from '../src/commands.ts'
-import { staleInstall } from './doc-renamer-apply-harness.ts'
-import { ANSI, drive, hasPty, makeTerminal, slaveDevice } from './pty.ts'
-import { scratch } from './scratch.ts'
+import { expect, test } from "bun:test"
+import { appBin as BINARY, appPlist as PLIST, wrapper as WRAPPER } from "./app-binary.ts"
+import { PLAN_FILE } from "../src/commands.ts"
+import { staleInstall } from "./doc-renamer-apply-harness.ts"
+import { ANSI, drive, hasPty, makeTerminal, slaveDevice } from "./pty.ts"
+import { scratch } from "./scratch.ts"
 
 // The reference the graph runner swaps through GRAPH_REFERENCE; assert against
 // it, never edit it. `plutil -extract version raw package.json` prints the
@@ -43,7 +43,7 @@ export const reference =
 
 /** The terminal a person has: a colour-capable one, and the environment as it
  *  is (the wrapper's own behaviour is what is under test, not a scrubbed env). */
-const wrapperEnv: Record<string, string> = { ...Bun.env, TERM: 'xterm-256color' } as Record<
+const wrapperEnv: Record<string, string> = { ...Bun.env, TERM: "xterm-256color" } as Record<
   string,
   string
 >
@@ -52,8 +52,8 @@ const wrapperEnv: Record<string, string> = { ...Bun.env, TERM: 'xterm-256color' 
 // `skipIf(!hasPty)`, so on a runtime without Bun.Terminal they skip and this file
 // stays green with the wrapper's raw mode, its device handover and its exit-code
 // propagation all unproven. This is the assertion that makes that a red instead.
-test('Bun.Terminal is present, so the pty tests below run rather than skip', () => {
-  expect(hasPty, 'Bun.Terminal is absent; every pty test below would skip and stay green').toBe(
+test("Bun.Terminal is present, so the pty tests below run rather than skip", () => {
+  expect(hasPty, "Bun.Terminal is absent; every pty test below would skip and stay green").toBe(
     true
   )
 })
@@ -62,7 +62,7 @@ test('Bun.Terminal is present, so the pty tests below run rather than skip', () 
 // them says nothing about the tree that just changed unless the build came from
 // this tree and nothing has moved since. `staleInstall` reads the record the
 // build writes and compares it against the sources.
-test('the installed wrapper and bundle were built from this tree', async () => {
+test("the installed wrapper and bundle were built from this tree", async () => {
   const stale = await staleInstall()
   expect(stale, `the installed artifacts are not this tree's: ${stale}`).toBe(null)
 })
@@ -71,20 +71,20 @@ test('the installed wrapper and bundle were built from this tree', async () => {
 async function isWrapper(path: string): Promise<boolean> {
   const f = Bun.file(path)
   if (!(await f.exists())) return false
-  return (await f.slice(0, 2).text()) === '#!'
+  return (await f.slice(0, 2).text()) === "#!"
 }
 
 /** One key of the bundle's Info.plist, or "" when the file or the key is absent. */
 async function plistValue(key: string): Promise<string> {
-  if (!(await Bun.file(PLIST).exists())) return ''
-  const p = Bun.spawnSync(['/usr/bin/plutil', '-extract', key, 'raw', PLIST], {
+  if (!(await Bun.file(PLIST).exists())) return ""
+  const p = Bun.spawnSync(["/usr/bin/plutil", "-extract", key, "raw", PLIST], {
     timeout: 10000,
-    killSignal: 'SIGTERM'
+    killSignal: "SIGTERM"
   })
-  return p.exitCode === 0 ? p.stdout.toString().trim() : ''
+  return p.exitCode === 0 ? p.stdout.toString().trim() : ""
 }
 
-test('the build installs ~/bin/docnamer as a wrapper and assembles the app bundle', async () => {
+test("the build installs ~/bin/docnamer as a wrapper and assembles the app bundle", async () => {
   expect(
     await Bun.file(WRAPPER).exists(),
     `no wrapper at ${WRAPPER} — run \`bun run build\` to install one`
@@ -94,26 +94,26 @@ test('the build installs ~/bin/docnamer as a wrapper and assembles the app bundl
   expect(
     shebang,
     `${WRAPPER} is not a shell wrapper: its first bytes are ${JSON.stringify(shebang)}`
-  ).toBe('#!')
+  ).toBe("#!")
 
   expect(
     await Bun.file(BINARY).exists(),
     `no app binary at ${BINARY} — run \`bun run build\` to install one`
   ).toBe(true)
-  expect(await plistValue('CFBundleIdentifier'), 'the bundle id must be com.tom.docnamer').toBe(
-    'com.tom.docnamer'
+  expect(await plistValue("CFBundleIdentifier"), "the bundle id must be com.tom.docnamer").toBe(
+    "com.tom.docnamer"
   )
-  expect(await plistValue('CFBundleName'), 'the display name must be docnamer').toBe('docnamer')
+  expect(await plistValue("CFBundleName"), "the display name must be docnamer").toBe("docnamer")
 })
 
 test.skipIf(!hasPty)(
-  'the wrapper drives the picker through a real open on a real pty and propagates the exit code',
+  "the wrapper drives the picker through a real open on a real pty and propagates the exit code",
   async () => {
     if (!(await isWrapper(WRAPPER))) {
       expect(
         false,
         `no wrapper installed at ${WRAPPER}: found ${
-          (await Bun.file(WRAPPER).exists()) ? 'a non-wrapper file' : 'nothing'
+          (await Bun.file(WRAPPER).exists()) ? "a non-wrapper file" : "nothing"
         }`
       ).toBe(true)
       return
@@ -122,33 +122,33 @@ test.skipIf(!hasPty)(
     const t = makeTerminal()
     try {
       const device = await slaveDevice(t)
-      expect(device.startsWith('/dev/'), `the probe pty reported ${device}`).toBe(true)
+      expect(device.startsWith("/dev/"), `the probe pty reported ${device}`).toBe(true)
 
       // The picker draws on the device and Esc cancels it: the prompt comes back.
-      const login = await drive(t, [WRAPPER, 'login'], [['Sign in to a provider', '\x1b']], {
+      const login = await drive(t, [WRAPPER, "login"], [["Sign in to a provider", "\x1b"]], {
         env: wrapperEnv,
         ms: 90000
       })
       expect(
         login.exited,
         `a cancelled login must return, not hold the terminal open — the terminal showed head=${JSON.stringify(
-          login.output.replace(ANSI, '').slice(0, 400)
-        )} tail=${JSON.stringify(login.output.replace(ANSI, '').slice(-400))}`
+          login.output.replace(ANSI, "").slice(0, 400)
+        )} tail=${JSON.stringify(login.output.replace(ANSI, "").slice(-400))}`
       ).toBe(true)
-      expect(login.code, 'a cancelled picker exits 0').toBe(0)
+      expect(login.code, "a cancelled picker exits 0").toBe(0)
       expect(
-        login.output.replace(ANSI, ''),
-        'the picker must draw its title on the device'
-      ).toContain('Sign in to a provider')
+        login.output.replace(ANSI, ""),
+        "the picker must draw its title on the device"
+      ).toContain("Sign in to a provider")
 
       // A refusal's exit code reaches the caller. `open -W` exits 0 whatever the
       // app does, so only --exit-file can carry the 2 back — the whole point of it.
-      const refused = await drive(t, [WRAPPER, 'nonsense-command'], [], {
+      const refused = await drive(t, [WRAPPER, "nonsense-command"], [], {
         env: wrapperEnv,
         ms: 90000
       })
-      expect(refused.exited, 'the app must exit').toBe(true)
-      expect(refused.code, 'the app exit code must propagate through open and the wrapper').toBe(2)
+      expect(refused.exited, "the app must exit").toBe(true)
+      expect(refused.code, "the app exit code must propagate through open and the wrapper").toBe(2)
     } finally {
       t.terminal.close()
     }
@@ -167,7 +167,7 @@ test.skipIf(!hasPty)(
  * races here: twelve runs, and every one must come back with the app's own 0.
  */
 test.skipIf(!hasPty)(
-  'the wrapper returns the app exit code even when open cannot block on the app',
+  "the wrapper returns the app exit code even when open cannot block on the app",
   async () => {
     if (!(await isWrapper(WRAPPER))) {
       expect(false, `no wrapper installed at ${WRAPPER}`).toBe(true)
@@ -177,8 +177,8 @@ test.skipIf(!hasPty)(
     const t = makeTerminal()
     try {
       for (const n of Array.from({ length: 12 }, (_, i) => i + 1)) {
-        const run = await drive(t, [WRAPPER, '--version'], [], { env: wrapperEnv })
-        const seen = run.output.replace(ANSI, '')
+        const run = await drive(t, [WRAPPER, "--version"], [], { env: wrapperEnv })
+        const seen = run.output.replace(ANSI, "")
         expect(run.exited, `run ${n}: the app must exit`).toBe(true)
         expect(
           run.code,
@@ -186,10 +186,10 @@ test.skipIf(!hasPty)(
             seen.slice(0, 400)
           )}`
         ).toBe(0)
-        expect(seen, `run ${n}: the app must have answered --version`).toContain('docnamer')
+        expect(seen, `run ${n}: the app must have answered --version`).toContain("docnamer")
         // Losing the race also makes `open` complain on the person's terminal;
         // the app answered, so the complaint explains nothing and must not show.
-        expect(seen, `run ${n}: open's race reached the terminal`).not.toContain('Unable to block')
+        expect(seen, `run ${n}: open's race reached the terminal`).not.toContain("Unable to block")
       }
     } finally {
       t.terminal.close()
@@ -200,13 +200,13 @@ test.skipIf(!hasPty)(
 
 /** A throwaway folder to stand in, with nothing in it but the hidden marker. */
 async function freshFolder(): Promise<string> {
-  const dir = scratch('docnamer-rel')
-  await Bun.write(`${dir}/.keep`, '')
+  const dir = scratch("docnamer-rel")
+  await Bun.write(`${dir}/.keep`, "")
   return dir
 }
 
 test.skipIf(!hasPty)(
-  'a relative folder means the folder the person was standing in, not the app bundle',
+  "a relative folder means the folder the person was standing in, not the app bundle",
   async () => {
     if (!(await isWrapper(WRAPPER))) {
       expect(false, `no wrapper installed at ${WRAPPER}`).toBe(true)
@@ -221,8 +221,8 @@ test.skipIf(!hasPty)(
     const dir = await freshFolder()
     const t = makeTerminal()
     try {
-      const run = await drive(t, [WRAPPER, 'plan', '.'], [], { env: wrapperEnv, cwd: dir })
-      const seen = run.output.replace(ANSI, '')
+      const run = await drive(t, [WRAPPER, "plan", "."], [], { env: wrapperEnv, cwd: dir })
+      const seen = run.output.replace(ANSI, "")
       expect(
         run.exited,
         `\`plan .\` must return — the terminal showed head=${JSON.stringify(
@@ -238,7 +238,7 @@ test.skipIf(!hasPty)(
       expect(
         await Bun.file(`${dir}/${PLAN_FILE}`).exists(),
         `\`plan .\` wrote no plan into ${dir}, the folder the wrapper ran in: the app resolved "." against ${
-          seen.includes('/') ? `a path outside it` : 'nothing'
+          seen.includes("/") ? `a path outside it` : "nothing"
         } — terminal said ${JSON.stringify(seen.slice(0, 400))}`
       ).toBe(true)
     } finally {
@@ -258,7 +258,7 @@ test.skipIf(!hasPty)(
  * because `paints()` splits on `\r\n|\n|\r` and so cannot tell the two apart.
  */
 test.skipIf(!hasPty)(
-  'every line the app writes through the wrapper returns to column 0',
+  "every line the app writes through the wrapper returns to column 0",
   async () => {
     if (!(await isWrapper(WRAPPER))) {
       expect(false, `no wrapper installed at ${WRAPPER}`).toBe(true)
@@ -267,14 +267,14 @@ test.skipIf(!hasPty)(
 
     const t = makeTerminal()
     try {
-      const run = await drive(t, [WRAPPER, '--help'], [], { env: wrapperEnv })
-      expect(run.exited, 'the app must exit').toBe(true)
-      expect(run.code, '--help exits 0').toBe(0)
+      const run = await drive(t, [WRAPPER, "--help"], [], { env: wrapperEnv })
+      expect(run.exited, "the app must exit").toBe(true)
+      expect(run.code, "--help exits 0").toBe(0)
       const bare = run.output.match(/(?<!\r)\n/g)?.length ?? 0
       expect(
         bare,
         `${bare} line feeds reached the terminal without a carriage return — the tty's output processing is off: ${JSON.stringify(
-          run.output.replace(ANSI, '').slice(0, 300)
+          run.output.replace(ANSI, "").slice(0, 300)
         )}`
       ).toBe(0)
     } finally {
@@ -288,7 +288,7 @@ test.skipIf(!hasPty)(
 function referenceOutput(): string {
   const proc = Bun.spawnSync(reference.split(/\s+/).filter(Boolean), {
     timeout: 10000,
-    killSignal: 'SIGTERM'
+    killSignal: "SIGTERM"
   })
   if (proc.exitCode !== 0) {
     throw new Error(`the reference exited ${proc.exitCode}: ${proc.stderr.toString().trim()}`)
@@ -312,7 +312,7 @@ function referenceOutput(): string {
  * run is compared against it.
  */
 test.skipIf(!hasPty)(
-  'the wrapper restores the tty and ends on a fresh line',
+  "the wrapper restores the tty and ends on a fresh line",
   async () => {
     if (!(await isWrapper(WRAPPER))) {
       expect(false, `no wrapper installed at ${WRAPPER}`).toBe(true)
@@ -320,12 +320,12 @@ test.skipIf(!hasPty)(
     }
 
     const want = referenceOutput()
-    expect(want, 'the reference command printed no version to compare against').not.toBe('')
+    expect(want, "the reference command printed no version to compare against").not.toBe("")
 
     const t = makeTerminal()
     try {
-      const run = await drive(t, [WRAPPER, '--version'], [], { env: wrapperEnv })
-      const seen = run.output.replace(ANSI, '')
+      const run = await drive(t, [WRAPPER, "--version"], [], { env: wrapperEnv })
+      const seen = run.output.replace(ANSI, "")
       expect(
         run.exited,
         `the app must exit — the terminal said ${JSON.stringify(seen.slice(0, 400))}`
@@ -344,7 +344,7 @@ test.skipIf(!hasPty)(
       // "Ends on a fresh line": the output closes with a newline, so the shell
       // prompt starts on its own line.
       expect(
-        run.output.endsWith('\n'),
+        run.output.endsWith("\n"),
         `--version must end on a fresh line — the terminal ended with ${JSON.stringify(
           run.output.slice(-40)
         )}`
@@ -354,12 +354,12 @@ test.skipIf(!hasPty)(
       // back by the terminal's own line discipline. Raw mode (echo off) would
       // swallow it.
       t.reset()
-      t.terminal.write('x')
+      t.terminal.write("x")
       await Bun.sleep(300)
       expect(
         t.read(),
-        'the wrapper left the tty raw: a key typed after the run was not echoed back'
-      ).toContain('x')
+        "the wrapper left the tty raw: a key typed after the run was not echoed back"
+      ).toContain("x")
     } finally {
       t.terminal.close()
     }

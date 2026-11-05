@@ -1,9 +1,9 @@
 // THE TRUTH THIS TEST COMPARES AGAINST, swapped by the graph runner through GRAPH_REFERENCE to prove the
 // verdict follows it: keep this constant as it is and assert against it.
-export const reference = process.env.GRAPH_REFERENCE ?? 'bun --version'
+export const reference = process.env.GRAPH_REFERENCE ?? "bun --version"
 
-import { expect, test } from 'bun:test'
-import { scratch } from './scratch.ts'
+import { expect, test } from "bun:test"
+import { scratch } from "./scratch.ts"
 
 /**
  * S1 — the device IO module.
@@ -39,7 +39,7 @@ type DeviceModule = {
  *  must exist", which names the wrong thing to go and fix. */
 async function loadDevice(): Promise<DeviceModule> {
   try {
-    return (await import('../src/device.ts')) as unknown as DeviceModule
+    return (await import("../src/device.ts")) as unknown as DeviceModule
   } catch (e) {
     throw new Error(`src/device.ts could not be imported: ${(e as Error).message}`)
   }
@@ -47,52 +47,52 @@ async function loadDevice(): Promise<DeviceModule> {
 
 /** What the reference command prints — the truth this test compares against. */
 function referenceOutput(): string {
-  const proc = Bun.spawnSync(['sh', '-c', reference])
+  const proc = Bun.spawnSync(["sh", "-c", reference])
   return proc.stdout.toString().trim()
 }
 
-test('parseDeviceArgs reads --tty, --cols, --rows, --exit-file and --cwd from argv', async () => {
+test("parseDeviceArgs reads --tty, --cols, --rows, --exit-file and --cwd from argv", async () => {
   const mod = await loadDevice()
 
   const parsed = mod.parseDeviceArgs([
-    'plan',
-    '~/docs',
-    '--tty',
-    '/dev/ttys003',
-    '--cols',
-    '100',
-    '--rows',
-    '40',
-    '--exit-file',
-    '/tmp/docnamer-exit',
-    '--cwd',
-    '/Users/someone/Downloads'
+    "plan",
+    "~/docs",
+    "--tty",
+    "/dev/ttys003",
+    "--cols",
+    "100",
+    "--rows",
+    "40",
+    "--exit-file",
+    "/tmp/docnamer-exit",
+    "--cwd",
+    "/Users/someone/Downloads"
   ])
-  expect(parsed.tty).toBe('/dev/ttys003')
-  expect(parsed.cols, '--cols is a number the layout can use').toBe(100)
-  expect(parsed.rows, '--rows is a number the layout can use').toBe(40)
-  expect(parsed.exitFile).toBe('/tmp/docnamer-exit')
+  expect(parsed.tty).toBe("/dev/ttys003")
+  expect(parsed.cols, "--cols is a number the layout can use").toBe(100)
+  expect(parsed.rows, "--rows is a number the layout can use").toBe(40)
+  expect(parsed.exitFile).toBe("/tmp/docnamer-exit")
   // LaunchServices starts the app in "/", so the caller's folder can only arrive
   // as a flag; nothing else in the suite pins it to the parser.
-  expect(parsed.cwd, '--cwd carries the caller folder across the launch').toBe(
-    '/Users/someone/Downloads'
+  expect(parsed.cwd, "--cwd carries the caller folder across the launch").toBe(
+    "/Users/someone/Downloads"
   )
 
-  const none = mod.parseDeviceArgs(['plan', '~/docs'])
-  expect(none.tty, 'no --tty means no device mode').toBeFalsy()
+  const none = mod.parseDeviceArgs(["plan", "~/docs"])
+  expect(none.tty, "no --tty means no device mode").toBeFalsy()
   expect(none.cols).toBeFalsy()
   expect(none.rows).toBeFalsy()
   expect(none.exitFile).toBeFalsy()
-  expect(none.cwd, 'no --cwd leaves the process in its own directory').toBeFalsy()
+  expect(none.cwd, "no --cwd leaves the process in its own directory").toBeFalsy()
 })
 
-test('deviceWriter and deviceReader move bytes over the device path', async () => {
+test("deviceWriter and deviceReader move bytes over the device path", async () => {
   const mod = await loadDevice()
 
   const truth = referenceOutput()
-  expect(truth.length, 'the reference must print a value').toBeGreaterThan(0)
+  expect(truth.length, "the reference must print a value").toBeGreaterThan(0)
 
-  const path = `${scratch('docnamer-device')}/device`
+  const path = `${scratch("docnamer-device")}/device`
   const payload = `docnamer-device:${truth}\n`
 
   const writer = mod.deviceWriter(path)
@@ -100,9 +100,9 @@ test('deviceWriter and deviceReader move bytes over the device path', async () =
   await writer.end()
 
   // The bytes must be on the path itself, not only held in memory.
-  expect(await Bun.file(path).text(), 'deviceWriter must write to the device path').toBe(payload)
+  expect(await Bun.file(path).text(), "deviceWriter must write to the device path").toBe(payload)
   expect(
     await new Response(mod.deviceReader(path)).text(),
-    'deviceReader must read back what deviceWriter wrote'
+    "deviceReader must read back what deviceWriter wrote"
   ).toBe(payload)
 })

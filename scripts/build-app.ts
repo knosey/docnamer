@@ -15,7 +15,7 @@
  */
 const home = Bun.env.DOCNAMER_APP_HOME ? Bun.env.DOCNAMER_APP_HOME : Bun.env.HOME
 if (!home)
-  throw new Error('neither DOCNAMER_APP_HOME nor HOME is set; cannot locate the install root')
+  throw new Error("neither DOCNAMER_APP_HOME nor HOME is set; cannot locate the install root")
 
 const app = `${home}/Applications/docnamer.app`
 const macos = `${app}/Contents/MacOS`
@@ -23,18 +23,18 @@ const wrapper = `${home}/bin/docnamer`
 
 /** Run `cmd`, throwing its output when it fails. */
 const run = (cmd: string[]): void => {
-  const p = Bun.spawnSync(cmd, { stdout: 'pipe', stderr: 'pipe' })
+  const p = Bun.spawnSync(cmd, { stdout: "pipe", stderr: "pipe" })
   if (p.exitCode !== 0) {
-    throw new Error(`\`${cmd.join(' ')}\` exited ${p.exitCode}:\n${p.stderr.toString()}`)
+    throw new Error(`\`${cmd.join(" ")}\` exited ${p.exitCode}:\n${p.stderr.toString()}`)
   }
 }
 
 // 1. Compile the binary into the bundle. The bundle is assembled from scratch:
 //    a leftover file from an earlier build is sealed by `codesign` below and then
 //    left behind as a modified resource, which fails `codesign --verify`.
-run(['rm', '-rf', app])
-run(['mkdir', '-p', macos, `${home}/bin`])
-run(['bun', 'build', '--compile', '--outfile', `${macos}/docnamer`, 'src/cli.ts'])
+run(["rm", "-rf", app])
+run(["mkdir", "-p", macos, `${home}/bin`])
+run(["bun", "build", "--compile", "--outfile", `${macos}/docnamer`, "src/cli.ts"])
 
 // 2. The Info.plist is the TCC identity: folder prompts name this bundle.
 await Bun.write(
@@ -67,15 +67,15 @@ await Bun.write(
 )
 
 // 3. Sign: a real identity when the keychain has one, ad-hoc otherwise.
-const identities = Bun.spawnSync(['security', 'find-identity', '-v', '-p', 'codesigning'], {
-  stdout: 'pipe',
-  stderr: 'pipe'
+const identities = Bun.spawnSync(["security", "find-identity", "-v", "-p", "codesigning"], {
+  stdout: "pipe",
+  stderr: "pipe"
 })
 const identity = identities.stdout.toString().match(/\)\s+[0-9A-F]{40}\s+"([^"]+)"/)?.[1]
 run(
   identity
-    ? ['codesign', '--force', '--sign', identity, app]
-    : ['codesign', '--force', '--sign', '-', app]
+    ? ["codesign", "--force", "--sign", identity, app]
+    : ["codesign", "--force", "--sign", "-", app]
 )
 
 // 4. The wrapper, which exists because `open -n -W` always exits 0 and because
@@ -121,7 +121,7 @@ if [ $OPEN_CODE -ne 0 ]; then exit $OPEN_CODE; fi
 exit 1
 `
 )
-run(['chmod', '+x', wrapper])
+run(["chmod", "+x", wrapper])
 
 // 5. What this install was built from. `~/bin/docnamer` is whatever the last
 //    build wrote, so a test that drives it can report a pass for a tree that
@@ -137,4 +137,4 @@ await Bun.write(
   JSON.stringify({ repo: process.cwd(), at: Date.now() })
 )
 
-console.log(`built ${app} (${identity ?? 'ad-hoc'}) and installed ${wrapper}`)
+console.log(`built ${app} (${identity ?? "ad-hoc"}) and installed ${wrapper}`)

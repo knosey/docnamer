@@ -22,9 +22,9 @@
  * carries `--path-ignore-patterns='**\/*.red.spec.ts'`, while `test:e2e` carries
  * no ignore, which is how this file still fails when it is the file named.
  */
-import { Session, boot } from './terminal-ux-polish-harness.ts'
+import { Session, boot } from "./terminal-ux-polish-harness.ts"
 
-flow('terminal-ux-polish red control: the runner reports a failing flow', async () => {
+flow("terminal-ux-polish red control: the runner reports a failing flow", async () => {
   const s = new Session()
   await boot(s)
 

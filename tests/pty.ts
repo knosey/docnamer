@@ -17,13 +17,13 @@
  * Nothing here asserts anything. A file that uses it owns its own expectations.
  */
 
-import xterm from '@xterm/headless'
+import xterm from "@xterm/headless"
 
-export const hasPty = typeof Bun.Terminal === 'function'
+export const hasPty = typeof Bun.Terminal === "function"
 
 /** The escape sequences a terminal interprets, so a captured frame can be read
  *  as the text a person actually sees on it. */
-export const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, 'g')
+export const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, "g")
 
 export type Term = {
   readonly terminal: Bun.Terminal
@@ -51,7 +51,7 @@ export const SCREEN_COLS = 100
  * (zsh's cursor-position query among them) as a terminal does.
  */
 export function makeTerminal(cols = SCREEN_COLS, rows = 40): Term {
-  let out = ''
+  let out = ""
   const decoder = new TextDecoder()
   const display = new xterm.Terminal({ cols, rows, allowProposedApi: true })
   const terminal = new Bun.Terminal({
@@ -68,20 +68,20 @@ export function makeTerminal(cols = SCREEN_COLS, rows = 40): Term {
     const buffer = display.buffer.active
     const lines = Array.from(
       { length: rows },
-      (_, r) => buffer.getLine(buffer.viewportY + r)?.translateToString(true) ?? ''
+      (_, r) => buffer.getLine(buffer.viewportY + r)?.translateToString(true) ?? ""
     )
     let last = lines.length - 1
-    while (last >= 0 && lines[last] === '') last -= 1
-    return lines.slice(0, last + 1).join('\n')
+    while (last >= 0 && lines[last] === "") last -= 1
+    return lines.slice(0, last + 1).join("\n")
   }
   return {
     terminal,
     read: () => out,
     // xterm parses asynchronously: an empty write's callback runs once
     // everything before it has been drawn.
-    screen: () => new Promise(resolve => display.write('', () => resolve(visible()))),
+    screen: () => new Promise(resolve => display.write("", () => resolve(visible()))),
     reset: () => {
-      out = ''
+      out = ""
     }
   }
 }
@@ -95,7 +95,7 @@ export function makeTerminal(cols = SCREEN_COLS, rows = 40): Term {
  */
 async function waitFor(t: Term, marker: string, ms: number, from = 0): Promise<void> {
   const start = Date.now()
-  const since = (): string => t.read().slice(from).replace(ANSI, '')
+  const since = (): string => t.read().slice(from).replace(ANSI, "")
   for (;;) {
     if (since().includes(marker)) return
     if (Date.now() - start > ms) {
@@ -116,13 +116,13 @@ async function waitFor(t: Term, marker: string, ms: number, from = 0): Promise<v
  * is killed once the path is known; the pty stays open.
  */
 export async function slaveDevice(t: Term, ms = 5000): Promise<string> {
-  const probe = Bun.spawn(['/bin/sh', '-c', 'tty; sleep 30'], { terminal: t.terminal })
+  const probe = Bun.spawn(["/bin/sh", "-c", "tty; sleep 30"], { terminal: t.terminal })
   try {
     const start = Date.now()
     for (;;) {
       const match = t.read().match(/\/dev\/[^\s\r\n]+/)
       if (match) return match[0] as string
-      if (Date.now() - start > ms) throw new Error('no /dev/ line from `tty` on the probe pty')
+      if (Date.now() - start > ms) throw new Error("no /dev/ line from `tty` on the probe pty")
       await Bun.sleep(50)
     }
   } finally {
@@ -168,8 +168,8 @@ export async function drive(
     // A finished program has no terminal left to type into.
     if (proc.exitCode === null) t.terminal.write(keys)
   }
-  const raced = await Promise.race([proc.exited, Bun.sleep(ms).then(() => 'hung' as const)])
-  if (raced === 'hung') {
+  const raced = await Promise.race([proc.exited, Bun.sleep(ms).then(() => "hung" as const)])
+  if (raced === "hung") {
     proc.kill()
     return { exited: false, code: null, output: t.read() }
   }
@@ -197,7 +197,7 @@ export function paints(output: string): { up: number; lines: string[] }[] {
     return {
       up: i === 0 ? 0 : (counted[i - 1] as number),
       lines: text
-        .replace(ANSI, '')
+        .replace(ANSI, "")
         .split(/\r\n|\n|\r/)
         .slice(0, -1)
     }

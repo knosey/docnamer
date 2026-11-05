@@ -6,16 +6,16 @@ deterministically, the command a person runs by hand today, what that costs, wha
 makes it worth revisiting, and what it means for a release. A boundary with an
 entry here is not a covered boundary; it is a hole with a name.
 
-| # | Hole | Owner | Release impact |
-| :-- | :--- | :--- | :--- |
-| 1 | `mac-ocr` binary is the pinned one | operator | ships a different OCR engine silently |
-| 2 | Finder tag/comment round-trip on a real folder | operator | attributes land wrong on a real Mac |
-| 3 | The model's own behaviour | operator | a plan is scored against one model's answer |
-| 4 | The TCC grant on `~/Downloads` | operator | the refusal path is stood in for by `chmod 000` |
-| 5 | Rendered frames are evidence | operator | layout, glyph and colour regressions are invisible |
-| 6 | Raw mode on the operator's own terminal | operator | the picker misbehaves on a real tty |
-| 7 | The appearance layer shows no appearance | operator | `NO_COLOR=1` piped text is called visual evidence |
-| 8 | The installed wrapper is this tree's build | operator | a pty pass reports on an older build |
+| #   | Hole                                           | Owner    | Release impact                                     |
+| :-- | :--------------------------------------------- | :------- | :------------------------------------------------- |
+| 1   | `mac-ocr` binary is the pinned one             | operator | ships a different OCR engine silently              |
+| 2   | Finder tag/comment round-trip on a real folder | operator | attributes land wrong on a real Mac                |
+| 3   | The model's own behaviour                      | operator | a plan is scored against one model's answer        |
+| 4   | The TCC grant on `~/Downloads`                 | operator | the refusal path is stood in for by `chmod 000`    |
+| 5   | Rendered frames are evidence                   | operator | layout, glyph and colour regressions are invisible |
+| 6   | Raw mode on the operator's own terminal        | operator | the picker misbehaves on a real tty                |
+| 7   | The appearance layer shows no appearance       | operator | `NO_COLOR=1` piped text is called visual evidence  |
+| 8   | The installed wrapper is this tree's build     | operator | a pty pass reports on an older build               |
 
 ## 1 · `mac-ocr` is the pinned binary
 
@@ -91,7 +91,7 @@ entry here is not a covered boundary; it is a hole with a name.
 - **Cost:** one prompt, once per machine.
 - **Revisit when:** the bundle is rebuilt with a new signature, or macOS is
   upgraded.
-- **Release impact:** `chmod 000` proves the *reporting* of a refusal, not the
+- **Release impact:** `chmod 000` proves the _reporting_ of a refusal, not the
   refusal itself. A machine that never granted TCC sees exit 2 where a person
   expects a plan.
 

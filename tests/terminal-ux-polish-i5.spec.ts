@@ -22,9 +22,9 @@ import {
   completion_line,
   full_bar_100_percent,
   FULL_BAR
-} from './terminal-ux-polish-harness.ts'
+} from "./terminal-ux-polish-harness.ts"
 
-flow('terminal-ux-polish I5: completion status uses the same block bar', async () => {
+flow("terminal-ux-polish I5: completion status uses the same block bar", async () => {
   const s = new Session()
   await analysis_completes(s)
   await completion_line(s)
@@ -35,7 +35,7 @@ flow('terminal-ux-polish I5: completion status uses the same block bar', async (
   // each half; this reads the last frame the run drew and holds the whole claim.
   const last = s.analysisFrames[s.analysisFrames.length - 1]
   if (last === undefined) {
-    throw new Error('I5 outcome: analysis_completes recorded no completion frame')
+    throw new Error("I5 outcome: analysis_completes recorded no completion frame")
   }
   if (!last.includes(FULL_BAR)) {
     throw new Error(`I5 outcome: the completion line is not the full bar ${FULL_BAR}:\n${last}`)

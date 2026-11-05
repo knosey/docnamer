@@ -6,9 +6,9 @@
  * glyph set, the colour and the ASCII fallback, so a command cannot print
  * something the rest of the program would not.
  */
-import { resolve } from 'node:path'
-import pkg from '../package.json'
-import { loadConfig, CONFIG_FILE, BUILTIN_CONFIG, type Config } from './config.ts'
+import { resolve } from "node:path"
+import pkg from "../package.json"
+import { loadConfig, CONFIG_FILE, BUILTIN_CONFIG, type Config } from "./config.ts"
 import {
   credentials,
   docnamerModels,
@@ -18,13 +18,13 @@ import {
   ownCredentials,
   requiredProviders,
   tilde
-} from './auth.ts'
-import { plan, writePlan, apply, undo, PLAN_FILE } from './commands.ts'
-import { review } from './review.ts'
-import { evalTestset, formatEvalReport } from './eval.ts'
-import { renderTable } from './table.ts'
-import { parseDeviceArgs, type DeviceArgs } from './device.ts'
-import { pick, releaseStdin, type Option } from './prompt.ts'
+} from "./auth.ts"
+import { plan, writePlan, apply, undo, PLAN_FILE } from "./commands.ts"
+import { review } from "./review.ts"
+import { evalTestset, formatEvalReport } from "./eval.ts"
+import { renderTable } from "./table.ts"
+import { parseDeviceArgs, type DeviceArgs } from "./device.ts"
+import { pick, releaseStdin, type Option } from "./prompt.ts"
 import {
   closeDevice,
   hasDevice,
@@ -34,7 +34,7 @@ import {
   ui,
   type Style,
   type Ui
-} from './ui.ts'
+} from "./ui.ts"
 
 /**
  * The folder's own config: one name, one location. A folder that does not carry
@@ -49,10 +49,10 @@ export async function configFor(folder: string): Promise<Config> {
 /** Every flag the parser accepts, in one place so a command's help cannot
  *  advertise one the parser would not understand. */
 const OPTIONS = {
-  recursive: ['--recursive, -r', 'Include documents in subfolders'],
-  run: ['--run <file>', 'Undo a specific run file instead of the most recent'],
-  help: ['--help, -h', 'Print help and exit'],
-  version: ['--version, -v', 'Print the version and exit']
+  recursive: ["--recursive, -r", "Include documents in subfolders"],
+  run: ["--run <file>", "Undo a specific run file instead of the most recent"],
+  help: ["--help, -h", "Print help and exit"],
+  version: ["--version, -v", "Print the version and exit"]
 } as const
 
 type FlagName = keyof typeof OPTIONS
@@ -76,82 +76,82 @@ type Command = {
  */
 const COMMANDS: readonly Command[] = [
   {
-    name: 'plan',
-    args: '[--recursive] <folder>',
-    summary: 'Show what each document would be renamed to, changing nothing',
-    flags: ['recursive'],
+    name: "plan",
+    args: "[--recursive] <folder>",
+    summary: "Show what each document would be renamed to, changing nothing",
+    flags: ["recursive"],
     examples: [
-      ['docnamer plan ~/Scans', 'the names it would give, nothing touched'],
-      ['docnamer plan --recursive ~/Scans', 'include the subfolders too']
+      ["docnamer plan ~/Scans", "the names it would give, nothing touched"],
+      ["docnamer plan --recursive ~/Scans", "include the subfolders too"]
     ]
   },
   {
-    name: 'review',
-    args: '<folder>',
-    summary: 'Review a planned run with the model before it is applied',
+    name: "review",
+    args: "<folder>",
+    summary: "Review a planned run with the model before it is applied",
     flags: [],
-    examples: [['docnamer review ~/Scans', 'decide each row, flagged ones first']]
+    examples: [["docnamer review ~/Scans", "decide each row, flagged ones first"]]
   },
   {
-    name: 'apply',
-    args: '<folder>',
-    summary: 'Rename the documents a plan describes, writing an undo file',
+    name: "apply",
+    args: "<folder>",
+    summary: "Rename the documents a plan describes, writing an undo file",
     flags: [],
-    examples: [['docnamer apply ~/Scans', 'rename them, and record how to put it back']]
+    examples: [["docnamer apply ~/Scans", "rename them, and record how to put it back"]]
   },
   {
-    name: 'undo',
-    args: '[--run <file>] <folder>',
-    summary: 'Restore the names an applied run changed',
-    flags: ['run'],
+    name: "undo",
+    args: "[--run <file>] <folder>",
+    summary: "Restore the names an applied run changed",
+    flags: ["run"],
     examples: [
-      ['docnamer undo ~/Scans', 'put the most recent run back'],
-      ['docnamer undo --run .docnamer-undo-1.json ~/Scans', 'put that run back']
+      ["docnamer undo ~/Scans", "put the most recent run back"],
+      ["docnamer undo --run .docnamer-undo-1.json ~/Scans", "put that run back"]
     ]
   },
   {
-    name: 'eval',
-    args: '<testset>',
+    name: "eval",
+    args: "<testset>",
     summary: "Score the renamer against a test set's expected.json",
     flags: [],
-    examples: [['docnamer eval tests/testset', 'score it; nothing is renamed']]
+    examples: [["docnamer eval tests/testset", "score it; nothing is renamed"]]
   },
   {
-    name: 'login',
-    args: '[provider]',
-    summary: 'Sign in to a model provider and store the credential',
+    name: "login",
+    args: "[provider]",
+    summary: "Sign in to a model provider and store the credential",
     flags: [],
     examples: [
-      ['docnamer login', 'pick a provider from the catalog'],
-      ['docnamer login fireworks', 'sign in to one you already know the name of']
+      ["docnamer login", "pick a provider from the catalog"],
+      ["docnamer login fireworks", "sign in to one you already know the name of"]
     ]
   },
   {
-    name: 'logout',
-    args: '[provider]',
-    summary: 'Remove the credential docnamer stored for a provider',
+    name: "logout",
+    args: "[provider]",
+    summary: "Remove the credential docnamer stored for a provider",
     flags: [],
     examples: [
-      ['docnamer logout', 'pick a credential of docnamer\u2019s own to remove'],
-      ['docnamer logout fireworks', 'remove one you already know the name of']
+      ["docnamer logout", "pick a credential of docnamer\u2019s own to remove"],
+      ["docnamer logout fireworks", "remove one you already know the name of"]
     ]
   },
   {
-    name: 'auth',
-    args: '',
-    summary: 'Report where each provider the configured models use gets its credential',
+    name: "auth",
+    args: "",
+    summary: "Report where each provider the configured models use gets its credential",
     flags: [],
-    examples: [['docnamer auth', 'say which file each credential came from']]
+    examples: [["docnamer auth", "say which file each credential came from"]]
   }
 ]
 
 /** What a person types when they do not yet know what to type. */
 const PROGRAM_EXAMPLES: readonly Example[] = [
-  ['docnamer plan ~/Scans', 'the names it would give, nothing touched'],
-  ['docnamer review ~/Scans', 'decide each row, flagged ones first'],
-  ['docnamer apply ~/Scans', 'rename them, and record how to put it back'],
-  ['docnamer undo ~/Scans', 'put the most recent run back'],
-  ['docnamer login', 'pick a provider from the catalog']
+  ["docnamer plan ~/Scans", "the names it would give, nothing touched"],
+  ["docnamer review ~/Scans", "decide each row, flagged ones first"],
+  ["docnamer apply ~/Scans", "rename them, and record how to put it back"],
+  ["docnamer undo ~/Scans", "put the most recent run back"],
+  ["docnamer login", "pick a provider from the catalog"]
 ]
 
 /**
@@ -160,12 +160,12 @@ const PROGRAM_EXAMPLES: readonly Example[] = [
  * REPLACES the shipped roster, so a folder that lists two types loses the rest.
  */
 const CONFIG_KEYS: readonly Example[] = [
-  [CONFIG_FILE, 'put one in a folder to replace the shipped config for that folder'],
-  ['defaults', 'date_format, date_order, max_name_length, the three switches'],
-  ['models', 'cheap, vision and strong, by the id a provider lists'],
-  ['types', 'one entry per document type: describe, template, fields'],
-  ['entities', 'company spellings, all mapped to one canonical name'],
-  ['self', 'the companies that are yours']
+  [CONFIG_FILE, "put one in a folder to replace the shipped config for that folder"],
+  ["defaults", "date_format, date_order, max_name_length, the three switches"],
+  ["models", "cheap, vision and strong, by the id a provider lists"],
+  ["types", "one entry per document type: describe, template, fields"],
+  ["entities", "company spellings, all mapped to one canonical name"],
+  ["self", "the companies that are yours"]
 ]
 
 /** Read from the manifest, never typed here, so the two cannot drift apart. */
@@ -177,7 +177,7 @@ const VERSION: string = pkg.version
  * Lower-case on purpose: it is a usage error, not help.
  */
 const BARE_USAGE =
-  'usage: docnamer <command> [options] <folder>\nrun `docnamer --help` for the commands this program has'
+  "usage: docnamer <command> [options] <folder>\nrun `docnamer --help` for the commands this program has"
 
 /**
  * The code for an invocation this program REFUSED: a command it does not have,
@@ -197,7 +197,7 @@ const USAGE_EXIT = 2
  */
 function column(rows: readonly Example[]): string {
   const width = Math.max(...rows.map(([name]) => name.length)) + 2
-  return rows.map(([name, text]) => `  ${name.padEnd(width)}${text}`).join('\n')
+  return rows.map(([name, text]) => `  ${name.padEnd(width)}${text}`).join("\n")
 }
 
 /** The one progress line plan, apply and undo draw beside the throbber. */
@@ -208,7 +208,7 @@ const progressLine = (u: Ui, done: number, total: number, file: string): string 
 function shownFolder(folder: string): string {
   const abs = resolve(folder)
   const home = process.env.HOME
-  if (home === undefined || home === '') return abs
+  if (home === undefined || home === "") return abs
   return tilde(abs)
 }
 
@@ -228,36 +228,36 @@ function helpText(cmd?: Command): string {
   const sections =
     cmd === undefined
       ? [
-          'Rename document scans by what they contain.',
-          '',
-          'USAGE',
-          '  docnamer <command> [options] <folder>',
-          '',
-          'COMMANDS',
+          "Rename document scans by what they contain.",
+          "",
+          "USAGE",
+          "  docnamer <command> [options] <folder>",
+          "",
+          "COMMANDS",
           column(COMMANDS.map(c => [`${c.name} ${c.args}`.trimEnd(), c.summary] as const)),
-          '',
-          'OPTIONS',
+          "",
+          "OPTIONS",
           column([OPTIONS.recursive, OPTIONS.run, OPTIONS.help, OPTIONS.version]),
-          '',
-          'CONFIG',
+          "",
+          "CONFIG",
           column(CONFIG_KEYS),
-          '',
-          'EXAMPLES',
+          "",
+          "EXAMPLES",
           column(PROGRAM_EXAMPLES)
         ]
       : [
           `${cmd.summary}.`,
-          '',
-          'USAGE',
+          "",
+          "USAGE",
           `  docnamer ${cmd.name} ${cmd.args}`.trimEnd(),
-          '',
-          'OPTIONS',
+          "",
+          "OPTIONS",
           column([...cmd.flags.map(f => OPTIONS[f]), OPTIONS.help]),
-          '',
-          'EXAMPLES',
+          "",
+          "EXAMPLES",
           column(cmd.examples)
         ]
-  return sections.join('\n')
+  return sections.join("\n")
 }
 
 /**
@@ -272,12 +272,12 @@ async function catalogOptions(): Promise<Option[]> {
   const options = await Promise.all(
     models.getProviders().map(async (provider): Promise<Option> => {
       const kinds: string[] = []
-      if (provider.auth.oauth !== undefined) kinds.push('oauth')
-      if (provider.auth.apiKey !== undefined) kinds.push('api key')
+      if (provider.auth.oauth !== undefined) kinds.push("oauth")
+      if (provider.auth.apiKey !== undefined) kinds.push("api key")
       const option: Option = {
         id: provider.id,
         label: provider.name,
-        detail: `${provider.id} \u00b7 ${kinds.join(' or ')}`
+        detail: `${provider.id} \u00b7 ${kinds.join(" or ")}`
       }
       if (!held.has(provider.id)) return option
       const origin = await credentials.origin(provider.id)
@@ -313,7 +313,7 @@ async function credentialCommand(
   u: Ui,
   style: Style
 ): Promise<number> {
-  if (cmd === 'auth') {
+  if (cmd === "auth") {
     const missing: string[] = []
     const rows: string[][] = []
     const models = docnamerModels()
@@ -335,18 +335,18 @@ async function credentialCommand(
     if (missing.length > 0) {
       u.err(
         u.fail(
-          `no credential for ${missing.join(', ')}`,
-          'run `docnamer login` to pick a provider and sign in'
+          `no credential for ${missing.join(", ")}`,
+          "run `docnamer login` to pick a provider and sign in"
         )
       )
       return 1
     }
-    u.log(u.head('Credentials'))
-    u.log(u.table(['PROVIDER', 'FROM'], rows))
+    u.log(u.head("Credentials"))
+    u.log(u.table(["PROVIDER", "FROM"], rows))
     return 0
   }
 
-  if (cmd === 'logout') {
+  if (cmd === "logout") {
     if (providerId !== undefined) {
       await logout(providerId)
       u.log(u.ok(`signed out of ${providerId}`))
@@ -354,17 +354,17 @@ async function credentialCommand(
     }
     const owned = await ownCredentials()
     if (owned.length === 0) {
-      u.log(u.note('no credential of docnamer\u2019s own to sign out of'))
+      u.log(u.note("no credential of docnamer\u2019s own to sign out of"))
       return 0
     }
-    const id = await pick('Sign out of a provider', ownedOptions(owned), style)
+    const id = await pick("Sign out of a provider", ownedOptions(owned), style)
     if (id === null) return 0
     await logout(id)
     u.log(u.ok(`signed out of ${id}`))
     return 0
   }
 
-  const id = providerId ?? (await pick('Sign in to a provider', await catalogOptions(), style))
+  const id = providerId ?? (await pick("Sign in to a provider", await catalogOptions(), style))
   if (id === null) return 0
   await login(id, u, {})
   u.log(u.ok(`signed in to ${id} ${u.dim(u.glyphs.dash)} stored in ${tilde(ownAuthPath())}`))
@@ -373,7 +373,7 @@ async function credentialCommand(
 
 /** The wrapper's own flags, in one list so the parser cannot strip one and
  *  dispatch another. Each carries a value, so stripping skips two tokens. */
-const DEVICE_FLAGS = ['--tty', '--cols', '--rows', '--exit-file', '--cwd']
+const DEVICE_FLAGS = ["--tty", "--cols", "--rows", "--exit-file", "--cwd"]
 
 /** argv without the device flags, so the command after them still runs. */
 function stripDeviceFlags(argv: string[]): string[] {
@@ -398,11 +398,11 @@ export async function main(argv: string[]): Promise<number> {
   const [cmd, ...rest] = stripDeviceFlags(argv)
 
   // The front door, answered before any command runs or any folder is read.
-  if (cmd === '--help' || cmd === '-h') {
+  if (cmd === "--help" || cmd === "-h") {
     u.log(helpText())
     return 0
   }
-  if (cmd === '--version' || cmd === '-v') {
+  if (cmd === "--version" || cmd === "-v") {
     u.log(`docnamer ${VERSION}`)
     return 0
   }
@@ -417,19 +417,19 @@ export async function main(argv: string[]): Promise<number> {
     u.err(
       u.fail(
         `unknown command \`${cmd}\``,
-        'run `docnamer --help` for the commands this program has'
+        "run `docnamer --help` for the commands this program has"
       )
     )
     return USAGE_EXIT
   }
 
   // A question about one command, answered before it touches a folder.
-  if (rest.includes('--help') || rest.includes('-h')) {
+  if (rest.includes("--help") || rest.includes("-h")) {
     u.log(helpText(command))
     return 0
   }
 
-  if (cmd === 'auth' || cmd === 'login' || cmd === 'logout') {
+  if (cmd === "auth" || cmd === "login" || cmd === "logout") {
     const [providerId, ...extra] = rest
     if (extra.length > 0) {
       u.err(u.fail(`\`${cmd}\` takes at most one provider`, `run \`docnamer ${cmd} --help\``))
@@ -443,8 +443,8 @@ export async function main(argv: string[]): Promise<number> {
   let folder: string | null = null
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i] as string
-    if (a === '--recursive' || a === '-r') recursive = true
-    else if (a === '--run') {
+    if (a === "--recursive" || a === "-r") recursive = true
+    else if (a === "--run") {
       // A truncated flag is a malformed command, never a default: silently
       // undoing the latest run is a destructive action nobody asked for.
       const value = rest[++i]
@@ -465,7 +465,7 @@ export async function main(argv: string[]): Promise<number> {
   }
 
   const config = await configFor(folder)
-  if (cmd === 'eval') {
+  if (cmd === "eval") {
     // The argument is a test set, not a folder to touch: eval scores it against
     // its expected.json and renames nothing.
     const spinner = u.spinner(`scoring ${folder} against its expected.json`)
@@ -474,7 +474,7 @@ export async function main(argv: string[]): Promise<number> {
     u.log(formatEvalReport(report))
     return 0
   }
-  if (cmd === 'plan') {
+  if (cmd === "plan") {
     // The throbber opens on a sentence: a percentage before the folder is
     // counted would claim progress nobody made. Once the count is known the
     // bar sits at 0% beside that sentence until a document actually finishes.
@@ -531,11 +531,11 @@ export async function main(argv: string[]): Promise<number> {
     u.log(u.note(`plan written to ${folder}/${PLAN_FILE} ${u.glyphs.dash} run \`docnamer review\``))
     return 0
   }
-  if (cmd === 'review') {
+  if (cmd === "review") {
     await review(folder, config, u)
     return 0
   }
-  if (cmd === 'apply') {
+  if (cmd === "apply") {
     const spinner = u.spinner(`renaming the documents in ${folder}`)
     const report = await apply(folder, config, (done, total, file) => {
       spinner.update(progressLine(u, done, total, file))
@@ -574,13 +574,13 @@ export async function main(argv: string[]): Promise<number> {
  * error rather than parsed out of its message.
  */
 function refusal(e: unknown): { what: string; help: string } | null {
-  if (typeof e !== 'object' || e === null) return null
+  if (typeof e !== "object" || e === null) return null
   const { code, path } = e as { code?: unknown; path?: unknown }
-  if (code !== 'EACCES' && code !== 'EPERM') return null
-  if (typeof path !== 'string') return null
+  if (code !== "EACCES" && code !== "EPERM") return null
+  if (typeof path !== "string") return null
   return {
     what: `cannot read ${path} \u2014 permission denied`,
-    help: 'macOS protects Downloads, Desktop and Documents: System Settings \u203a Privacy & Security \u203a Files and Folders, and switch your terminal on; anywhere else, check the folder\u2019s permissions'
+    help: "macOS protects Downloads, Desktop and Documents: System Settings \u203a Privacy & Security \u203a Files and Folders, and switch your terminal on; anywhere else, check the folder\u2019s permissions"
   }
 }
 

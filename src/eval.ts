@@ -7,8 +7,8 @@
  * needed the vision model, and time per file. It renames, moves and rewrites
  * nothing, and it writes no plan file: the rows live only inside the report.
  */
-import { plan, type PlanRow } from './commands.ts'
-import type { Config } from './config.ts'
+import { plan, type PlanRow } from "./commands.ts"
+import type { Config } from "./config.ts"
 
 export type EvalMiss = { file: string; expected: string; got: string; evidence: string }
 
@@ -29,7 +29,7 @@ type ExpectedEntry = {
   name?: string
 }
 
-export const EXPECTED_FILE = 'expected.json'
+export const EXPECTED_FILE = "expected.json"
 
 const ratio = (hits: number, total: number): number => (total === 0 ? 0 : hits / total)
 
@@ -41,7 +41,7 @@ export async function evalTestset(testset: string, config: Config): Promise<Eval
     )
   }
   const expected = JSON.parse(await Bun.file(expectedPath).text()) as Record<string, ExpectedEntry>
-  if (expected === null || typeof expected !== 'object') {
+  if (expected === null || typeof expected !== "object") {
     throw new Error(`evalTestset: ${expectedPath} did not parse to a map of file -> expectation`)
   }
 
@@ -92,12 +92,12 @@ function countFields(
 ): string[] {
   const wrong: string[] = []
   for (const [field, want] of Object.entries(exp.fields ?? {})) {
-    const got = row?.fields[field] ?? ''
+    const got = row?.fields[field] ?? ""
     // SAFE: a Map accumulator — the first sighting of a field starts at zero.
     const t = tally.fieldTotals.get(field) ?? { hits: 0, total: 0 }
     t.total++
     if (got === want) t.hits++
-    else wrong.push(`${field}: expected ${want}, got ${got || '(empty)'}`)
+    else wrong.push(`${field}: expected ${want}, got ${got || "(empty)"}`)
     tally.fieldTotals.set(field, t)
   }
   return wrong
@@ -111,8 +111,8 @@ function wrongParts(
   wrongFields: string[]
 ): string[] {
   const parts: string[] = []
-  if (!ok.typeOk) parts.push(`type: expected ${exp.type}, got ${got.type || '(none)'}`)
-  if (!ok.nameOk) parts.push(`name: expected ${exp.name}, got ${got.name || '(none)'}`)
+  if (!ok.typeOk) parts.push(`type: expected ${exp.type}, got ${got.type || "(none)"}`)
+  if (!ok.nameOk) parts.push(`name: expected ${exp.name}, got ${got.name || "(none)"}`)
   parts.push(...wrongFields)
   return parts
 }
@@ -121,20 +121,20 @@ function wrongParts(
  *  report prints them. */
 function expectedText(exp: ExpectedEntry): string {
   return exp.name === undefined
-    ? (exp.type ?? '')
-    : [exp.type, exp.name].filter(Boolean).join(' | ')
+    ? (exp.type ?? "")
+    : [exp.type, exp.name].filter(Boolean).join(" | ")
 }
 
 function gotText(row: PlanRow | undefined): string {
-  const parts = [row?.type ?? '', row?.new ?? ''].filter(Boolean)
-  return parts.length === 0 ? '(no row)' : parts.join(' | ')
+  const parts = [row?.type ?? "", row?.new ?? ""].filter(Boolean)
+  return parts.length === 0 ? "(no row)" : parts.join(" | ")
 }
 
 function evidenceText(row: PlanRow | undefined): string {
   const found = Object.entries(row?.evidence ?? {})
     .map(([k, v]) => `${k}=${v}`)
-    .join(', ')
-  return found === '' ? '' : ` — evidence: ${found}`
+    .join(", ")
+  return found === "" ? "" : ` — evidence: ${found}`
 }
 
 /** One miss, with the evidence the row was judged on. */
@@ -148,16 +148,16 @@ function missOf(
     file,
     expected: expectedText(exp),
     got: gotText(row),
-    evidence: parts.join('; ') + evidenceText(row)
+    evidence: parts.join("; ") + evidenceText(row)
   }
 }
 
 /** What a row says for the parts the truth may declare. */
 function gotOf(row: PlanRow | undefined): { type: string; name: string; vision: boolean } {
   return {
-    type: row?.type ?? '',
-    name: row?.new ?? '',
-    vision: row?.method === 'vision'
+    type: row?.type ?? "",
+    name: row?.new ?? "",
+    vision: row?.method === "vision"
   }
 }
 
@@ -237,7 +237,7 @@ export function formatEvalReport(r: EvalReport): string {
       )
     }
   } else {
-    lines.push('misses: none')
+    lines.push("misses: none")
   }
-  return lines.join('\n')
+  return lines.join("\n")
 }

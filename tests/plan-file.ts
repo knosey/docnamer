@@ -13,7 +13,7 @@
  */
 export function planRows<T>(parsed: unknown): T[] {
   if (Array.isArray(parsed)) return parsed as T[]
-  const keys = parsed !== null && typeof parsed === 'object' ? Object.keys(parsed).join(', ') : ''
+  const keys = parsed !== null && typeof parsed === "object" ? Object.keys(parsed).join(", ") : ""
   throw new Error(
     keys
       ? `the plan file is not an array of rows: it is an object with keys ${keys}`
@@ -23,7 +23,7 @@ export function planRows<T>(parsed: unknown): T[] {
 
 /** The last path segment: a row's `old` carries the folder it was found in. */
 export function base(p: string): string {
-  const parts = p.split('/')
+  const parts = p.split("/")
   return parts[parts.length - 1] ?? p
 }
 
@@ -43,7 +43,7 @@ export function assertPlanCovers<T extends { old: string }>(
   const planned = new Set(rows.map(r => base(r.old)))
   const missing = [...seeded].filter(n => n !== configFile && !planned.has(n))
   if (missing.length) {
-    throw new Error(`the plan missed ${missing.length} seeded file(s): ${missing.join(', ')}`)
+    throw new Error(`the plan missed ${missing.length} seeded file(s): ${missing.join(", ")}`)
   }
   if (planned.has(configFile)) {
     throw new Error(`the plan gave ${configFile} a row: the folder's own config is not a document`)

@@ -11,10 +11,10 @@
  * The harness owns the folder, the seed and `docnamer plan`. This test only
  * composes the steps and reads the plan the outcome step observed.
  */
-import { Session, entry, outcome, step } from './naming-rules-harness.ts'
+import { Session, entry, outcome, step } from "./naming-rules-harness.ts"
 
-flow('naming-rules I6: screenshot of a document keeps that type', async () => {
-  const s = new Session('I6')
+flow("naming-rules I6: screenshot of a document keeps that type", async () => {
+  const s = new Session("I6")
   await entry(s)
   await step(s)
   await outcome(s)
@@ -23,20 +23,20 @@ flow('naming-rules I6: screenshot of a document keeps that type', async () => {
     throw new Error(`I6: expected one plan row for the screenshot, got ${s.plan.length}`)
   }
   const row = s.plan[0]
-  if (row.type !== 'invoice') {
+  if (row.type !== "invoice") {
     throw new Error(
       `I6: screenshot of a readable invoice was typed ${row.type}, not invoice (a photo title or type other both fail this)`
     )
   }
-  const file = row.new.split('/').pop() ?? row.new
-  if (!file.endsWith('.png')) {
+  const file = row.new.split("/").pop() ?? row.new
+  if (!file.endsWith(".png")) {
     throw new Error(`I6: proposed name ${row.new} dropped the screenshot extension`)
   }
-  const base = file.slice(0, -'.png'.length)
-  const parts = base.split(' ').filter(p => p.length > 0)
-  const date = parts[0] ?? ''
-  const [y, m, d, extra] = date.split('-')
-  const invoiceAt = parts.indexOf('invoice')
+  const base = file.slice(0, -".png".length)
+  const parts = base.split(" ").filter(p => p.length > 0)
+  const date = parts[0] ?? ""
+  const [y, m, d, extra] = date.split("-")
+  const invoiceAt = parts.indexOf("invoice")
   if (
     !y ||
     y.length !== 4 ||

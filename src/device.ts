@@ -26,11 +26,11 @@ export const parseDeviceArgs = (argv: string[]): DeviceArgs => {
   for (let i = 0; i < argv.length; i++) {
     const value = argv[i + 1]
     if (value === undefined) continue
-    if (argv[i] === '--tty') args.tty = value
-    else if (argv[i] === '--cols') args.cols = Number(value)
-    else if (argv[i] === '--rows') args.rows = Number(value)
-    else if (argv[i] === '--exit-file') args.exitFile = value
-    else if (argv[i] === '--cwd') args.cwd = value
+    if (argv[i] === "--tty") args.tty = value
+    else if (argv[i] === "--cols") args.cols = Number(value)
+    else if (argv[i] === "--rows") args.rows = Number(value)
+    else if (argv[i] === "--exit-file") args.exitFile = value
+    else if (argv[i] === "--cwd") args.cwd = value
   }
   return args
 }

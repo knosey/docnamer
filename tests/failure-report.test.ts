@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test'
-import { closedFolder, reopen, resolveCli, shell } from './doc-renamer-apply-harness.ts'
+import { expect, test } from "bun:test"
+import { closedFolder, reopen, resolveCli, shell } from "./doc-renamer-apply-harness.ts"
 
 /**
  * What a folder docnamer may not read reports.
@@ -23,21 +23,21 @@ import { closedFolder, reopen, resolveCli, shell } from './doc-renamer-apply-har
  * ran only when the work returned — is tests/pty.test.ts's, since a pipe has no
  * line to return to and never shows it.
  */
-test('a folder that cannot be read is named, with a way forward', async () => {
+test("a folder that cannot be read is named, with a way forward", async () => {
   const cli = await resolveCli()
   if (cli === null) {
-    throw new Error('no docnamer CLI to drive — build it or set DOCNAMER_BIN')
+    throw new Error("no docnamer CLI to drive — build it or set DOCNAMER_BIN")
   }
   const closed = await closedFolder()
   try {
-    const r = await shell([...cli, 'plan', closed])
-    expect(r.code, 'a refused read is a failed run: 1, not the refusal code 2').toBe(1)
-    expect(r.stderr, 'the failure must name the folder it could not read').toContain(closed)
+    const r = await shell([...cli, "plan", closed])
+    expect(r.code, "a refused read is a failed run: 1, not the refusal code 2").toBe(1)
+    expect(r.stderr, "the failure must name the folder it could not read").toContain(closed)
     expect(
       r.stderr,
-      'the failure must offer a way forward; a bare errno leaves the reader with nothing to do'
-    ).toContain('help:')
-    expect(r.stdout, 'nothing was planned, so no plan is announced').not.toContain('plan written')
+      "the failure must offer a way forward; a bare errno leaves the reader with nothing to do"
+    ).toContain("help:")
+    expect(r.stdout, "nothing was planned, so no plan is announced").not.toContain("plan written")
   } finally {
     await reopen(closed)
   }

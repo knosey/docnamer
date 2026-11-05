@@ -14,12 +14,12 @@
  * that the summary names each restored file and the skip, and that the undo file
  * is gone.
  */
-import { Session, entry, load, restore, outcome } from './doc-renamer-apply-harness.ts'
+import { Session, entry, load, restore, outcome } from "./doc-renamer-apply-harness.ts"
 
-flow('doc-renamer-apply I2: undo restores every renamed file', async () => {
+flow("doc-renamer-apply I2: undo restores every renamed file", async () => {
   const s = new Session()
-  await entry(s, 'undo')
+  await entry(s, "undo")
   await load(s)
   await restore(s)
-  await outcome(s, 'i2-undo')
+  await outcome(s, "i2-undo")
 })

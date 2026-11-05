@@ -9,23 +9,23 @@
  * requires this file green, and a smoke that drove I1 would report a skip now and
  * only duplicate the I1 flow test once the CLI exists.
  */
-import { CHANGED_FILE, Session, boot, repo } from './doc-renamer-apply-harness.ts'
+import { CHANGED_FILE, Session, boot, repo } from "./doc-renamer-apply-harness.ts"
 
 flow(
-  'doc-renamer-apply harness: boots an isolated run and writes nothing into the repo',
+  "doc-renamer-apply harness: boots an isolated run and writes nothing into the repo",
   async () => {
     const s = new Session()
     await boot(s)
 
-    if (!s.booted) throw new Error('smoke: boot returned with the session not marked booted')
-    if (!s.dir.startsWith('/')) throw new Error(`smoke: boot's folder ${s.dir} is not absolute`)
-    if (s.dir.startsWith(repo + '/')) {
+    if (!s.booted) throw new Error("smoke: boot returned with the session not marked booted")
+    if (!s.dir.startsWith("/")) throw new Error(`smoke: boot's folder ${s.dir} is not absolute`)
+    if (s.dir.startsWith(repo + "/")) {
       throw new Error(
         `smoke: boot's folder ${s.dir} is inside the repo, so a flow test would write into it`
       )
     }
     if (s.originals.size === 0) {
-      throw new Error('smoke: boot seeded no fixture, so every run would start on an empty folder')
+      throw new Error("smoke: boot seeded no fixture, so every run would start on an empty folder")
     }
 
     // Every seeded file is on disk, at the size boot recorded for it: the run's

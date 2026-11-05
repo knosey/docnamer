@@ -21,9 +21,9 @@ import {
   capture_frames,
   analysis_frame_is_one_screen,
   percentage_increases
-} from './terminal-ux-polish-harness.ts'
+} from "./terminal-ux-polish-harness.ts"
 
-flow('terminal-ux-polish I4: block progress bar next to the throbber during analysis', async () => {
+flow("terminal-ux-polish I4: block progress bar next to the throbber during analysis", async () => {
   const s = new Session()
   await start_analysis(s)
   await throbber_with_bar(s)

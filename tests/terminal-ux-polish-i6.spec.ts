@@ -18,9 +18,9 @@ import {
   capture_output,
   no_ansi_escapes,
   ascii_progress_shown
-} from './terminal-ux-polish-harness.ts'
+} from "./terminal-ux-polish-harness.ts"
 
-flow('terminal-ux-polish I6: ASCII and no-colour fallback', async () => {
+flow("terminal-ux-polish I6: ASCII and no-colour fallback", async () => {
   const s = new Session()
   await run_with_no_color_piped(s)
   await capture_output(s)

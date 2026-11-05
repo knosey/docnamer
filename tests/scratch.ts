@@ -3,7 +3,7 @@
 // exit hook below covers it. Without this, /tmp fills with credential files that
 // look real and are never read again — one run's homes were 30 directories deep.
 
-import { mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync } from "node:fs"
 
 const made: string[] = []
 
@@ -11,7 +11,7 @@ const made: string[] = []
  *  It exists on return: every caller wants to write into it, and one that had to
  *  mkdir first could forget, and then fail somewhere further away. */
 export function scratch(prefix: string): string {
-  const dir = `${Bun.env.TMPDIR ?? '/tmp'}/${prefix}-${crypto.randomUUID()}`
+  const dir = `${Bun.env.TMPDIR ?? "/tmp"}/${prefix}-${crypto.randomUUID()}`
   mkdirSync(dir, { recursive: true })
   made.push(dir)
   return dir
@@ -30,8 +30,8 @@ export function cleanupScratch(): void {
 // One exit hook per PROCESS, not per module load: the runner may load this file
 // once for each test file, and a listener each would trip the 10-listener limit.
 // The key is on globalThis, which survives those reloads.
-const HOOK = Symbol.for('docnamer.scratch.exitHook')
+const HOOK = Symbol.for("docnamer.scratch.exitHook")
 if (!Object.hasOwn(globalThis, HOOK)) {
   Object.defineProperty(globalThis, HOOK, { value: true })
-  process.on('exit', cleanupScratch)
+  process.on("exit", cleanupScratch)
 }

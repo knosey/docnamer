@@ -21,9 +21,9 @@ import {
   edit_name,
   plan_updated_for_doc1,
   later_docs_unchanged
-} from './terminal-ux-polish-harness.ts'
+} from "./terminal-ux-polish-harness.ts"
 
-flow('terminal-ux-polish I3: revisit and change an already-assessed document', async () => {
+flow("terminal-ux-polish I3: revisit and change an already-assessed document", async () => {
   const s = new Session()
   await accept_doc1(s)
   await navigate_back(s)

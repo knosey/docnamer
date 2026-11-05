@@ -1,8 +1,8 @@
-import { expect, test } from 'bun:test'
-import { existsSync, statSync } from 'node:fs'
-import { BUILD_MS, artifactsAt } from './app-binary.ts'
-import { runChild } from './child.ts'
-import { scratch } from './scratch.ts'
+import { expect, test } from "bun:test"
+import { existsSync, statSync } from "node:fs"
+import { BUILD_MS, artifactsAt } from "./app-binary.ts"
+import { runChild } from "./child.ts"
+import { scratch } from "./scratch.ts"
 
 /**
  * S3 — Ship docnamer as its own macOS app: the bundle, its signing, and the
@@ -20,13 +20,13 @@ import { scratch } from './scratch.ts'
  * prints — not an uncaught throw while the file loads.
  */
 
-const repo = new URL('..', import.meta.url).pathname.replace(/\/+$/, '')
+const repo = new URL("..", import.meta.url).pathname.replace(/\/+$/, "")
 /**
  * This file's own install root, handed to the build as DOCNAMER_APP_HOME so the
  * run installs into a temp folder and never over the operator's
  * ~/Applications/docnamer.app — see tests/app-binary.ts.
  */
-const root = scratch('docnamer-bundle')
+const root = scratch("docnamer-bundle")
 const at = artifactsAt(root)
 const appPath = at.appDir
 const appBinary = at.appBin
@@ -34,14 +34,14 @@ const infoPlist = at.appPlist
 
 /** Read one key out of an Info.plist, XML or binary, the way macOS does. */
 function plistValue(key: string): string {
-  const proc = Bun.spawnSync(['plutil', '-extract', key, 'raw', '-o', '-', infoPlist])
+  const proc = Bun.spawnSync(["plutil", "-extract", key, "raw", "-o", "-", infoPlist])
   return proc.stdout.toString().trim()
 }
 
 test(
-  'bun run build assembles ~/Applications/docnamer.app around the compiled binary',
+  "bun run build assembles ~/Applications/docnamer.app around the compiled binary",
   async () => {
-    const build = await runChild(['bun', 'run', 'build'], {
+    const build = await runChild(["bun", "run", "build"], {
       cwd: repo,
       env: { ...Bun.env, DOCNAMER_APP_HOME: root },
       timeoutMs: BUILD_MS
@@ -58,27 +58,27 @@ test(
       `${appBinary} exists but is not executable (mode ${(mode & 0o777).toString(8)})`
     ).toBeGreaterThan(0)
 
-    expect(plistValue('CFBundleIdentifier'), 'the bundle identifier').toBe('com.tom.docnamer')
-    expect(plistValue('CFBundleName'), 'the display name').toBe('docnamer')
+    expect(plistValue("CFBundleIdentifier"), "the bundle identifier").toBe("com.tom.docnamer")
+    expect(plistValue("CFBundleName"), "the display name").toBe("docnamer")
   },
   BUILD_MS
 )
 
-test('the app bundle is signed, ad-hoc or with a real identity', () => {
+test("the app bundle is signed, ad-hoc or with a real identity", () => {
   expect(existsSync(appPath), `${appPath} does not exist, so there is nothing to sign`).toBe(true)
 
-  const verify = Bun.spawnSync(['codesign', '-dv', '--verbose=2', appPath])
+  const verify = Bun.spawnSync(["codesign", "-dv", "--verbose=2", appPath])
   const signText = `${verify.stdout.toString()}${verify.stderr.toString()}`
   expect(verify.exitCode, `codesign -dv found no signature:\n${signText}`).toBe(0)
 
-  const identities = Bun.spawnSync(['security', 'find-identity', '-v', '-p', 'codesigning'])
+  const identities = Bun.spawnSync(["security", "find-identity", "-v", "-p", "codesigning"])
   const identityText = `${identities.stdout.toString()}${identities.stderr.toString()}`
   const hasRealIdentity = /\)\s+[0-9A-F]{40}\s+"/.test(identityText)
 
   if (hasRealIdentity) {
-    expect(signText, 'a real identity exists, so the bundle must carry it').toMatch(/Authority=/)
+    expect(signText, "a real identity exists, so the bundle must carry it").toMatch(/Authority=/)
   } else {
-    expect(signText, 'no identity exists, so the bundle must be signed ad-hoc').toMatch(
+    expect(signText, "no identity exists, so the bundle must be signed ad-hoc").toMatch(
       /Signature=adhoc/
     )
   }
@@ -86,17 +86,17 @@ test('the app bundle is signed, ad-hoc or with a real identity', () => {
 
 /** The four folder kinds docnamer reads, each of which TCC gates on its own key. */
 const folderUsageKeys = [
-  'NSDesktopFolderUsageDescription',
-  'NSDocumentsFolderUsageDescription',
-  'NSDownloadsFolderUsageDescription',
-  'NSRemovableVolumesUsageDescription'
+  "NSDesktopFolderUsageDescription",
+  "NSDocumentsFolderUsageDescription",
+  "NSDownloadsFolderUsageDescription",
+  "NSRemovableVolumesUsageDescription"
 ]
 
-test('the bundle is a background agent that declares the folders it reads', () => {
+test("the bundle is a background agent that declares the folders it reads", () => {
   expect(existsSync(infoPlist), `${infoPlist} is missing`).toBe(true)
 
-  expect(plistValue('LSUIElement'), 'LSUIElement keeps the agent out of the Dock').toBe('true')
+  expect(plistValue("LSUIElement"), "LSUIElement keeps the agent out of the Dock").toBe("true")
 
-  const absent = folderUsageKeys.filter(key => plistValue(key) === '')
-  expect(absent, `Info.plist declares no usage description for: ${absent.join(', ')}`).toEqual([])
+  const absent = folderUsageKeys.filter(key => plistValue(key) === "")
+  expect(absent, `Info.plist declares no usage description for: ${absent.join(", ")}`).toEqual([])
 })

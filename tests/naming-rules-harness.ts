@@ -16,14 +16,14 @@
  * Every run stands alone: a fresh temp dir, a CLI resolved per run, nothing
  * written into the repo except a frame under `.audit/screenshots/`.
  */
-import { mkdir } from 'node:fs/promises'
-import { CONFIG_FILE } from '../src/config.ts'
-import { appBin } from './app-binary.ts'
-import { runChild } from './child.ts'
-import { frame } from './frame.ts'
-import { planRows } from './plan-file.ts'
-import { ensureProviderKey, MODEL_CALL_MS } from './preload.ts'
-import { scratch } from './scratch.ts'
+import { mkdir } from "node:fs/promises"
+import { CONFIG_FILE } from "../src/config.ts"
+import { appBin } from "./app-binary.ts"
+import { runChild } from "./child.ts"
+import { frame } from "./frame.ts"
+import { planRows } from "./plan-file.ts"
+import { ensureProviderKey, MODEL_CALL_MS } from "./preload.ts"
+import { scratch } from "./scratch.ts"
 
 export type PlanRow = {
   old: string
@@ -36,72 +36,72 @@ export type PlanRow = {
 }
 
 /** Which interaction this run plans. `smoke` is the harness's own boot file. */
-export type FlowId = 'I1' | 'I2' | 'I3' | 'I4' | 'I5' | 'I6' | 'I7' | 'smoke'
+export type FlowId = "I1" | "I2" | "I3" | "I4" | "I5" | "I6" | "I7" | "smoke"
 
 export class Session {
   flow: FlowId
   /** Per-run working folder, outside the repo. */
-  dir = ''
-  planPath = ''
+  dir = ""
+  planPath = ""
   plan: PlanRow[] = []
   /** Proposed filenames, in plan order. Flow tests assert their Outcome on these. */
   names: string[] = []
   cli: string[] | null = null
-  last: { code: number; stdout: string; stderr: string } = { code: -1, stdout: '', stderr: '' }
+  last: { code: number; stdout: string; stderr: string } = { code: -1, stdout: "", stderr: "" }
   booted = false
 
-  constructor(flow: FlowId = 'smoke') {
+  constructor(flow: FlowId = "smoke") {
     this.flow = flow
   }
 }
 
-export const repo = import.meta.dir.replace(/\/tests$/, '')
+export const repo = import.meta.dir.replace(/\/tests$/, "")
 
 /**
  * Each flow is seeded with bytes that ARE the document its interaction describes:
  * the reader takes the type and fields from the page, so a statement's bytes
  * under a passport's filename can only ever produce a statement.
  */
-const CONTRACT = 'tests/fixtures/contract-saulx-crowdbuilding.pdf'
-const INVOICE = 'tests/fixtures/invoice-crowdbuilding.pdf'
-const PASSPORT = 'tests/fixtures/passport-reisepass.pdf'
-const AUTHORITY = 'tests/fixtures/eeavisa-authority.pdf'
-const PHOTO = 'tests/fixtures/receipt.png'
-const SCREENSHOT = 'tests/fixtures/invoice-page-screenshot.png'
+const CONTRACT = "tests/fixtures/contract-saulx-crowdbuilding.pdf"
+const INVOICE = "tests/fixtures/invoice-crowdbuilding.pdf"
+const PASSPORT = "tests/fixtures/passport-reisepass.pdf"
+const AUTHORITY = "tests/fixtures/eeavisa-authority.pdf"
+const PHOTO = "tests/fixtures/receipt.png"
+const SCREENSHOT = "tests/fixtures/invoice-page-screenshot.png"
 
 type Seed = { name: string; body?: string; copy?: string }
 
 /** One note under two names, so both render the same name and one must take a (2). */
-const NOTE = 'A note with a Finder collision suffix and no version field.\n'
+const NOTE = "A note with a Finder collision suffix and no version field.\n"
 
 /** The file each interaction tells `docnamer plan` to name, under that exact filename. */
 const SEED: Record<FlowId, Seed[]> = {
   I1: [
-    { name: '20260217 - Contract - Based Platform - Crowdbuilding (draft).pdf', copy: CONTRACT }
+    { name: "20260217 - Contract - Based Platform - Crowdbuilding (draft).pdf", copy: CONTRACT }
   ],
   I2: [
-    { name: '20260006 Crowdbuilding February v3.pdf', copy: INVOICE },
-    { name: '20260006 Crowdbuilding V4.pdf', copy: INVOICE }
+    { name: "20260006 Crowdbuilding February v3.pdf", copy: INVOICE },
+    { name: "20260006 Crowdbuilding V4.pdf", copy: INVOICE }
   ],
-  I3: [{ name: 'passport-jacqui-with-stamps.pdf', copy: PASSPORT }],
-  I4: [{ name: 'Authority-Jac-EEAVISA.pdf', copy: AUTHORITY }],
-  I5: [{ name: 'photo-not-a-document.png', copy: PHOTO }],
-  I6: [{ name: 'screenshot-of-invoice.png', copy: SCREENSHOT }],
+  I3: [{ name: "passport-jacqui-with-stamps.pdf", copy: PASSPORT }],
+  I4: [{ name: "Authority-Jac-EEAVISA.pdf", copy: AUTHORITY }],
+  I5: [{ name: "photo-not-a-document.png", copy: PHOTO }],
+  I6: [{ name: "screenshot-of-invoice.png", copy: SCREENSHOT }],
   I7: [
-    { name: 'notes (2).txt', body: NOTE },
-    { name: 'notes.txt', body: NOTE }
+    { name: "notes (2).txt", body: NOTE },
+    { name: "notes.txt", body: NOTE }
   ],
   smoke: [
     {
-      name: 'invoice-acme-2026-04.txt',
+      name: "invoice-acme-2026-04.txt",
       body: [
-        'INVOICE',
-        'Acme Ltd',
-        'Invoice number: INV-0042',
-        'Date: 03/04/2026',
-        'Total: 482.50 GBP',
-        ''
-      ].join('\n')
+        "INVOICE",
+        "Acme Ltd",
+        "Invoice number: INV-0042",
+        "Date: 03/04/2026",
+        "Total: 482.50 GBP",
+        ""
+      ].join("\n")
     }
   ]
 }
@@ -114,7 +114,7 @@ async function resolveCli(): Promise<string[] | null> {
   const override = Bun.env.DOCNAMER_BIN
   if (override && override.trim()) return override.trim().split(/\s+/)
   const src = `${repo}/src/cli.ts`
-  if (await Bun.file(src).exists()) return [Bun.which('bun') ?? 'bun', src]
+  if (await Bun.file(src).exists()) return [Bun.which("bun") ?? "bun", src]
   if (await Bun.file(appBin).exists()) return [appBin]
   return null
 }
@@ -122,7 +122,7 @@ async function resolveCli(): Promise<string[] | null> {
 /** Boot the isolated environment and seed this flow's files. `entry` calls this; the smoke proves isolation through `s.booted`. */
 async function boot(s: Session): Promise<void> {
   if (s.booted) return
-  const dir = scratch('naming-rules')
+  const dir = scratch("naming-rules")
   await mkdir(dir, { recursive: true })
   s.dir = dir
   s.planPath = `${dir}/.docnamer-plan.json`
@@ -146,13 +146,13 @@ async function boot(s: Session): Promise<void> {
 
 const missingCli = (): Error =>
   new Error(
-    'docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts'
+    "docnamer CLI absent: the program under test is not built yet, so this flow is red for the right reason. Set DOCNAMER_BIN, install `docnamer`, or add src/cli.ts"
   )
 
 async function runPlan(s: Session): Promise<void> {
   if (!s.cli) throw missingCli()
   await ensureProviderKey()
-  const res = await shell([...s.cli, 'plan', s.dir])
+  const res = await shell([...s.cli, "plan", s.dir])
   s.last = res
   if (res.code !== 0) {
     throw new Error(`docnamer plan exited ${res.code}\n${res.stderr}${res.stdout}`)
@@ -182,11 +182,11 @@ export async function step(s: Session): Promise<Session> {
 export async function outcome(s: Session): Promise<Session> {
   if (s.last.code !== 0) await step(s)
   if (!(await Bun.file(s.planPath).exists())) {
-    throw new Error('outcome: .docnamer-plan.json not written')
+    throw new Error("outcome: .docnamer-plan.json not written")
   }
-  if (s.names.length === 0) throw new Error('outcome: plan proposed no names')
+  if (s.names.length === 0) throw new Error("outcome: plan proposed no names")
   for (const name of s.names) {
-    const base = name.split('/').pop() ?? name
+    const base = name.split("/").pop() ?? name
     if (!s.last.stdout.includes(base)) {
       throw new Error(`outcome: printed table does not contain proposed name ${base}`)
     }

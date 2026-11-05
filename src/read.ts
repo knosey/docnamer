@@ -11,7 +11,7 @@
 export type Content = {
   text: string
   images: string[]
-  method: 'text' | 'ocr' | 'vision'
+  method: "text" | "ocr" | "vision"
   ocrConfidence: number | null
   pages: number
 }
@@ -20,25 +20,25 @@ const TEXT_CAP = 4000
 /** Mean OCR confidence below which the ladder falls back to vision. */
 const OCR_MIN_CONFIDENCE = 0.8
 
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif'])
+const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"])
 
 function extOf(file: string): string {
   const m = /\.[^./]+$/.exec(file)
-  return m ? m[0].toLowerCase() : ''
+  return m ? m[0].toLowerCase() : ""
 }
 
 function tmpPath(name: string): string {
   // `Bun.env.TMPDIR` is the sanctioned spelling here: src/ may not import a
   // node: built-in, so the platform temp dir is read from the environment with
   // /tmp as the only fallback.
-  return `${Bun.env.TMPDIR ?? '/tmp'}/docnamer-${name}`
+  return `${Bun.env.TMPDIR ?? "/tmp"}/docnamer-${name}`
 }
 
 /** Pull a locally-evicted iCloud file back down before reading it. */
 async function downloadICloud(file: string): Promise<void> {
   const f = Bun.file(file)
   if (await f.exists()) return
-  const proc = Bun.spawnSync(['brctl', 'download', file])
+  const proc = Bun.spawnSync(["brctl", "download", file])
   if (!(await f.exists())) {
     throw new Error(
       `downloadICloud: ${file} is not on disk and brctl could not fetch it: ${proc.stderr.toString().trim()}`
@@ -52,18 +52,18 @@ async function downloadICloud(file: string): Promise<void> {
 // first-run swiftc compile.
 
 /** Resolve mac-ocr from this project's own install only, never PATH. */
-import macOcr from '../node_modules/mac-ocr/bin/mac-ocr' with { type: 'file' }
-import macOcrPkg from '../node_modules/mac-ocr/package.json'
+import macOcr from "../node_modules/mac-ocr/bin/mac-ocr" with { type: "file" }
+import macOcrPkg from "../node_modules/mac-ocr/package.json"
 
 /** sha256 of the embedded mac-ocr binary, pinned so the copy shipped in node_modules is the only mac-ocr ever exec'd. */
-const MAC_OCR_SHA256 = '1817fff474a88706104167f8f47983ecea93a3b41cd10fa6b8585c026ffd7668'
+const MAC_OCR_SHA256 = "1817fff474a88706104167f8f47983ecea93a3b41cd10fa6b8585c026ffd7668"
 
 let macOcrPromise: Promise<string> | null = null
 
 const sha256 = async (path: string): Promise<string> => {
-  const hasher = new Bun.CryptoHasher('sha256')
+  const hasher = new Bun.CryptoHasher("sha256")
   hasher.update(await Bun.file(path).arrayBuffer())
-  return hasher.digest('hex')
+  return hasher.digest("hex")
 }
 
 /**
@@ -76,18 +76,18 @@ const sha256 = async (path: string): Promise<string> => {
 async function unpackMacOcr(): Promise<string> {
   const tmp = Bun.env.TMPDIR
   if (tmp === undefined) {
-    throw new Error('ocrPages: TMPDIR is unset, so the embedded mac-ocr has nowhere to unpack to')
+    throw new Error("ocrPages: TMPDIR is unset, so the embedded mac-ocr has nowhere to unpack to")
   }
   const dest = `${tmp}/docnamer-mac-ocr-${macOcrPkg.version}`
   if ((await Bun.file(dest).exists()) && (await sha256(dest)) === MAC_OCR_SHA256) return dest
   const bytes = Bun.file(macOcr)
-  const hash = new Bun.CryptoHasher('sha256')
+  const hash = new Bun.CryptoHasher("sha256")
   hash.update(await bytes.arrayBuffer())
-  if (hash.digest('hex') !== MAC_OCR_SHA256) {
+  if (hash.digest("hex") !== MAC_OCR_SHA256) {
     throw new Error(`ocrPages: the embedded mac-ocr fails its sha256 pin (${MAC_OCR_SHA256})`)
   }
   await Bun.write(dest, bytes)
-  Bun.spawnSync(['chmod', '755', dest])
+  Bun.spawnSync(["chmod", "755", dest])
   return dest
 }
 
@@ -108,17 +108,17 @@ type MacOcrPage = {
 export async function ocrPages(
   pages: string[]
 ): Promise<{ text: string; chars: number; meanConfidence: number | null }> {
-  if (pages.length === 0) return { text: '', chars: 0, meanConfidence: null }
+  if (pages.length === 0) return { text: "", chars: 0, meanConfidence: null }
   const bin = await macOcrBinary()
-  const { out, err, code } = await spawnPiped([bin, ...pages, '--format', 'json'], 'ocrPages')
+  const { out, err, code } = await spawnPiped([bin, ...pages, "--format", "json"], "ocrPages")
   if (code !== 0) {
-    throw new Error(`ocrPages: Vision OCR failed on ${pages.join(', ')}: ${err.trim()}`)
+    throw new Error(`ocrPages: Vision OCR failed on ${pages.join(", ")}: ${err.trim()}`)
   }
   const results = JSON.parse(out) as MacOcrPage[]
   const text = results
     .map(p => p.text)
     .filter(t => t.length > 0)
-    .join('\n')
+    .join("\n")
   const confs = results.flatMap(p => p.observations.map(o => o.confidence))
   const meanConfidence = confs.length === 0 ? null : confs.reduce((a, b) => a + b, 0) / confs.length
   return { text, chars: text.length, meanConfidence }
@@ -129,22 +129,22 @@ export async function ocrPages(
 function unescapePdfString(s: string): string {
   return s.replace(/\\([\\()nrtbf]|[0-7]{1,3})/g, (_m, g: string) => {
     switch (g) {
-      case 'n':
-        return '\n'
-      case 'r':
-        return '\r'
-      case 't':
-        return '\t'
-      case 'b':
-        return '\b'
-      case 'f':
-        return '\f'
-      case '\\':
-        return '\\'
-      case '(':
-        return '('
-      case ')':
-        return ')'
+      case "n":
+        return "\n"
+      case "r":
+        return "\r"
+      case "t":
+        return "\t"
+      case "b":
+        return "\b"
+      case "f":
+        return "\f"
+      case "\\":
+        return "\\"
+      case "(":
+        return "("
+      case ")":
+        return ")"
       default:
         return String.fromCharCode(parseInt(g, 8))
     }
@@ -160,7 +160,7 @@ function pdfTextLayer(raw: string): string {
   for (const m of raw.matchAll(/\[((?:[^[\]]|\\.)*)\]\s*TJ/g)) {
     for (const s of m[1].matchAll(/\(((?:\\.|[^\\()])*)\)/g)) chunks.push(s[1])
   }
-  return chunks.map(unescapePdfString).join(' ').replace(/\s+/g, ' ').trim()
+  return chunks.map(unescapePdfString).join(" ").replace(/\s+/g, " ").trim()
 }
 
 function pdfPageCount(raw: string): number {
@@ -177,7 +177,7 @@ async function spawnPiped(
   cmd: string[],
   label: string
 ): Promise<{ out: string; err: string; code: number }> {
-  const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' })
+  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" })
   const stdout = proc.stdout
   const stderr = proc.stderr
   if (stdout === undefined || stderr === undefined) {
@@ -195,8 +195,8 @@ async function spawnPiped(
 async function pdfToPng(file: string): Promise<string> {
   const out = tmpPath(`page-${crypto.randomUUID()}.png`)
   const { code, err } = await spawnPiped(
-    ['sips', '-s', 'format', 'png', file, '--out', out],
-    'read'
+    ["sips", "-s", "format", "png", file, "--out", out],
+    "read"
   )
   if (code !== 0) {
     throw new Error(`read: sips could not rasterize ${file}: ${err.trim()}`)
@@ -212,7 +212,7 @@ async function pdfToPng(file: string): Promise<string> {
 export async function pageImages(file: string): Promise<string[]> {
   const ext = extOf(file)
   if (IMAGE_EXTS.has(ext)) return [file]
-  if (ext === '.pdf') return [await pdfToPng(file)]
+  if (ext === ".pdf") return [await pdfToPng(file)]
   return []
 }
 
@@ -223,43 +223,43 @@ export async function pageImages(file: string): Promise<string[]> {
 
 /** One entry of a zip archive as text; null when the archive lacks the entry. */
 function zipEntry(file: string, entry: string): string | null {
-  const proc = Bun.spawnSync(['unzip', '-p', file, entry])
+  const proc = Bun.spawnSync(["unzip", "-p", file, entry])
   if (proc.exitCode !== 0) return null
   return proc.stdout.toString()
 }
 
 function unescapeXml(s: string): string {
   return s
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
+    .replace(/&amp;/g, "&")
 }
 
 /** Text content of every `<tag>` element in an XML document, in document order. */
 function xmlTexts(xml: string, tag: string): string[] {
-  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, 'g')
+  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "g")
   return [...xml.matchAll(re)].map(m => unescapeXml(m[1]))
 }
 
 /** Direct text extraction for xlsx, pptx and pages. */
 async function officeText(file: string, ext: string): Promise<string> {
-  if (ext === '.xlsx') {
-    const shared = zipEntry(file, 'xl/sharedStrings.xml')
+  if (ext === ".xlsx") {
+    const shared = zipEntry(file, "xl/sharedStrings.xml")
     if (shared === null) {
       throw new Error(`read: ${file} is an xlsx with no xl/sharedStrings.xml`)
     }
-    return xmlTexts(shared, 't').join(' ')
+    return xmlTexts(shared, "t").join(" ")
   }
-  if (ext === '.pptx') {
-    const listing = Bun.spawnSync(['unzip', '-Z1', file])
+  if (ext === ".pptx") {
+    const listing = Bun.spawnSync(["unzip", "-Z1", file])
     if (listing.exitCode !== 0) {
       throw new Error(`read: unzip could not list ${file}: ${listing.stderr.toString().trim()}`)
     }
     const slides = listing.stdout
       .toString()
-      .split('\n')
+      .split("\n")
       .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
       .sort()
     const texts: string[] = []
@@ -268,19 +268,19 @@ async function officeText(file: string, ext: string): Promise<string> {
       if (xml === null) {
         throw new Error(`read: ${file} lists ${s} but unzip cannot extract it`)
       }
-      texts.push(...xmlTexts(xml, 'a:t'))
+      texts.push(...xmlTexts(xml, "a:t"))
     }
-    return texts.join(' ')
+    return texts.join(" ")
   }
   // .pages: the document body is protobuf; the readable text is the QuickLook
   // preview PDF every Pages export embeds, parsed by the PDF text-layer path.
-  const proc = Bun.spawnSync(['unzip', '-p', file, 'QuickLook/Preview.pdf'])
+  const proc = Bun.spawnSync(["unzip", "-p", file, "QuickLook/Preview.pdf"])
   if (proc.exitCode !== 0) {
     throw new Error(
       `read: ${file} is a pages document with no QuickLook/Preview.pdf, so there is no text to extract`
     )
   }
-  const raw = new TextDecoder('latin1').decode(proc.stdout)
+  const raw = new TextDecoder("latin1").decode(proc.stdout)
   return pdfTextLayer(raw)
 }
 
@@ -294,13 +294,13 @@ export async function read(file: string): Promise<Content | null> {
   await downloadICloud(file)
   const ext = extOf(file)
 
-  if (ext === '.txt' || ext === '.md' || ext === '.csv') {
+  if (ext === ".txt" || ext === ".md" || ext === ".csv") {
     const text = (await Bun.file(file).text()).slice(0, TEXT_CAP)
-    return { text, images: [], method: 'text', ocrConfidence: null, pages: 1 }
+    return { text, images: [], method: "text", ocrConfidence: null, pages: 1 }
   }
 
-  if (ext === '.docx' || ext === '.doc' || ext === '.rtf') {
-    const proc = Bun.spawnSync(['textutil', '-convert', 'txt', '-stdout', file])
+  if (ext === ".docx" || ext === ".doc" || ext === ".rtf") {
+    const proc = Bun.spawnSync(["textutil", "-convert", "txt", "-stdout", file])
     if (proc.exitCode !== 0) {
       throw new Error(
         `read: textutil could not extract text from ${file}: ${proc.stderr.toString().trim()}`
@@ -309,21 +309,21 @@ export async function read(file: string): Promise<Content | null> {
     return {
       text: proc.stdout.toString().slice(0, TEXT_CAP),
       images: [],
-      method: 'text',
+      method: "text",
       ocrConfidence: null,
       pages: 1
     }
   }
 
-  if (ext === '.pdf') {
-    const raw = new TextDecoder('latin1').decode(await Bun.file(file).arrayBuffer())
+  if (ext === ".pdf") {
+    const raw = new TextDecoder("latin1").decode(await Bun.file(file).arrayBuffer())
     const layer = pdfTextLayer(raw)
     const pages = pdfPageCount(raw)
     if (layer.length >= 20) {
       return {
         text: layer.slice(0, TEXT_CAP),
         images: [],
-        method: 'text',
+        method: "text",
         ocrConfidence: null,
         pages
       }
@@ -336,7 +336,7 @@ export async function read(file: string): Promise<Content | null> {
       return {
         text: ocr.text.slice(0, TEXT_CAP),
         images: [],
-        method: 'ocr',
+        method: "ocr",
         ocrConfidence: ocr.meanConfidence,
         pages
       }
@@ -345,18 +345,18 @@ export async function read(file: string): Promise<Content | null> {
     return {
       text: ocr.text.slice(0, TEXT_CAP),
       images: [png],
-      method: 'vision',
+      method: "vision",
       ocrConfidence: ocr.meanConfidence,
       pages
     }
   }
 
-  if (ext === '.xlsx' || ext === '.pptx' || ext === '.pages') {
+  if (ext === ".xlsx" || ext === ".pptx" || ext === ".pages") {
     const text = await officeText(file, ext)
     return {
       text: text.slice(0, TEXT_CAP),
       images: [],
-      method: 'text',
+      method: "text",
       ocrConfidence: null,
       pages: 1
     }
@@ -368,7 +368,7 @@ export async function read(file: string): Promise<Content | null> {
       return {
         text: ocr.text.slice(0, TEXT_CAP),
         images: [],
-        method: 'ocr',
+        method: "ocr",
         ocrConfidence: ocr.meanConfidence,
         pages: 1
       }
@@ -377,7 +377,7 @@ export async function read(file: string): Promise<Content | null> {
     return {
       text: ocr.text.slice(0, TEXT_CAP),
       images: [file],
-      method: 'vision',
+      method: "vision",
       ocrConfidence: ocr.meanConfidence,
       pages: 1
     }

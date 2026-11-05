@@ -27,9 +27,9 @@
  * ASCII in the SVG is what the parser sees. Re-measure before changing the
  * font stack: rasterise `['--', '\u2014', '-', '---']` and count the runs.
  */
-import { scratch } from './scratch.ts'
+import { scratch } from "./scratch.ts"
 
-export const FRAMES_DIR = '.audit/screenshots'
+export const FRAMES_DIR = ".audit/screenshots"
 
 /** Menlo at 13px. The SVG box is sized from these, so nothing is clipped. */
 const CHAR_W = 7.9
@@ -37,10 +37,10 @@ const LINE_H = 18
 const PAD = 12
 const FONT_SIZE = 13
 
-const repo = import.meta.dir.replace(/\/tests$/, '')
+const repo = import.meta.dir.replace(/\/tests$/, "")
 
 function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
 /**
@@ -51,17 +51,17 @@ function esc(s: string): string {
  */
 const C0 = new RegExp(
   `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}-${String.fromCharCode(31)}]`,
-  'g'
+  "g"
 )
 
 /** The text a frame draws: the stdout without its C0 bytes or trailing newlines. */
 function shownOf(text: string): string {
-  return text.replace(C0, '').replace(/\n+$/, '')
+  return text.replace(C0, "").replace(/\n+$/, "")
 }
 
 /** The shown text as an SVG image, one <text> per line so nothing re-wraps. */
 function toSvg(shown: string): string {
-  const lines = shown.split('\n')
+  const lines = shown.split("\n")
   let cols = 0
   for (const l of lines) if (l.length > cols) cols = l.length
   const w = Math.ceil(cols * CHAR_W) + PAD * 2
@@ -75,7 +75,7 @@ function toSvg(shown: string): string {
         `fill="#e6e6e6" xml:space="preserve">${esc(l.trimStart())}</text>`
       )
     })
-    .join('\n  ')
+    .join("\n  ")
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">\n` +
     `  <rect width="${w}" height="${h}" fill="#101014"/>\n` +
@@ -105,22 +105,22 @@ export async function frame(text: string, name: string): Promise<string> {
   // sips does not create missing parent directories, and .audit/ is gitignored,
   // so on a fresh clone the directory is not there. The graph's capture node
   // makes it, but this writer must not depend on who called it.
-  const mk = Bun.spawnSync(['mkdir', '-p', dir])
+  const mk = Bun.spawnSync(["mkdir", "-p", dir])
   if (mk.exitCode !== 0) {
     throw new Error(`frame ${name}: mkdir -p ${dir} failed: ${mk.stderr.toString().trim()}`)
   }
   const out = `${dir}/${name}.png`
   // A predictable name in a shared TMPDIR is a symlink target. Unique per call,
   // and in a scratch directory, so the intermediate is not left behind either.
-  const svg = `${scratch('docnamer-frame')}/frame.svg`
+  const svg = `${scratch("docnamer-frame")}/frame.svg`
   await Bun.write(svg, svgText)
-  const p = Bun.spawnSync(['sips', '-s', 'format', 'png', svg, '--out', out])
+  const p = Bun.spawnSync(["sips", "-s", "format", "png", svg, "--out", out])
   if (p.exitCode !== 0) {
     throw new Error(`frame ${name}: sips failed (${p.exitCode}): ${p.stderr.toString().trim()}`)
   }
   const f = Bun.file(out)
   if (!(await f.exists()) || f.size === 0)
     throw new Error(`frame ${name}: ${out} is missing or empty`)
-  await Bun.write(`${dir}/${name}.txt`, shown + '\n')
+  await Bun.write(`${dir}/${name}.txt`, shown + "\n")
   return out
 }
