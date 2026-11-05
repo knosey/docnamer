@@ -11,27 +11,17 @@
 # suite that reached the model API from here would bill per commit and fail on a
 # plane. tests/build.test.ts is deliberately absent — it makes a real call and is
 # run by `bun run test:e2e`.
-#
-# A deletion changes the tree as much as an addition does, so the gates run for it
-# too; only an added, renamed or modified file has anything to format.
 set -e
 
-touched=$(git diff --cached --name-only --diff-filter=ACMRD)
-[ -n "$touched" ] || exit 0
+# A deletion changes the tree as much as an addition does, so the gates run for
+# it too; only an added, copied or modified file has anything to format.
+staged=$(git diff --cached --name-only --diff-filter=ACMRD)
+[ -n "$staged" ] || exit 0
 
-changed=$(git diff --cached --name-only --diff-filter=ACMR)
-
-targets=""
-for file in $changed; do
-  case "$file" in
-    *.ts | *.json) targets="$targets $file" ;;
-  esac
-done
+targets=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.json')
 if [ -n "$targets" ]; then
   bun fmt --no-script $targets
-  for file in $targets; do
-    git add -- "$file"
-  done
+  git add -- $targets
 fi
 
 bun check
