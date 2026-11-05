@@ -154,6 +154,20 @@ const PROGRAM_EXAMPLES: readonly Example[] = [
   ['docnamer login', 'pick a provider from the catalog']
 ]
 
+/**
+ * The folder's own config, key by key — the top level of `Config` in
+ * src/config.ts. The first line is the one that matters most: a config file
+ * REPLACES the shipped roster, so a folder that lists two types loses the rest.
+ */
+const CONFIG_KEYS: readonly Example[] = [
+  [CONFIG_FILE, 'put one in a folder to replace the shipped types for that folder'],
+  ['defaults', 'date_format, date_order, max_name_length, the three switches'],
+  ['models', 'cheap, vision and strong, by the id a provider lists'],
+  ['types', 'one entry per document type: describe, template, fields'],
+  ['entities', 'company spellings, all mapped to one canonical name'],
+  ['self', 'the companies that are yours']
+]
+
 /** Read from the manifest, never typed here, so the two cannot drift apart. */
 const VERSION: string = pkg.version
 
@@ -224,6 +238,9 @@ function helpText(cmd?: Command): string {
           '',
           'OPTIONS',
           column([OPTIONS.recursive, OPTIONS.run, OPTIONS.help, OPTIONS.version]),
+          '',
+          'CONFIG',
+          column(CONFIG_KEYS),
           '',
           'EXAMPLES',
           column(PROGRAM_EXAMPLES)
