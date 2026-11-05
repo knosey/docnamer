@@ -59,7 +59,36 @@ PDF, scans and photos, Word, Excel, PowerPoint, Pages, and plain text. Text come
 
 Invoices, receipts, statements, payslips, bills, tax, insurance, contracts, letters, tickets, and the rest of ordinary paperwork each get their own name. Anything that fits none of those is still named, from its date and title.
 
-Drop a `docnamer.json` in the folder to change the types or the name shapes. A folder without one uses the built-in set.
+## Configuring a folder
+
+Copy this repo's `docnamer.json` into the folder and edit the copy. A folder carrying that file is planned by that file **alone**: it replaces the built-in set, it does not merge with it. Write a three-line config and every type you left out is gone. A folder carrying no `docnamer.json` uses the built-in set, which is this same file compiled into the binary.
+
+| Key | What it sets |
+| --- | --- |
+| `defaults` | `date_format`, `date_order` (`day-first` or `month-first`), `max_name_length`, and three switches: `ocr_text_layer` (write a text sidecar beside a scan), `finder_tags`, `finder_comment` |
+| `models` | Three model ids: `cheap` reads text, `vision` reads scans and photos, `strong` takes a second look when the first reply could not be read |
+| `types` | One entry per document type — the part you edit to change naming |
+| `entities` | Company names, each with the spellings that mean it |
+| `self` | The companies that are yours, so an invoice you issued is named after its customer |
+
+A type is four keys:
+
+```json
+"receipt": {
+  "describe": "Proof of payment after a purchase.",
+  "template": "{date} {vendor} receipt",
+  "fields": {
+    "date": { "kind": "date", "required": true },
+    "vendor": { "kind": "entity", "required": true }
+  }
+}
+```
+
+`describe` is the sentence the model reads to decide the type. `template` is the name: `{field}` becomes that field's value, everything outside braces is literal. `fields` declares what gets read, and `kind` says how it is cleaned before it names anything — `date` into your `date_format`, `entity` into the canonical spelling in `entities`, `last4` down to four digits, `text` as it came. A `required` field the document does not carry flags the row instead of naming it wrongly.
+
+`counterparty` on an entity field names which other field takes over when this one is a company of yours: an invoice's `issuer` gives way to its `customer`, so the invoice you sent is named after who you sent it to. `self` holds those companies; `entities` holds everyone else's spellings.
+
+Adding a type is one more entry under `types`, plus any new company spellings under `entities`.
 
 ## Also
 
