@@ -67,12 +67,7 @@ Drop a `docnamer.json` in the folder to change the types or the name shapes. A f
 
 ## Credits
 
-Built on three MIT-licensed pieces:
-
-- [pi](https://github.com/earendil-works/pi) — `@earendil-works/pi-tui` draws the tables, the picker and the review screen; `@earendil-works/pi-ai` talks to the model providers.
-- [mac-ocr](https://github.com/privatenumber/mac-ocr) by Hiroki Osame — the Vision OCR binary that reads scans.
-
-The compiled app also carries Apache-2.0 code that pi-ai's provider catalogue pulls in (the OpenAI SDK and the AWS/smithy stack). Nothing is redistributed today; a build you hand to someone else needs those notices alongside it.
+Built on [pi](https://github.com/earendil-works/pi) (`pi-tui` for the screen, `pi-ai` for the model providers) and [mac-ocr](https://github.com/privatenumber/mac-ocr) by Hiroki Osame for the Vision OCR that reads scans.
 
 ## License
 
