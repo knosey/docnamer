@@ -1,6 +1,6 @@
 /**
  * Shared e2e harness for the doc-renamer-pipeline feature: one exported function per node of
- * INTERACTIONS.md's digraphs, so a flow test is its digraph's steps in order plus its Outcome:
+ * the ADR's digraphs (docs/adr/0002-doc-renamer-pipeline.md), so a flow test is its digraph's steps in order plus its Outcome:
  *
  *   const s = new Session();
  *   await entry(s); await read(s); await analyse(s); await name(s); await outcome(s);

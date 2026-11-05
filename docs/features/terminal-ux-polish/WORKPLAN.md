@@ -1,5 +1,7 @@
 # WORKPLAN: terminal-ux-polish
 
+Its decision, requirements and interactions are in `docs/adr/0005-terminal-ux-polish.md`.
+
 ## Global Constraints
 
 - Command names and flag names are unchanged (user decision: strings only).

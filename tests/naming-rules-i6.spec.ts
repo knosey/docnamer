@@ -1,6 +1,6 @@
 /**
  * E2E flow test for interaction I6 — "screenshot of a document keeps that type"
- * (docs/features/naming-rules/INTERACTIONS.md).
+ * (docs/adr/0004-naming-rules.md).
  *
  * The digraph is entry -> step -> outcome. This file is those harness calls
  * in that order, then the assertion of the Outcome: planning a screenshot

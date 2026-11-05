@@ -1,6 +1,6 @@
 /**
  * E2E for interaction I5 — photo title stays short
- * (docs/features/naming-rules/INTERACTIONS.md).
+ * (docs/adr/0004-naming-rules.md).
  *
  * Outcome: planning a photo that is not a readable document proposes a filename
  * of at most 100 characters whose title is about six words, not a paragraph.

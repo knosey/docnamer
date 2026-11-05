@@ -1,6 +1,6 @@
 // --- R4 formats: direct text extraction for xlsx/pptx/pages ------------------
 //
-// BRIEF.md R4 requires direct text extraction for xlsx, pptx and pages, beside
+// R4 (docs/adr/0002-doc-renamer-pipeline.md) requires direct text extraction for xlsx, pptx and pages, beside
 // txt/md/docx. A format read() cannot handle returns null — Stage 1's SKIP —
 // and the file silently never appears in the plan. This suite pins extraction
 // for all three formats against fixtures built here, in a tmp dir, from the

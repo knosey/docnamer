@@ -1,5 +1,7 @@
 # WORKPLAN: doc-renamer-apply
 
+Its decision, requirements and interactions are in `docs/adr/0003-doc-renamer-apply.md`.
+
 ## Global Constraints
 - Requires `doc-renamer-pipeline` to have shipped first: `src/config.ts`, `src/read.ts`, `src/analyse.ts`, `src/validate.ts`, `src/name.ts`, `src/commands.ts`, `src/cli.ts`, `docnamer.json` and `tests/fixtures/` must all exist and `docnamer plan <folder>` must work.
 - `src/commands.ts`, `src/cli.ts` and `package.json` already exist from that first feature. Where a task below Creates one of them it is rewriting that file in full, keeping every behaviour the pipeline feature already proved — `plan` must still work exactly as before after each rewrite.

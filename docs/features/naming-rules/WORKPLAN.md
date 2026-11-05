@@ -1,5 +1,7 @@
 # WORKPLAN: naming-rules
 
+Its decision, requirements and interactions are in `docs/adr/0004-naming-rules.md`.
+
 ## Global Constraints
 - `self` includes Knosey, Once, Saulx, and the alias Saulx B.V. An invoice or contract whose issuer or issuing party is self is named after the customer, never after us.
 - Version (`v3`, `V4`), status (`draft`) and a person token (`Jac`, `Jacqui`, `TM`) are their own fields. A Finder collision suffix ` (2)` is not a version and is never copied into a version field.

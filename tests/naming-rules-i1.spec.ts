@@ -1,6 +1,6 @@
 /**
  * E2E flow test for interaction I1 — "issued contract named after the customer"
- * (docs/features/naming-rules/INTERACTIONS.md).
+ * (docs/adr/0004-naming-rules.md).
  *
  * The digraph is entry -> step -> outcome; this file is those harness steps
  * called in order, then the assertion of the Outcome: planning

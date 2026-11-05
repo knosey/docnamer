@@ -1,6 +1,6 @@
 /**
  * E2E flow test for interaction I4 — "block progress bar next to the throbber
- * during analysis" (docs/features/terminal-ux-polish/INTERACTIONS.md).
+ * during analysis" (docs/adr/0005-terminal-ux-polish.md).
  *
  * The digraph is start_analysis -> throbber_with_bar -> capture_frames ->
  * analysis_frame_is_one_screen -> percentage_increases; this file is those

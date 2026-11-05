@@ -1,6 +1,6 @@
 /**
  * E2E flow test for interaction I1 — "version command leaves a clean terminal"
- * (docs/features/terminal-ux-polish/INTERACTIONS.md).
+ * (docs/adr/0005-terminal-ux-polish.md).
  *
  * The digraph is run_version -> capture_pty_frame -> {version_frame_legible,
  * no_stray_percent, prompt_on_own_line}; this file is those harness steps called in order, then

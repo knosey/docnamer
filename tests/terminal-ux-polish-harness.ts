@@ -1,6 +1,6 @@
 /**
  * Shared e2e harness for the terminal-ux-polish feature
- * (docs/features/terminal-ux-polish/INTERACTIONS.md).
+ * (docs/adr/0005-terminal-ux-polish.md).
  *
  * One exported function per node of the six digraphs. A flow test is its
  * digraph's steps called in order plus the assertion of its Outcome:

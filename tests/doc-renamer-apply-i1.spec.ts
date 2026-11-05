@@ -1,6 +1,6 @@
 /**
  * E2E flow test for interaction I1 — "Apply accepted rows with backup"
- * (docs/features/doc-renamer-apply/INTERACTIONS.md).
+ * (docs/adr/0003-doc-renamer-apply.md).
  *
  * The digraph is entry -> check -> rename -> record -> outcome; this file is
  * those harness steps called in order, then the assertion of the Outcome:

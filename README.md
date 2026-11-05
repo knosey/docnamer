@@ -90,6 +90,12 @@ A type is four keys:
 
 Adding a type is one more entry under `types`, plus any new company spellings under `entities`.
 
+## Docs
+
+What each part of the program is and where it lives: [`docs/NAVIGATION.md`](docs/NAVIGATION.md). What a word
+means here: [`docs/GLOSSARY.md`](docs/GLOSSARY.md). Why it is built this way — the decisions, the alternatives
+set aside and what each one costs — is in [`docs/adr/`](docs/adr/), one record per decision.
+
 ## Also
 
 `docnamer eval <testset>` scores a folder against an expected list and renames nothing. `docnamer auth` says where each provider key came from. `docnamer logout` removes a key this program stored.

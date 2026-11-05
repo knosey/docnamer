@@ -1,6 +1,6 @@
 /**
  * E2E test for I2: invoice versions stay distinct
- * (docs/features/naming-rules/INTERACTIONS.md).
+ * (docs/adr/0004-naming-rules.md).
  *
  * Digraph steps in order: entry -> step -> outcome. The harness owns seeding
  * `20260006 Crowdbuilding February v3.pdf` and `20260006 Crowdbuilding V4.pdf`

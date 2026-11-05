@@ -1,6 +1,6 @@
 /**
  * E2E flow test for interaction I3 — "revisit and change an already-assessed
- * document" (docs/features/terminal-ux-polish/INTERACTIONS.md).
+ * document" (docs/adr/0005-terminal-ux-polish.md).
  *
  * The digraph is accept_doc1 -> navigate_back -> edit_name ->
  * plan_updated_for_doc1 -> later_docs_unchanged; this file is those harness

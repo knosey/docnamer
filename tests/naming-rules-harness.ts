@@ -1,6 +1,6 @@
 /**
  * Shared e2e harness for the naming-rules feature
- * (docs/features/naming-rules/INTERACTIONS.md).
+ * (docs/adr/0004-naming-rules.md).
  *
  * Every digraph names the same three steps. A flow test is those steps in order
  * plus the assertion of its Outcome, and it reads nothing else of the app:

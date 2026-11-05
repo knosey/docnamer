@@ -1,6 +1,6 @@
 /**
  * E2E flow test for interaction I3 — "passport named in English with the holder"
- * (docs/features/naming-rules/INTERACTIONS.md).
+ * (docs/adr/0004-naming-rules.md).
  *
  * The digraph is entry -> step -> outcome; this file is those harness steps
  * called in order, then the assertion of the Outcome: planning
@@ -13,7 +13,7 @@
  */
 import { Session, entry, outcome, step } from "./naming-rules-harness.ts"
 
-/** date_format is YYYY-MM-DD (docs/features/naming-rules/BRIEF.md, out of scope to change). */
+/** date_format is YYYY-MM-DD (docs/adr/0004-naming-rules.md, out of scope to change). */
 const PASSPORT = /^\d{4}-\d{2}-\d{2} Jacqui passport\.pdf$/
 
 flow("naming-rules I3: passport named in English with the holder", async () => {

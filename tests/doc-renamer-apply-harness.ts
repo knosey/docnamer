@@ -1,7 +1,7 @@
 /**
  * Shared e2e harness for the doc-renamer-apply feature.
  *
- * One exported function per node of INTERACTIONS.md's digraphs. A flow test is
+ * One exported function per node of the ADR's digraphs. A flow test is
  * its digraph's steps called in order plus the assertion of its Outcome:
  *
  *   const s = new Session()

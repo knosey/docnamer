@@ -1,6 +1,6 @@
 /**
  * E2E flow test for interaction I1 — "Plan a folder of documents without
- * touching files" (docs/features/doc-renamer-pipeline/INTERACTIONS.md).
+ * touching files" (docs/adr/0002-doc-renamer-pipeline.md).
  *
  * The digraph is entry -> read -> analyse -> name -> outcome; this file is
  * those harness steps called in order, then the assertion of the Outcome:
