@@ -8,9 +8,11 @@ Point it at a folder of scans and letters. Get files named the way you would hav
 
 `scan_0047.pdf` becomes `2024-03-12 Acme Services invoice INV-2024-0817.pdf`. Finder gets a tag and a comment, so you can find it later. Nothing is renamed until you have seen the plan, and every run can be undone.
 
+> **macOS only.** docnamer runs on macOS and nothing else. It reads scans with the Vision OCR framework and writes Finder tags and comments through `osascript`, `xattr` and `plutil` — all of which ship with macOS and none of which exist on Linux or Windows. There is no Windows or Linux build, and the code does not check the platform: the build calls `codesign`, reading a scan runs a macOS Vision binary, and tagging calls `osascript`, so on another system it fails at the first of those. No machine other than this Mac has run it.
+
 ## Start
 
-macOS. From this repo, build it with [Bun](https://bun.sh), then sign in to a model provider.
+From this repo, build it with [Bun](https://bun.sh), then sign in to a model provider.
 
 ```sh
 bun run build
@@ -31,20 +33,25 @@ docnamer apply ~/Documents/unsorted
 
 ```sh
 docnamer undo ~/Documents/unsorted
+docnamer undo --run .docnamer-undo-2026-05-04T12-30-00-000Z.json ~/Documents/unsorted
 ```
+
+Without `--run`, undo takes the most recent run in the folder. With it, undo takes the run file you name — the names `apply` wrote into `.docnamer-undo-<timestamp>.json`.
 
 Include subfolders with `docnamer plan --recursive ~/Documents/unsorted`.
 
 ## What a plan looks like
 
 ```text
-OLD               NEW                                         TYPE
-dup-invoice.txt   2024-02-04 Globex invoice GLX-0091.txt      invoice
-receipt.png       2024-03-12 Acme Services receipt.png        receipt
 ▰▰▰▰▰▰▰▰▰▰ 100% planned 2 document(s)
+  OLD              NEW                                     TYPE     FLAGS
+  ───────────────  ──────────────────────────────────────  ───────  ─────────────────────────────
+! dup-invoice.txt  2024-02-04 Globex invoice GLX-0091.txt  invoice  missing required field number
+  receipt.png      2024-03-12 Acme Services receipt.png    receipt
+plan written to ~/Documents/unsorted/.docnamer-plan.json — run `docnamer review`
 ```
 
-A row the program is not sure about is marked. Review shows it first, and you can change the name before anything is applied.
+A `!` in the margin marks a row the program is not sure about, with the reason in FLAGS. Review shows those first, and you can change the name before anything is applied. On a narrow screen FLAGS gives way first, then the names truncate — the table never wraps a row onto two lines.
 
 ## What it reads
 
