@@ -3,7 +3,7 @@
 Its decision, requirements and interactions are in `docs/adr/0002-doc-renamer-pipeline.md`.
 
 ## Global Constraints
-- Native Bun APIs only (`Bun.file`, `Bun.$`, `Bun.Glob`, `Bun.spawn`); no `node:` built-ins anywhere in the codebase — R3, D2.
+- Bun's own APIs for the work (`Bun.file`, `Bun.write`, `Bun.Glob`, `Bun.spawn`), a `node:` built-in only where Bun has no equivalent — R3, D2.
 - All model calls go through `@earendil-works/pi-ai` version 1.5.0, declared in `package.json` and pinned exactly; no hand-rolled provider HTTP layer — R3, D4.
 - `docnamer <command> <folder>` is the entire integration surface; no importable library API — D3.
 - Ambiguous slashed dates are read day-first, driven by `date_order` in config — R8.

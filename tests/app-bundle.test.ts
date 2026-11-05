@@ -5,8 +5,7 @@ import { runChild } from "./child.ts"
 import { scratch } from "./scratch.ts"
 
 /**
- * S3 — Ship docnamer as its own macOS app: the bundle, its signing, and the
- * node:-built-in ban.
+ * S3 — Ship docnamer as its own macOS app: the bundle and its signing.
  *
  * The work under test is `scripts/build-app.ts` and `package.json` (the `build`
  * script): `bun run build` must compile the binary and assemble

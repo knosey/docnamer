@@ -4,7 +4,8 @@
  * A LaunchServices-launched binary has no controlling tty, so the wrapper hands
  * the app a device path, a size and a file for its exit code. All device bytes
  * move through `Bun.file(path).writer()` and `Bun.file(path).stream()` — never
- * a node: stream, because the compiled binary carries no node: built-ins.
+ * a node: stream, because every byte this app moves goes through Bun's own file
+ * APIs.
  */
 
 export type DeviceArgs = {

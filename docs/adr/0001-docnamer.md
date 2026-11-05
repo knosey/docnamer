@@ -16,8 +16,12 @@ His words are recorded because they are the reason, not a paraphrase of it.
   bundled app, that i will install locally, this is not calling or an extension of the pi editor".
   So no pi extension, no skill, and no dependency on `@earendil-works/pi-coding-agent`.
 - D2 — Native Bun throughout, "use native bun", "not node", "its what bun does": `Bun.file`,
-  `Bun.$`, `Bun.Glob`, `Bun.spawn`, `bun:sqlite`. Using Bun's own APIs is the point, not a
-  portability compromise, and no `node:` built-in appears in the code.
+  `Bun.write`, `Bun.spawn`/`Bun.spawnSync` and `Bun.Glob` carry the file, process and folder work,
+  and no database is opened at all. `node:` built-ins appear only where Bun has no equivalent:
+  `node:path` to resolve the binary's own location (`src/cli.ts:9`) and `node:fs`/
+  `node:fs/promises` for the owner-only credential write (`src/auth.ts:18-20`), which needs an
+  atomic rename and a mode `Bun.write` does not offer. Using Bun's own APIs is the point, not a
+  portability compromise.
 - D3 — The CLI subprocess is the entire integration surface. A shell script, a LaunchAgent or an
   editor calls `docnamer <command> <folder>`; nothing imports the code as a library.
 - D4 — Every model call goes through pi's own model layer, `@earendil-works/pi-ai` (1.5.0, which

@@ -16,8 +16,9 @@ not "rename" but "rename and be able to take it back until I am satisfied with i
 more: the deliverable is a single executable, "that i will install locally", so everything this
 feature adds has to fit inside a bundled binary with no project checkout beside it.
 
-Three constraints come from 0001 and are binding: native Bun APIs only, no `node:` built-in, the
-CLI subprocess as the only surface, and model calls through `@earendil-works/pi-ai`.
+Three constraints come from 0001 and are binding: Bun's own APIs for the work, a `node:` built-in
+only where Bun has no equivalent, the CLI subprocess as the only surface, and model calls through
+`@earendil-works/pi-ai`.
 
 Four things the machine settled rather than the design. The install path is `~/bin` — plain, not
 chezmoi-managed — because `~/.local/bin` is tracked and a build output there would become a dotfile.
@@ -33,7 +34,8 @@ names back, `eval` scores the pipeline without renaming anything, and `bun run b
 standalone binary at `~/bin/docnamer`.
 
 - R1: A single self-contained executable, produced by `bun build --compile`, installed at `~/bin`,
-  running with no project checkout on disk and with no `node:` built-in anywhere in the source.
+  running with no project checkout on disk and with its documents, its OCR binary and its config
+  all reached from inside the binary.
 - R2: `apply <folder>` renames each accepted plan row in place to its new name, writes the type's
   Finder tag and its comment when that is enabled, records every change in the undo file, and
   deletes the plan file.
