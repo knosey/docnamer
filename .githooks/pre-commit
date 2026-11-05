@@ -11,10 +11,15 @@
 # suite that reached the model API from here would bill per commit and fail on a
 # plane. tests/build.test.ts is deliberately absent — it makes a real call and is
 # run by `bun run test:e2e`.
+#
+# A deletion changes the tree as much as an addition does, so the gates run for it
+# too; only an added, renamed or modified file has anything to format.
 set -e
 
+touched=$(git diff --cached --name-only --diff-filter=ACMRD)
+[ -n "$touched" ] || exit 0
+
 changed=$(git diff --cached --name-only --diff-filter=ACMR)
-[ -n "$changed" ] || exit 0
 
 targets=""
 for file in $changed; do
