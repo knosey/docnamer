@@ -65,6 +65,15 @@ Drop a `docnamer.json` in the folder to change the types or the name shapes. A f
 
 `docnamer eval <testset>` scores a folder against an expected list and renames nothing. `docnamer auth` says where each provider key came from. `docnamer logout` removes a key this program stored.
 
+## Credits
+
+Built on three MIT-licensed pieces:
+
+- [pi](https://github.com/earendil-works/pi) — `@earendil-works/pi-tui` draws the tables, the picker and the review screen; `@earendil-works/pi-ai` talks to the model providers.
+- [mac-ocr](https://github.com/privatenumber/mac-ocr) by Hiroki Osame — the Vision OCR binary that reads scans.
+
+The compiled app also carries Apache-2.0 code that pi-ai's provider catalogue pulls in (the OpenAI SDK and the AWS/smithy stack). Nothing is redistributed today; a build you hand to someone else needs those notices alongside it.
+
 ## License
 
 [MIT](LICENSE) © 2026 Knosey
